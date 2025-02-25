@@ -1,0 +1,116 @@
+<!--pages/userManage/userManage.wxml-->
+<view class="container">
+  <view class="header-card">
+    <view class="card-title">用户管理</view>
+    <button class="add-btn" bindtap="showAddDialog">添加用户</button>
+  </view>
+
+  <view class="user-list" wx:if="{{users.length > 0}}">
+    <view class="user-item" wx:for="{{users}}" wx:key="id">
+      <view class="user-info">
+        <text class="user-name">{{item.nickname || item.username}}</text>
+        <text class="user-role">{{item.role === 1 ? '管理员' : '店员'}}</text>
+        <text class="user-username">账号: {{item.username}}</text>
+      </view>
+      <view class="user-actions">
+        <text class="action-btn perm" bindtap="showPermDialog" data-id="{{item.id}}">权限</text>
+        <text class="action-btn reset" bindtap="showResetDialog" data-id="{{item.id}}">重置密码</text>
+        <text class="action-btn edit" bindtap="editUser" data-id="{{item.id}}">编辑</text>
+        <text class="action-btn delete" bindtap="confirmDelete" data-id="{{item.id}}">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-tip" wx:else>
+    <text>暂无用户数据</text>
+  </view>
+
+  <!-- 添加/编辑用户弹窗 -->
+  <view class="dialog-mask" wx:if="{{showDialog}}" bindtap="closeDialog">
+    <view class="dialog" catchtap="stopPropagation">
+      <view class="dialog-header">
+        <text>{{isEditing ? '编辑用户' : '添加用户'}}</text>
+        <view class="close-icon" bindtap="closeDialog">×</view>
+      </view>
+      
+      <view class="dialog-content">
+        <view class="form-item">
+          <text class="label">用户名</text>
+          <input class="input" placeholder="请输入用户名" value="{{currentUser.username}}" bindinput="inputUsername" disabled="{{isEditing}}" />
+        </view>
+        
+        <view class="form-item" wx:if="{{!isEditing}}">
+          <text class="label">密码</text>
+          <input class="input" placeholder="请输入密码" value="{{currentUser.password}}" password type="text" bindinput="inputPassword" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">昵称</text>
+          <input class="input" placeholder="请输入昵称" value="{{currentUser.nickname}}" bindinput="inputNickname" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">角色</text>
+          <picker bindchange="bindRoleChange" value="{{roleIndex}}" range="{{roleOptions}}" range-key="name">
+            <view class="picker">
+              {{roleOptions[roleIndex].name}}
+            </view>
+          </picker>
+        </view>
+        
+        <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+        
+        <button class="submit-btn" bindtap="submitUser">提交</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 重置密码弹窗 -->
+  <view class="dialog-mask" wx:if="{{showResetPwdDialog}}" bindtap="closeResetDialog">
+    <view class="dialog" catchtap="stopPropagation">
+      <view class="dialog-header">
+        <text>重置密码</text>
+        <view class="close-icon" bindtap="closeResetDialog">×</view>
+      </view>
+      
+      <view class="dialog-content">
+        <view class="form-item">
+          <text class="label">新密码</text>
+          <input class="input" placeholder="请输入新密码" value="{{newPassword}}" password type="text" bindinput="inputNewPassword" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">确认密码</text>
+          <input class="input" placeholder="请再次输入新密码" value="{{confirmPassword}}" password type="text" bindinput="inputConfirmPassword" />
+        </view>
+        
+        <view class="error-msg" wx:if="{{resetErrorMsg}}">{{resetErrorMsg}}</view>
+        
+        <button class="submit-btn" bindtap="submitResetPassword">确认重置</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 店铺权限弹窗 -->
+  <view class="dialog-mask" wx:if="{{showPermissionsDialog}}" bindtap="closePermDialog">
+    <view class="dialog permissions-dialog" catchtap="stopPropagation">
+      <view class="dialog-header">
+        <text>设置店铺权限</text>
+        <view class="close-icon" bindtap="closePermDialog">×</view>
+      </view>
+      
+      <view class="dialog-content">
+        <view class="perm-list">
+          <view class="perm-item" wx:for="{{storePermissions}}" wx:key="store_id">
+            <checkbox value="{{item.store_id}}" checked="{{item.has_permission}}" bindtap="togglePermission" data-id="{{item.store_id}}"></checkbox>
+            <text class="store-name">{{item.store_name}}</text>
+          </view>
+        </view>
+        
+        <view class="error-msg" wx:if="{{permErrorMsg}}">{{permErrorMsg}}</view>
+        
+        <button class="submit-btn" bindtap="submitPermissions">保存权限</button>
+      </view>
+    </view>
+  </view>
+</view>

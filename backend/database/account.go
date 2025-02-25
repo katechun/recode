@@ -1,0 +1,160 @@
+package database
+
+import (
+	"fmt"
+	"log"
+	"strconv"
+	"time"
+
+	"account/backend/models"
+)
+
+// CreateAccount 创建账务记录
+func CreateAccount(account *models.Account) (int64, error) {
+	result, err := DB.Exec(`
+		INSERT INTO accounts (store_id, user_id, type_id, amount, remark, transaction_time, create_time, update_time)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+	`, account.StoreID, account.UserID, account.TypeID, account.Amount, account.Remark,
+		account.TransactionTime, account.CreateTime, account.UpdateTime)
+
+	if err != nil {
+		return 0, err
+	}
+
+	id, err := result.LastInsertId()
+	if err != nil {
+		return 0, err
+	}
+
+	return id, nil
+}
+
+// GetAccounts 获取账务记录列表
+func GetAccounts(storeID, typeID, startDate, endDate, limitStr string) ([]map[string]interface{}, error) {
+	query := `
+		SELECT a.id, a.store_id, s.name as store_name, a.user_id, u.username, 
+		a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time
+		FROM accounts a
+		LEFT JOIN stores s ON a.store_id = s.id
+		LEFT JOIN users u ON a.user_id = u.id
+		LEFT JOIN account_types t ON a.type_id = t.id
+		WHERE 1=1
+	`
+	var args []interface{}
+
+	// 添加筛选条件
+	if storeID != "" {
+		query += " AND a.store_id = ?"
+		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
+		args = append(args, storeIDInt)
+	}
+
+	if typeID != "" {
+		query += " AND a.type_id = ?"
+		typeIDInt, _ := strconv.ParseInt(typeID, 10, 64)
+		args = append(args, typeIDInt)
+	}
+
+	if startDate != "" {
+		query += " AND a.transaction_time >= ?"
+		args = append(args, startDate+" 00:00:00")
+	}
+
+	if endDate != "" {
+		query += " AND a.transaction_time <= ?"
+		args = append(args, endDate+" 23:59:59")
+	}
+
+	// 排序
+	query += " ORDER BY a.transaction_time DESC"
+
+	// 限制条数
+	if limitStr != "" {
+		limit, err := strconv.Atoi(limitStr)
+		if err == nil && limit > 0 {
+			query += fmt.Sprintf(" LIMIT %d", limit)
+		}
+	}
+
+	// 执行查询
+	rows, err := DB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	accounts := []map[string]interface{}{}
+	for rows.Next() {
+		var id, storeID, typeID, userID int64
+		var storeName, username, typeName, remark string
+		var amount float64
+		var transactionTime time.Time
+
+		err := rows.Scan(&id, &storeID, &storeName, &userID, &username, &typeID, &typeName, &amount, &remark, &transactionTime)
+		if err != nil {
+			log.Printf("扫描账务记录失败: %v", err)
+			continue
+		}
+
+		account := map[string]interface{}{
+			"id":               id,
+			"store_id":         storeID,
+			"store_name":       storeName,
+			"user_id":          userID,
+			"username":         username,
+			"type_id":          typeID,
+			"type_name":        typeName,
+			"amount":           amount,
+			"remark":           remark,
+			"transaction_time": transactionTime.Format("2006-01-02 15:04:05"),
+		}
+		accounts = append(accounts, account)
+	}
+
+	return accounts, nil
+}
+
+// GetAccountStatistics 获取账务统计
+func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interface{}, error) {
+	query := `
+		SELECT 
+			COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_income,
+			COALESCE(SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END), 0) as total_expense,
+			COALESCE(SUM(amount), 0) as net_amount
+		FROM accounts
+		WHERE 1=1
+	`
+	var args []interface{}
+
+	// 添加筛选条件
+	if storeID != "" {
+		query += " AND store_id = ?"
+		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
+		args = append(args, storeIDInt)
+	}
+
+	if startDate != "" {
+		query += " AND transaction_time >= ?"
+		args = append(args, startDate+" 00:00:00")
+	}
+
+	if endDate != "" {
+		query += " AND transaction_time <= ?"
+		args = append(args, endDate+" 23:59:59")
+	}
+
+	// 执行查询
+	var totalIncome, totalExpense, netAmount float64
+	err := DB.QueryRow(query, args...).Scan(&totalIncome, &totalExpense, &netAmount)
+	if err != nil {
+		return nil, err
+	}
+
+	stats := map[string]interface{}{
+		"total_income":  totalIncome,
+		"total_expense": totalExpense,
+		"net_amount":    netAmount,
+	}
+
+	return stats, nil
+} 

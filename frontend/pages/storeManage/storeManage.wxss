@@ -1,0 +1,173 @@
+/* pages/storeManage/storeManage.wxss */
+.container {
+  padding: 30rpx;
+}
+
+.header-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 30rpx;
+  background-color: #fff;
+  border-radius: 12rpx;
+  margin-bottom: 30rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.card-title {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.add-btn {
+  padding: 10rpx 30rpx;
+  background-color: #1aad19;
+  color: #fff;
+  font-size: 28rpx;
+  border-radius: 8rpx;
+  line-height: 1.5;
+}
+
+.store-list {
+  background-color: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+}
+
+.store-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 30rpx;
+  border-bottom: 1rpx solid #f5f5f5;
+}
+
+.store-item:last-child {
+  border-bottom: none;
+}
+
+.store-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.store-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.store-address, .store-phone {
+  font-size: 26rpx;
+  color: #999;
+  margin-bottom: 6rpx;
+}
+
+.store-actions {
+  display: flex;
+  align-items: center;
+}
+
+.action-btn {
+  margin-left: 30rpx;
+  font-size: 28rpx;
+}
+
+.edit {
+  color: #1aad19;
+}
+
+.delete {
+  color: #ff4d4f;
+}
+
+.empty-tip {
+  text-align: center;
+  padding: 60rpx 0;
+  color: #999;
+  font-size: 28rpx;
+  background-color: #fff;
+  border-radius: 12rpx;
+}
+
+/* 弹窗样式 */
+.dialog-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.dialog {
+  width: 600rpx;
+  background-color: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+}
+
+.dialog-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  font-size: 32rpx;
+  font-weight: bold;
+}
+
+.close-icon {
+  font-size: 48rpx;
+  color: #999;
+  line-height: 1;
+}
+
+.dialog-content {
+  padding: 30rpx;
+}
+
+.form-item {
+  margin-bottom: 30rpx;
+}
+
+.label {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 10rpx;
+}
+
+.input {
+  width: 100%;
+  height: 80rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  padding: 0 20rpx;
+  font-size: 28rpx;
+  box-sizing: border-box;
+}
+
+.error-msg {
+  color: #ff4d4f;
+  font-size: 24rpx;
+  margin-bottom: 20rpx;
+}
+
+.submit-btn {
+  width: 100%;
+  height: 88rpx;
+  background-color: #1aad19;
+  color: #fff;
+  font-size: 32rpx;
+  border-radius: 8rpx;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}

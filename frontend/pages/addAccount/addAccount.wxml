@@ -1,0 +1,59 @@
+<view class="container">
+  <view class="header">
+    <view class="tab-bar">
+      <view class="tab-item {{accountType === 'income' ? 'active' : ''}}" bindtap="switchAccountType" data-type="income">
+        <text>收入</text>
+      </view>
+      <view class="tab-item {{accountType === 'expense' ? 'active' : ''}}" bindtap="switchAccountType" data-type="expense">
+        <text>支出</text>
+      </view>
+    </view>
+  </view>
+  
+  <view class="form-container">
+    <view class="form-item">
+      <text class="form-label">金额</text>
+      <input class="form-input amount-input" type="digit" placeholder="请输入金额" value="{{amount}}" bindinput="bindAmountInput" />
+    </view>
+    
+    <view class="form-item">
+      <text class="form-label">店铺</text>
+      <picker mode="selector" range="{{stores}}" range-key="name" bindchange="bindStoreChange">
+        <view class="form-picker">
+          <text>{{selectedStoreName}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    
+    <view class="form-item">
+      <text class="form-label">类型</text>
+      <picker mode="selector" range="{{accountTypes}}" range-key="name" bindchange="bindTypeChange">
+        <view class="form-picker">
+          <text>{{selectedTypeName}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    
+    <view class="form-item">
+      <text class="form-label">日期</text>
+      <picker mode="date" value="{{transactionTime}}" bindchange="bindDateChange">
+        <view class="form-picker">
+          <text>{{transactionTime || currentDate}}</text>
+          <text class="picker-arrow">▼</text>
+        </view>
+      </picker>
+    </view>
+    
+    <view class="form-item">
+      <text class="form-label">备注</text>
+      <input class="form-input" placeholder="请输入备注（选填）" value="{{remark}}" bindinput="bindRemarkInput" />
+    </view>
+  </view>
+  
+  <view class="button-group">
+    <button class="btn cancel-btn" bindtap="cancelAccount">取消</button>
+    <button class="btn submit-btn" bindtap="submitAccount">保存</button>
+  </view>
+</view> 

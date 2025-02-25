@@ -1,0 +1,56 @@
+<!--pages/storeManage/storeManage.wxml-->
+<view class="container">
+  <view class="header-card">
+    <view class="card-title">店铺管理</view>
+    <button class="add-btn" bindtap="showAddDialog">添加店铺</button>
+  </view>
+
+  <view class="store-list" wx:if="{{stores.length > 0}}">
+    <view class="store-item" wx:for="{{stores}}" wx:key="id">
+      <view class="store-info">
+        <text class="store-name">{{item.name}}</text>
+        <text class="store-address">{{item.address || '无地址'}}</text>
+        <text class="store-phone">{{item.phone || '无电话'}}</text>
+      </view>
+      <view class="store-actions">
+        <text class="action-btn edit" bindtap="editStore" data-id="{{item.id}}">编辑</text>
+        <text class="action-btn delete" bindtap="confirmDelete" data-id="{{item.id}}">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-tip" wx:else>
+    <text>暂无店铺数据</text>
+  </view>
+
+  <!-- 添加/编辑店铺弹窗 -->
+  <view class="dialog-mask" wx:if="{{showDialog}}" bindtap="closeDialog">
+    <view class="dialog" catchtap="stopPropagation">
+      <view class="dialog-header">
+        <text>{{isEditing ? '编辑店铺' : '添加店铺'}}</text>
+        <view class="close-icon" bindtap="closeDialog">×</view>
+      </view>
+      
+      <view class="dialog-content">
+        <view class="form-item">
+          <text class="label">店铺名称</text>
+          <input class="input" placeholder="请输入店铺名称" value="{{currentStore.name}}" bindinput="inputStoreName" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">店铺地址</text>
+          <input class="input" placeholder="请输入店铺地址" value="{{currentStore.address}}" bindinput="inputStoreAddress" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">联系电话</text>
+          <input class="input" placeholder="请输入联系电话" value="{{currentStore.phone}}" bindinput="inputStorePhone" />
+        </view>
+        
+        <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+        
+        <button class="submit-btn" bindtap="submitStore">提交</button>
+      </view>
+    </view>
+  </view>
+</view>

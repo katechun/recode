@@ -1,0 +1,56 @@
+<!--pages/accountType/accountType.wxml-->
+<view class="container">
+  <view class="header-card">
+    <view class="card-title">账务类型管理</view>
+    <button class="add-btn" bindtap="showAddDialog">添加类型</button>
+  </view>
+
+  <view class="type-list" wx:if="{{accountTypes.length > 0}}">
+    <view class="type-item" wx:for="{{accountTypes}}" wx:key="id">
+      <view class="type-info">
+        <text class="type-name">{{item.name}}</text>
+        <text class="type-category {{item.is_expense ? 'expense' : 'income'}}">
+          {{item.is_expense ? '支出' : '收入'}}
+        </text>
+      </view>
+      <view class="type-actions">
+        <text class="action-btn edit" bindtap="editType" data-id="{{item.id}}">编辑</text>
+        <text class="action-btn delete" bindtap="confirmDelete" data-id="{{item.id}}">删除</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="empty-tip" wx:else>
+    <text>暂无账务类型数据</text>
+  </view>
+
+  <!-- 添加/编辑账务类型弹窗 -->
+  <view class="dialog-mask" wx:if="{{showDialog}}" bindtap="closeDialog">
+    <view class="dialog" catchtap="stopPropagation">
+      <view class="dialog-header">
+        <text>{{isEditing ? '编辑账务类型' : '添加账务类型'}}</text>
+        <view class="close-icon" bindtap="closeDialog">×</view>
+      </view>
+      
+      <view class="dialog-content">
+        <view class="form-item">
+          <text class="label">类型名称</text>
+          <input class="input" placeholder="请输入类型名称" value="{{currentType.name}}" bindinput="inputTypeName" />
+        </view>
+        
+        <view class="form-item">
+          <text class="label">类型分类</text>
+          <picker bindchange="bindCategoryChange" value="{{categoryIndex}}" range="{{categoryOptions}}" range-key="name">
+            <view class="picker">
+              {{categoryOptions[categoryIndex].name}}
+            </view>
+          </picker>
+        </view>
+        
+        <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+        
+        <button class="submit-btn" bindtap="submitType">提交</button>
+      </view>
+    </view>
+  </view>
+</view>

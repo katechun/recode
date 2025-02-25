@@ -1,0 +1,194 @@
+<!--index.wxml-->
+<scroll-view class="scrollarea" scroll-y type="list">
+  <view class="container">
+    <!-- 顶部用户信息和设置区域 -->
+    <view class="top-section">
+      <view class="user-info-card">
+        <image class="avatar" src="{{userInfo.avatar || '/static/images/default-avatar.png'}}"></image>
+        <view class="user-basic-info">
+          <text class="nickname">{{userInfo.nickname || userInfo.username}}</text>
+          <text class="role">{{isAdmin ? '管理员' : '店员'}}</text>
+        </view>
+      </view>
+      
+      <!-- 修改为按钮形式 -->
+      <view class="default-settings-btn" bindtap="showDefaultSettings">
+        <text class="settings-btn-text">记账默认</text>
+        <text class="settings-btn-icon">⚙️</text>
+      </view>
+    </view>
+    
+    <!-- 顶部统计卡片 -->
+    <view class="header">
+      <view class="filter-bar">
+        <picker mode="selector" range="{{dateOptions}}" bindchange="bindDateRangeChange">
+          <view class="date-range">
+            <text>{{dateRange}}</text>
+            <view class="dropdown-icon"></view>
+          </view>
+        </picker>
+        
+        <view class="store-selector" bindtap="showStorePicker">
+          <text>{{selectedStoreName || '全部店铺'}}</text>
+          <view class="dropdown-icon"></view>
+        </view>
+      </view>
+      
+      <view class="stats-card">
+        <view class="stats-item">
+          <text class="stats-label">收入</text>
+          <text class="stats-value income">{{totalIncome}}</text>
+        </view>
+        <view class="stats-item">
+          <text class="stats-label">支出</text>
+          <text class="stats-value expense">{{totalExpense}}</text>
+        </view>
+        <view class="stats-item">
+          <text class="stats-label">结余</text>
+          <text class="stats-value {{netAmount >= 0 ? 'income' : 'expense'}}">{{netAmount}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 快捷记账区域 -->
+    <view class="quick-actions-area">
+      <view class="section-title">快捷记账</view>
+      <view class="quick-actions">
+        <view class="quick-action income" bindtap="quickAddAccount" data-type="income" data-store-id="{{selectedStore.id || ''}}" data-type-id="{{selectedIncomeType.id || ''}}">
+          <text class="quick-icon">+</text>
+          <text>收入</text>
+        </view>
+        <view class="quick-action expense" bindtap="quickAddAccount" data-type="expense" data-store-id="{{selectedStore.id || ''}}" data-type-id="{{selectedExpenseType.id || ''}}">
+          <text class="quick-icon">-</text>
+          <text>支出</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 今日数据概览 -->
+    <view class="data-overview card">
+      <view class="card-title">今日数据</view>
+      <view class="overview-content">
+        <view class="overview-item">
+          <text class="overview-label">收入</text>
+          <text class="overview-value income">¥{{todayIncome}}</text>
+        </view>
+        <view class="overview-item">
+          <text class="overview-label">支出</text>
+          <text class="overview-value expense">¥{{todayExpense}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 最近账目 -->
+    <view class="recent-accounts card">
+      <view class="card-header">
+        <text class="card-title">最近账目</text>
+        <view class="view-all" bindtap="navigateToAccount">查看全部</view>
+      </view>
+      <view class="account-list">
+        <block wx:if="{{recentAccounts.length > 0}}">
+          <view wx:for="{{recentAccounts}}" wx:key="id" class="account-item">
+            <view class="account-info">
+              <text class="account-store">{{item.store_name}}</text>
+              <text class="account-type">{{item.type_name}}</text>
+            </view>
+            <view class="account-detail">
+              <text class="account-amount {{item.amount >= 0 ? 'income' : 'expense'}}">{{item.amount >= 0 ? '+' : ''}}{{item.amount}}</text>
+              <text class="account-time">{{item.create_time}}</text>
+            </view>
+          </view>
+        </block>
+        <view wx:else class="no-data">暂无账目数据</view>
+      </view>
+    </view>
+    
+    <!-- 管理功能区域移动到最近账目下面 -->
+    <block wx:if="{{isAdmin}}">
+      <view class="admin-functions">
+        <view class="section-title">管理功能</view>
+        <view class="function-list">
+          <view class="function-item" bindtap="goToStoreManage">
+            <text class="function-icon">🏪</text>
+            <text class="function-text">店铺管理</text>
+          </view>
+          <view class="function-item" bindtap="goToUserManage">
+            <text class="function-icon">👤</text>
+            <text class="function-text">用户管理</text>
+          </view>
+          <view class="function-item" bindtap="goToAccountType">
+            <text class="function-icon">📊</text>
+            <text class="function-text">账务类型</text>
+          </view>
+        </view>
+      </view>
+    </block>
+    
+    <!-- 退出登录按钮 -->
+    <view class="logout-btn" bindtap="logout">退出登录</view>
+    
+    <!-- 店铺选择弹窗 -->
+    <view class="store-picker-mask" wx:if="{{storePickerVisible}}" bindtap="closeStorePicker">
+      <view class="store-picker" catchtap="stopPropagation">
+        <view class="store-picker-header">
+          <text>选择店铺</text>
+          <view class="close-icon" bindtap="closeStorePicker">×</view>
+        </view>
+        <view class="store-list">
+          <view class="store-item {{(selectedStoreId === item.id) ? 'active' : ''}}" 
+            wx:for="{{stores || []}}" 
+            wx:key="id" 
+            data-index="{{index}}" 
+            bindtap="selectStore">
+            {{item.name || ''}}
+          </view>
+        </view>
+      </view>
+    </view>
+
+    <!-- 添加记账默认弹窗 -->
+    <view class="settings-mask" wx:if="{{defaultSettingsVisible}}" bindtap="closeDefaultSettings">
+      <view class="settings-modal" catchtap="stopPropagation">
+        <view class="settings-header">
+          <text class="settings-title">记账默认设置</text>
+          <view class="close-icon" bindtap="closeDefaultSettings">×</view>
+        </view>
+        <view class="settings-content">
+          <!-- 店铺选择 -->
+          <view class="settings-item">
+            <text class="settings-label">店铺:</text>
+            <picker mode="selector" range="{{stores}}" range-key="name" value="{{storeIndex}}" bindchange="bindStoreChange">
+              <view class="settings-picker">
+                {{selectedStore ? selectedStore.name : '请选择店铺'}}
+              </view>
+            </picker>
+          </view>
+          
+          <!-- 收入类型选择 -->
+          <view class="settings-item">
+            <text class="settings-label">收入类型:</text>
+            <picker mode="selector" range="{{incomeTypes}}" range-key="name" value="{{incomeTypeIndex}}" bindchange="bindIncomeTypeChange">
+              <view class="settings-picker">
+                {{selectedIncomeType ? selectedIncomeType.name : '请选择收入类型'}}
+              </view>
+            </picker>
+          </view>
+          
+          <!-- 支出类型选择 -->
+          <view class="settings-item">
+            <text class="settings-label">支出类型:</text>
+            <picker mode="selector" range="{{expenseTypes}}" range-key="name" value="{{expenseTypeIndex}}" bindchange="bindExpenseTypeChange">
+              <view class="settings-picker">
+                {{selectedExpenseType ? selectedExpenseType.name : '请选择支出类型'}}
+              </view>
+            </picker>
+          </view>
+          
+          <view class="btn-container">
+            <button class="save-btn" bindtap="closeDefaultSettings">确定</button>
+          </view>
+        </view>
+      </view>
+    </view>
+  </view>
+</scroll-view>

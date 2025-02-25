@@ -1,0 +1,21 @@
+<view class="container">
+  <view class="logo">
+    <image src="/static/images/logo.png" mode="aspectFit"></image>
+  </view>
+  
+  <view class="login-form">
+    <view class="form-item">
+      <text class="label">用户名</text>
+      <input class="input" type="text" placeholder="请输入用户名" bindinput="inputUsername" value="{{username}}"/>
+    </view>
+    
+    <view class="form-item">
+      <text class="label">密码</text>
+      <input class="input" type="password" placeholder="请输入密码" bindinput="inputPassword" value="{{password}}"/>
+    </view>
+    
+    <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+    
+    <button class="login-btn" bindtap="login">登 录</button>
+  </view>
+</view> 

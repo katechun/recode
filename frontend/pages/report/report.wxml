@@ -1,0 +1,72 @@
+<!--pages/report/report.wxml-->
+<view class="container">
+  <view class="filter-bar card">
+    <picker mode="date" value="{{startDate}}" start="2020-01-01" end="2030-12-31" bindchange="bindStartDateChange">
+      <view class="date-picker">
+        <text class="date-label">开始日期:</text>
+        <text class="date-value">{{startDate}}</text>
+      </view>
+    </picker>
+    
+    <picker mode="date" value="{{endDate}}" start="2020-01-01" end="2030-12-31" bindchange="bindEndDateChange">
+      <view class="date-picker">
+        <text class="date-label">结束日期:</text>
+        <text class="date-value">{{endDate}}</text>
+      </view>
+    </picker>
+    
+    <picker mode="selector" range="{{stores || []}}" range-key="name" bindchange="bindStoreChange">
+      <view class="store-picker">
+        <text class="store-label">店铺:</text>
+        <text class="store-value">{{selectedStoreName || '全部店铺'}}</text>
+      </view>
+    </picker>
+  </view>
+  
+  <view class="report-tabs">
+    <view class="tab {{showIncome ? 'active' : ''}}" bindtap="toggleReportType">收入分析</view>
+    <view class="tab {{!showIncome ? 'active' : ''}}" bindtap="toggleReportType">支出分析</view>
+  </view>
+  
+  <view class="report-content card">
+    <view class="empty-tip" wx:if="{{showIncome && incomeData.length === 0}}">
+      <text>暂无收入数据</text>
+    </view>
+    
+    <view class="empty-tip" wx:if="{{!showIncome && expenseData.length === 0}}">
+      <text>暂无支出数据</text>
+    </view>
+    
+    <view class="data-list" wx:if="{{showIncome && incomeData.length > 0}}">
+      <view class="data-item" wx:for="{{incomeData}}" wx:key="type_id">
+        <view class="data-info">
+          <text class="data-name">{{item.type_name}}</text>
+          <text class="data-count">{{item.count}}笔</text>
+        </view>
+        <view class="data-value-container">
+          <text class="data-value income">¥{{item.total}}</text>
+          <text class="data-percentage">{{item.percentage}}%</text>
+        </view>
+        <view class="progress-bar">
+          <view class="progress-inner income" style="width: {{item.percentage}}%"></view>
+        </view>
+      </view>
+    </view>
+    
+    <view class="data-list" wx:if="{{!showIncome && expenseData.length > 0}}">
+      <view class="data-item" wx:for="{{expenseData}}" wx:key="type_id">
+        <view class="data-info">
+          <text class="data-name">{{item.type_name}}</text>
+          <text class="data-count">{{item.count}}笔</text>
+        </view>
+        <view class="data-value-container">
+          <text class="data-value expense">¥{{item.total}}</text>
+          <text class="data-percentage">{{item.percentage}}%</text>
+        </view>
+        <view class="progress-bar">
+          <view class="progress-inner expense" style="width: {{item.percentage}}%"></view>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>

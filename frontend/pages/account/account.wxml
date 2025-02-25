@@ -1,0 +1,54 @@
+<!--pages/account/account.wxml-->
+<view class="container">
+  <view class="card">
+    <view class="card-title">记录账务</view>
+    
+    <view class="form-item">
+      <text class="label">所属店铺</text>
+      <picker bindchange="bindStoreChange" value="{{storeIndex}}" range="{{stores || []}}" range-key="name">
+        <view class="picker">
+          {{(storeIndex >= 0 && stores && stores.length > storeIndex) ? stores[storeIndex].name : '请选择店铺'}}
+        </view>
+      </picker>
+    </view>
+    
+    <view class="form-item">
+      <text class="label">账务类型</text>
+      <picker bindchange="bindTypeChange" value="{{typeIndex}}" range="{{accountTypes || []}}" range-key="name">
+        <view class="picker">
+          {{(typeIndex >= 0 && accountTypes && accountTypes.length > typeIndex) ? accountTypes[typeIndex].name : '请选择账务类型'}}
+        </view>
+      </picker>
+    </view>
+    
+    <view class="form-item">
+      <text class="label">金额</text>
+      <input class="input" type="digit" placeholder="请输入金额" bindinput="inputAmount" value="{{amount}}" />
+    </view>
+    
+    <view class="form-item">
+      <text class="label">备注</text>
+      <textarea class="textarea" placeholder="请输入备注信息" bindinput="inputRemark" value="{{remark}}"></textarea>
+    </view>
+    
+    <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+    
+    <button class="submit-btn" bindtap="submitAccount">提交记账</button>
+  </view>
+  
+  <view class="recent-records card" wx:if="{{recentRecords.length > 0}}">
+    <view class="card-title">最近记账</view>
+    <view class="record-list">
+      <view class="record-item" wx:for="{{recentRecords}}" wx:key="id">
+        <view class="record-info">
+          <text class="record-store">{{item.store_name}}</text>
+          <text class="record-type">{{item.type_name}}</text>
+        </view>
+        <view class="record-detail">
+          <text class="record-amount {{item.amount >= 0 ? 'income' : 'expense'}}">{{item.amount >= 0 ? '+' : ''}}{{item.amount}}</text>
+          <text class="record-time">{{item.transaction_time}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+</view>
