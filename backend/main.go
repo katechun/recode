@@ -1,10 +1,11 @@
 package main
 
 import (
+	"account/backend/middleware"
 	"log"
 	"net/http"
 	"os"
-	"account/backend/middleware"
+
 	"github.com/gorilla/mux"
 
 	"account/backend/api"
@@ -20,7 +21,7 @@ func init() {
 
 func main() {
 	router := mux.NewRouter()
-	
+
 	// 应用日志中间件
 	router.Use(middleware.LoggerMiddleware)
 
@@ -43,9 +44,10 @@ func main() {
 	accountHandler := &api.AccountHandler{}
 	storeHandler := &api.StoreHandler{}
 	accountTypeHandler := &api.AccountTypeHandler{}
+	settingsHandler := &api.SettingsHandler{}
 
 	// 注册路由 - 使用CORS中间件
-	router.HandleFunc("/api/login", api.CORSMiddleware(userHandler.Login))
+	router.HandleFunc("/api/login", api.CORSMiddleware(userHandler.Login)).Methods("POST", "OPTIONS")
 
 	// 添加查询用户的调试接口
 	router.HandleFunc("/api/debug/users", api.CORSMiddleware(func(w http.ResponseWriter, r *http.Request) {
@@ -67,7 +69,7 @@ func main() {
 	router.HandleFunc("/api/stores", api.CORSMiddleware(storeHandler.GetUserStores))
 	router.HandleFunc("/api/stores/create", api.CORSMiddleware(storeHandler.CreateStore))
 	router.HandleFunc("/api/stores/update", api.CORSMiddleware(storeHandler.UpdateStore))
-	router.HandleFunc("/api/stores/delete", api.CORSMiddleware(storeHandler.DeleteStore))
+	router.HandleFunc("/api/stores/delete", api.CORSMiddleware(storeHandler.DeleteStore)).Methods("POST", "OPTIONS")
 
 	// 账务类型相关API
 	router.HandleFunc("/api/account-types", api.CORSMiddleware(accountTypeHandler.GetAll))
@@ -84,6 +86,10 @@ func main() {
 	// 用户权限API - 使用Methods指定允许的HTTP方法
 	router.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.GetUserStorePermissions)).Methods("GET")
 	router.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.UpdateUserStorePermissions)).Methods("POST")
+
+	// 默认设置相关路由
+	router.HandleFunc("/api/settings/default", api.CORSMiddleware(settingsHandler.SaveDefaultSettings)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/settings/default", api.CORSMiddleware(settingsHandler.GetDefaultSettings)).Methods("GET", "OPTIONS")
 
 	log.Printf("服务器启动在 :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

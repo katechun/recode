@@ -42,7 +42,11 @@ Page({
     isRefreshing: false,
     isFirstLoad: true,
     defaultIncomeTypeId: '',
-    defaultExpenseTypeId: ''
+    defaultExpenseTypeId: '',
+    selectedStore: null,        // 添加选中的店铺对象
+    selectedStoreName: '',      // 添加选中的店铺名称
+    selectedIncomeType: null,   // 添加选中的收入类型对象
+    selectedExpenseType: null,  // 添加选中的支出类型对象
   },
   bindViewTap() {
     wx.navigateTo({
@@ -590,67 +594,106 @@ Page({
   },
   // 修改加载默认设置的方法
   loadDefaultSettings: function () {
-    // 先清空当前选择
-    this.setData({
-      selectedStore: null,
-      selectedIncomeType: null,
-      selectedExpenseType: null
-    });
-
     const defaultSettings = wx.getStorageSync('defaultSettings');
     console.log('读取到的默认设置:', defaultSettings);
-    if (!defaultSettings) return;
-
+    
+    // 先尝试从服务器获取设置
+    request.get(config.apis.settings.get)
+      .then(res => {
+        console.log('从服务器获取的默认设置:', res.data);
+        if (res.data) {
+          // 保存到本地
+          const settings = {
+            storeId: res.data.store_id,
+            storeName: '',  // 需要根据ID查找名称
+            incomeTypeId: res.data.income_type_id,
+            incomeTypeName: '',
+            expenseTypeId: res.data.expense_type_id,
+            expenseTypeName: ''
+          };
+          
+          wx.setStorageSync('defaultSettings', settings);
+          
+          // 应用设置
+          this.applyDefaultSettings(settings);
+        } else if (defaultSettings) {
+          // 如果服务器没有设置但本地有，则使用本地设置
+          this.applyDefaultSettings(defaultSettings);
+        }
+      })
+      .catch(err => {
+        console.error('获取服务器默认设置失败:', err);
+        // 出错时使用本地设置
+        if (defaultSettings) {
+          this.applyDefaultSettings(defaultSettings);
+        }
+      });
+  },
+  
+  // 新增函数用于应用默认设置
+  applyDefaultSettings: function(settings) {
     // 等待店铺和账户类型加载完成
     const checkAndApply = () => {
       if (!this.data.stores || !this.data.incomeTypes || !this.data.expenseTypes) {
-        // 如果数据还没加载完成，延迟500ms后再检查
+        console.log('数据还未加载完成，等待中...');
         setTimeout(checkAndApply, 500);
         return;
       }
 
+      console.log('开始应用默认设置', settings);
+      
       // 应用默认店铺
-      if (defaultSettings.storeId) {
+      if (settings.storeId) {
         const storeIndex = this.data.stores.findIndex(
-          store => store.id === defaultSettings.storeId
+          store => store.id === settings.storeId
         );
 
-        console.log('找到的店铺索引:', storeIndex);
         if (storeIndex >= 0) {
+          const selectedStore = this.data.stores[storeIndex];
           this.setData({
-            selectedStore: this.data.stores[storeIndex],
+            selectedStore: selectedStore,
+            selectedStoreName: selectedStore.name,
             storeIndex: storeIndex
           });
+          console.log('应用默认店铺成功:', selectedStore);
         }
       }
 
       // 应用默认收入类型
-      if (defaultSettings.incomeTypeId) {
+      if (settings.incomeTypeId) {
         const incomeTypeIndex = this.data.incomeTypes.findIndex(
-          type => type.id === defaultSettings.incomeTypeId
+          type => type.id === settings.incomeTypeId
         );
 
         if (incomeTypeIndex >= 0) {
+          const selectedIncomeType = this.data.incomeTypes[incomeTypeIndex];
           this.setData({
-            selectedIncomeType: this.data.incomeTypes[incomeTypeIndex],
-            incomeTypeIndex: incomeTypeIndex
+            selectedIncomeType: selectedIncomeType,
+            incomeTypeIndex: incomeTypeIndex,
+            defaultIncomeTypeId: settings.incomeTypeId
           });
+          console.log('应用默认收入类型成功:', selectedIncomeType);
         }
       }
 
       // 应用默认支出类型
-      if (defaultSettings.expenseTypeId) {
+      if (settings.expenseTypeId) {
         const expenseTypeIndex = this.data.expenseTypes.findIndex(
-          type => type.id === defaultSettings.expenseTypeId
+          type => type.id === settings.expenseTypeId
         );
 
         if (expenseTypeIndex >= 0) {
+          const selectedExpenseType = this.data.expenseTypes[expenseTypeIndex];
           this.setData({
-            selectedExpenseType: this.data.expenseTypes[expenseTypeIndex],
-            expenseTypeIndex: expenseTypeIndex
+            selectedExpenseType: selectedExpenseType,
+            expenseTypeIndex: expenseTypeIndex,
+            defaultExpenseTypeId: settings.expenseTypeId
           });
+          console.log('应用默认支出类型成功:', selectedExpenseType);
         }
       }
+
+      console.log('应用默认设置完成');
     };
 
     // 开始检查
@@ -668,34 +711,59 @@ Page({
     }
 
     const settings = {
-      storeId: this.data.selectedStore ? this.data.selectedStore.id : '',
-      incomeTypeId: this.data.selectedIncomeType ? this.data.selectedIncomeType.id : '',
-      expenseTypeId: this.data.selectedExpenseType ? this.data.selectedExpenseType.id : ''
+      storeId: this.data.selectedStore.id,
+      storeName: this.data.selectedStore.name,
+      incomeTypeId: this.data.selectedIncomeType.id,
+      incomeTypeName: this.data.selectedIncomeType.name,
+      expenseTypeId: this.data.selectedExpenseType.id,
+      expenseTypeName: this.data.selectedExpenseType.name
     };
     
     console.log('保存的设置:', settings);
 
-    // 保存到本地存储
-    wx.setStorage({
-      key: 'defaultSettings',
-      data: settings,
-      success: () => {
-        // 重新加载默认设置以验证
-        this.loadDefaultSettings();
-        
-        wx.showToast({
-          title: '保存成功',
-          icon: 'success'
-        });
-        this.setData({ showDefaultSettings: false });
-      },
-      fail: (err) => {
-        console.error('保存设置失败:', err);
-        wx.showToast({
-          title: '保存失败',
-          icon: 'error'
-        });
-      }
+    // 先调用后端接口保存设置
+    request.post(config.apis.settings.save, {
+      store_id: settings.storeId,
+      income_type_id: settings.incomeTypeId,
+      expense_type_id: settings.expenseTypeId
+    })
+    .then(res => {
+      // 后端保存成功后，再保存到本地存储
+      wx.setStorage({
+        key: 'defaultSettings',
+        data: settings,
+        success: () => {
+          wx.showToast({
+            title: '保存成功',
+            icon: 'success'
+          });
+          this.setData({ 
+            showDefaultSettings: false,
+            // 更新当前选中的值和名称
+            selectedStore: this.data.stores[this.data.storeIndex],
+            selectedStoreName: this.data.stores[this.data.storeIndex].name,
+            selectedIncomeType: this.data.incomeTypes[this.data.incomeTypeIndex],
+            selectedExpenseType: this.data.expenseTypes[this.data.expenseTypeIndex],
+            storeIndex: this.data.stores.findIndex(s => s.id === settings.storeId),
+            incomeTypeIndex: this.data.incomeTypes.findIndex(t => t.id === settings.incomeTypeId),
+            expenseTypeIndex: this.data.expenseTypes.findIndex(t => t.id === settings.expenseTypeId)
+          });
+        },
+        fail: (err) => {
+          console.error('本地保存设置失败:', err);
+          wx.showToast({
+            title: '保存失败',
+            icon: 'error'
+          });
+        }
+      });
+    })
+    .catch(err => {
+      console.error('保存设置到服务器失败:', err);
+      wx.showToast({
+        title: '保存失败',
+        icon: 'error'
+      });
     });
   },
   // 添加刷新数据的方法

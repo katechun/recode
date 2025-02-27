@@ -1,7 +1,9 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"io"
 	"log"
 	"net/http"
 	"strconv"
@@ -44,18 +46,42 @@ func SendResponse(w http.ResponseWriter, httpStatus, code int, message string, d
 	json.NewEncoder(w).Encode(resp)
 }
 
-// 登录接口
+// Login 处理用户登录请求
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
+	// 添加详细的请求日志
+	log.Printf("收到登录请求: Method=%s, RemoteAddr=%s, ContentType=%s, ContentLength=%d", 
+		r.Method, r.RemoteAddr, r.Header.Get("Content-Type"), r.ContentLength)
+	
+	// 设置CORS头
+	w.Header().Set("Access-Control-Allow-Origin", "*") 
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID")
+	
+	// 处理OPTIONS预检请求
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
 	if r.Method != http.MethodPost {
 		http.Error(w, "仅支持POST请求", http.StatusMethodNotAllowed)
 		return
 	}
 
+	// 打印请求体内容以便调试
+	body, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(body)) // 重新设置请求体，因为读取后需要重置
+	log.Printf("登录请求体: %s", string(body))
+
 	var req LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		SendResponse(w, http.StatusBadRequest, 400, "请求参数错误", nil)
+		log.Printf("解析登录请求失败: %v", err)
+		SendResponse(w, http.StatusBadRequest, 400, "请求参数错误: "+err.Error(), nil)
 		return
 	}
+
+	// 打印登录尝试信息
+	log.Printf("登录尝试: 用户名=%s, 密码长度=%d", req.Username, len(req.Password))
 
 	// 参数验证
 	if req.Username == "" || req.Password == "" {

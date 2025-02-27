@@ -54,6 +54,12 @@ Page({
       title: '登录中...',
     });
     
+    // 使用微信小程序的环境判断
+    const envVersion = __wxConfig.envVersion;
+    if (envVersion === 'develop') {
+      console.log('开发环境登录');
+    }
+    
     // 调用登录接口
     request.post(config.apis.login, {
       username: username,
@@ -77,17 +83,20 @@ Page({
           errorMsg: '登录失败，请检查用户名和密码'
         });
       }
-    }).catch(() => {
+    }).catch(err => {
       wx.hideLoading();
-      console.error('登录请求失败');
+      console.error('登录请求失败', err);
+      console.log('错误详情:', err.code, err.message);
+      console.log('请求URL:', config.apis.login);
+      console.log('请求数据:', {username: this.data.username});
       
-      // 处理网络错误或服务器错误
-      this.setData({
-        errorMsg: '网络请求失败，请检查网络连接或服务器状态'
+      wx.showToast({
+        title: '登录失败',
+        icon: 'none'
       });
       
       // 如果是开发环境，添加一个测试跳过登录的选项
-      if (process.env.NODE_ENV === 'development') {
+      if (envVersion === 'develop') {
         wx.showModal({
           title: '开发环境提示',
           content: '是否跳过登录直接进入首页？(仅开发环境有效)',

@@ -1,19 +1,21 @@
 <view class="container">
   <view class="login-container">
     <view class="form-container">
-      <view class="form-item">
-        <text class="label">用户名</text>
-        <input class="input" type="text" placeholder="请输入用户名" bindinput="inputUsername" value="{{username}}"/>
-      </view>
-      
-      <view class="form-item">
-        <text class="label">密码</text>
-        <input class="input" type="password" placeholder="请输入密码" bindinput="inputPassword" value="{{password}}"/>
-      </view>
-      
-      <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
-      
-      <button class="login-btn" bindtap="login">登 录</button>
+      <form bindsubmit="login">
+        <view class="form-item">
+          <text class="label">用户名</text>
+          <input class="input" type="text" placeholder="请输入用户名" bindinput="inputUsername" value="{{username}}"/>
+        </view>
+        
+        <view class="form-item">
+          <text class="label">密码</text>
+          <input class="input" type="password" placeholder="请输入密码" bindinput="inputPassword" value="{{password}}"/>
+        </view>
+        
+        <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
+        
+        <button formType="submit" class="login-btn">登录</button>
+      </form>
     </view>
 
     <view class="test-accounts">

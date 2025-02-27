@@ -72,7 +72,50 @@ const request = (url, options = {}) => {
 
 export default {
   get: (url, options = {}) => request(url, { ...options, method: 'GET' }),
-  post: (url, data, options = {}) => request(url, { ...options, method: 'POST', data }),
+  post: (url, data, options = {}) => {
+    // 登录接口不需要验证登录状态
+    if (url === config.apis.login) {
+      return request(url, { ...options, method: 'POST', data });
+    }
+    
+    // 其他接口需要验证登录状态
+    const userInfo = wx.getStorageSync('userInfo');
+    if (!userInfo || !userInfo.id) {
+      wx.showToast({
+        title: '您尚未登录或登录已过期',
+        icon: 'none'
+      });
+      
+      // 延迟跳转回登录页
+      setTimeout(() => {
+        wx.reLaunch({
+          url: '/pages/login/login'
+        });
+      }, 1500);
+      
+      return Promise.reject({
+        code: 401,
+        message: '未登录'
+      });
+    }
+    
+    // 打印请求数据
+    console.log(`发送POST请求: ${url}`, data);
+    
+    return request(url, { 
+      ...options, 
+      method: 'POST', 
+      data,
+      // 添加调试信息  
+      success: (res) => {
+        console.log(`API请求成功: ${url}`, res);
+      },
+      fail: (err) => {
+        console.error(`API请求失败: ${url}`, err);
+        console.log('请求数据:', data);
+      }
+    });
+  },
   put: (url, data, options = {}) => request(url, { ...options, method: 'PUT', data }),
   delete: (url, options = {}) => request(url, { ...options, method: 'DELETE' })
 }; 

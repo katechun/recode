@@ -10,6 +10,8 @@ Page({
   data: {
     userInfo: null,
     stores: [],
+    filteredStores: [],
+    searchKey: '',
     showDialog: false,
     isEditing: false,
     currentStore: {
@@ -114,7 +116,10 @@ Page({
       .then(res => {
         wx.hideLoading();
         if (res.data) {
-          this.setData({ stores: res.data });
+          this.setData({ 
+            stores: res.data,
+            filteredStores: res.data 
+          });
         } else {
           wx.showToast({
             title: '获取店铺列表失败',
@@ -170,7 +175,7 @@ Page({
     if (store) {
       wx.showModal({
         title: '确认删除',
-        content: `确定要删除店铺 "${store.name}" 吗？`,
+        content: `确定要删除店铺"${store.name}"吗？此操作不可恢复。`,
         success: (res) => {
           if (res.confirm) {
             this.deleteStore(storeId);
@@ -181,43 +186,74 @@ Page({
   },
 
   // 删除店铺
-  deleteStore: function (storeId) {
+  deleteStore: function (e) {
+    // 支持既可以传入 storeId 参数，也可以从事件中获取
+    let storeId;
+    let storeName;
+    
+    // 检查是否从按钮事件直接调用
+    if (e && e.currentTarget && e.currentTarget.dataset) {
+      storeId = e.currentTarget.dataset.id;
+      storeName = e.currentTarget.dataset.name;
+      
+      // 如果是从按钮点击直接调用，需要先显示确认对话框
+      wx.showModal({
+        title: '确认删除',
+        content: `确定要删除店铺"${storeName}"吗？此操作不可恢复。`,
+        success: (res) => {
+          if (res.confirm) {
+            this.executeDeleteStore(storeId);
+          }
+        }
+      });
+      return;
+    }
+    
+    // 如果已经是传入 ID 参数，直接执行删除
+    this.executeDeleteStore(storeId);
+  },
+
+  // 实际执行删除操作的函数
+  executeDeleteStore: function (storeId) {
+    // 验证参数
+    if (!storeId) {
+      wx.showModal({
+        title: '删除失败',
+        content: '店铺ID无效',
+        showCancel: false
+      });
+      return;
+    }
+    
+    // 确保storeId是数值类型
+    storeId = Number(storeId);
+
     wx.showLoading({
       title: '删除中...',
+      mask: true
     });
 
-    wx.request({
-      url: config.apiBaseUrl + '/api/stores/delete',
-      method: 'DELETE',
-      data: {
-        id: storeId
-      },
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
-        wx.hideLoading();
-        if (res.data.code === 200) {
-          wx.showToast({
-            title: '删除成功',
-            icon: 'success'
-          });
-          this.loadStores();
-        } else {
-          wx.showToast({
-            title: res.data.message || '删除失败',
-            icon: 'none'
-          });
-        }
-      },
-      fail: () => {
+    // 打印请求数据以便调试
+    console.log('发送删除请求:', { store_id: storeId });
+
+    request.post(config.apis.stores.delete, { store_id: storeId })
+      .then(() => {
         wx.hideLoading();
         wx.showToast({
-          title: '网络请求失败',
-          icon: 'none'
+          title: '删除成功',
+          icon: 'success'
         });
-      }
-    });
+        this.loadStores();
+      })
+      .catch(err => {
+        wx.hideLoading();
+        console.error('删除店铺失败:', err);
+        wx.showModal({
+          title: '删除失败',
+          content: err.message || '未知错误，请重试',
+          showCancel: false
+        });
+      });
   },
 
   // 关闭弹窗
@@ -303,6 +339,21 @@ Page({
           errorMsg: '网络请求失败'
         });
       }
+    });
+  },
+
+  // 搜索店铺
+  searchStores: function(e) {
+    const keyword = e.detail.value.toLowerCase();
+    this.setData({
+      searchKey: keyword,
+      filteredStores: keyword ? 
+        this.data.stores.filter(store => 
+          store.name.toLowerCase().includes(keyword) || 
+          (store.address && store.address.toLowerCase().includes(keyword)) ||
+          (store.phone && store.phone.includes(keyword))
+        ) : 
+        this.data.stores
     });
   }
 })

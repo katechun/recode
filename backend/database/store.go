@@ -79,17 +79,71 @@ func UpdateStore(store models.Store) error {
 	return err
 }
 
-// DeleteStore 删除店铺
+// CheckStoreExists 检查店铺是否存在
+func CheckStoreExists(storeID int64) (bool, error) {
+	var exists int
+	err := DB.QueryRow("SELECT 1 FROM stores WHERE id = ?", storeID).Scan(&exists)
+	if err == sql.ErrNoRows {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+// CheckStoreHasAccounts 检查店铺是否有关联的账务记录
+func CheckStoreHasAccounts(storeID int64) (bool, error) {
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE store_id = ?", storeID).Scan(&count)
+	if err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+// DeleteStore 从数据库中删除店铺
 func DeleteStore(storeID int64) error {
-	// 先删除相关的用户店铺权限
-	_, err := DB.Exec("DELETE FROM user_store_permissions WHERE store_id = ?", storeID)
+	// 开始事务
+	tx, err := DB.Begin()
 	if err != nil {
 		return err
 	}
+	
+	// 确保事务最终被提交或回滚
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback()
+			panic(p) // 重新抛出panic
+		}
+	}()
 
-	// 删除店铺
-	_, err = DB.Exec("DELETE FROM stores WHERE id = ?", storeID)
-	return err
+	// 首先删除店铺权限记录
+	_, err = tx.Exec("DELETE FROM user_store_permissions WHERE store_id = ?", storeID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+	
+	// 然后删除店铺
+	_, err = tx.Exec("DELETE FROM stores WHERE id = ?", storeID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 如果有用户默认设置使用该店铺，更新为其他店铺或清空
+	_, err = tx.Exec(`
+		UPDATE user_default_settings 
+		SET store_id = (SELECT id FROM stores LIMIT 1) 
+		WHERE store_id = ?`, storeID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 提交事务
+	return tx.Commit()
 }
 
 // HasStoreAccounts 检查店铺是否有账务记录

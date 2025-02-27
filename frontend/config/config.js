@@ -43,6 +43,10 @@ const config = {
       delete: '/api/users/delete',
       resetPassword: '/api/users/reset-password',
       permissions: '/api/users/permissions'
+    },
+    settings: {
+      save: '/api/settings/default',  // 保存默认设置
+      get: '/api/settings/default'    // 获取默认设置
     }
   }
 };
