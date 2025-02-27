@@ -23,9 +23,8 @@ Page({
     dateRange: '本月',
     dateOptions: ['今日', '本周', '本月', '本年'],
     stores: [],
-    selectedStoreId: '',
-    storePickerVisible: false,
-    selectedStoreName: '全部店铺',
+    selectedStoreId: 0,
+    selectedStoreName: '',
     incomeTypes: [],
     expenseTypes: [],
     accountTypes: [],
@@ -47,6 +46,12 @@ Page({
     selectedStoreName: '',      // 添加选中的店铺名称
     selectedIncomeType: null,   // 添加选中的收入类型对象
     selectedExpenseType: null,  // 添加选中的支出类型对象
+    income: 0,
+    expense: 0,
+    profit: 0,
+    showAccountDetail: false,
+    currentAccount: null,
+    todayDateStr: '',
   },
   bindViewTap() {
     wx.navigateTo({
@@ -107,24 +112,51 @@ Page({
     }, 3000);
   },
   onShow() {
-    // 检查userInfo是否存在
-    if (this.data.userInfo) {
-      this.loadStatistics();
-      this.loadRecentRecords();
-    } else {
-      // 尝试从Storage获取用户信息
-      const userInfo = wx.getStorageSync('userInfo');
-      if (userInfo) {
-        this.setData({ userInfo });
-        this.loadStatistics();
-        this.loadRecentRecords();
-      } else {
-        // 如果仍然没有用户信息，跳转到登录页
-        wx.reLaunch({
-          url: '/pages/login/login',
+    // 获取用户信息
+    const userInfo = wx.getStorageSync('userInfo');
+    if (userInfo) {
+      this.setData({ 
+        userInfo: userInfo,
+        isLoading: true 
+      });
+      
+      // 优化异常处理
+      this.getStores()
+        .then(() => {
+          // 获取其他数据
+          return Promise.all([
+            this.getStatistics(),
+            this.getRecentAccounts()
+          ]);
+        })
+        .then(() => {
+          this.setData({ isLoading: false });
+        })
+        .catch(err => {
+          console.error('数据加载失败:', err);
+          wx.showToast({
+            title: '数据加载失败，请重试',
+            icon: 'none'
+          });
+          this.setData({ isLoading: false });
         });
-      }
+    } else {
+      wx.redirectTo({
+        url: '/pages/login/login'
+      });
     }
+
+    // 检查状态是否变化
+    this.checkStateChange();
+    
+    // 设置今日日期字符串
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    this.setData({
+      todayDateStr: `${year}-${month}-${day}`
+    });
   },
   // 加载用户可访问的店铺
   loadStores() {
@@ -146,12 +178,53 @@ Page({
   // 日期范围选择
   bindDateRangeChange(e) {
     const index = e.detail.value;
+    const dateOptions = this.data.dateOptions;
+    
+    const periods = ['day', 'week', 'month', 'year'];
+    const period = periods[index];
+    
     this.setData({
-      dateRange: this.data.dateOptions[index]
+      dateRange: dateOptions[index],
+      isLoading: true
     });
-
-    this.loadStatistics();
-    this.loadRecentRecords();
+    
+    // 根据选择的日期范围获取统计数据
+    wx.request({
+      url: `${config.apiBaseUrl}/api/accounts/statistics`,
+      method: 'GET',
+      data: {
+        store_id: this.data.selectedStoreId,
+        period: period
+      },
+      header: {
+        'X-User-ID': this.data.userInfo.id
+      },
+      success: (res) => {
+        this.setData({ isLoading: false });
+        if (res.data.code === 200 && res.data.data) {
+          const data = res.data.data;
+          this.setData({
+            totalIncome: data.income || 0,
+            totalExpense: data.expense || 0,
+            netAmount: data.income - data.expense || 0
+          });
+        } else {
+          console.error('获取统计数据失败:', res.data.message);
+          wx.showToast({
+            title: '获取统计数据失败',
+            icon: 'none'
+          });
+        }
+      },
+      fail: (err) => {
+        this.setData({ isLoading: false });
+        console.error('请求统计数据失败:', err);
+        wx.showToast({
+          title: '网络请求失败',
+          icon: 'none'
+        });
+      }
+    });
   },
   // 店铺选择
   showStorePicker() {
@@ -485,9 +558,72 @@ Page({
 
     this.loadStores();
   },
-  getStores: function () {
-    // 获取店铺列表
-    this.loadStores();
+  getStores: function() {
+    return new Promise((resolve, reject) => {
+      if (!this.data.userInfo) {
+        reject(new Error('用户未登录'));
+        return;
+      }
+      
+      wx.request({
+        url: `${config.apiBaseUrl}/api/stores`,
+        method: 'GET',
+        header: {
+          'X-User-ID': this.data.userInfo.id
+        },
+        success: (res) => {
+          if (res.data.code === 200) {
+            const stores = res.data.data || [];
+            
+            // 如果有店铺数据
+            if (stores.length > 0) {
+              // 从本地存储获取默认店铺ID
+              const defaultSettings = wx.getStorageSync('defaultAccountSettings') || {};
+              const defaultStoreId = defaultSettings.storeId;
+              
+              // 查找默认店铺或使用第一个店铺
+              let selectedStore = null;
+              let selectedIndex = 0;
+              
+              if (defaultStoreId) {
+                const index = stores.findIndex(store => store.id === defaultStoreId);
+                if (index !== -1) {
+                  selectedStore = stores[index];
+                  selectedIndex = index;
+                }
+              }
+              
+              // 如果没有找到默认店铺，使用第一个
+              if (!selectedStore) {
+                selectedStore = stores[0];
+              }
+              
+              this.setData({
+                stores: stores,
+                selectedStoreId: selectedStore.id,
+                selectedStoreName: selectedStore.name,
+                storeIndex: selectedIndex
+              });
+              resolve(stores);
+            } else {
+              this.setData({ 
+                stores: [],
+                selectedStoreId: 0,
+                selectedStoreName: '暂无店铺'
+              });
+              resolve([]);
+            }
+          } else {
+            console.error('获取店铺列表失败:', res.data.message);
+            reject(new Error(res.data.message || '获取店铺列表失败'));
+          }
+        },
+        fail: (err) => {
+          console.error('请求店铺列表失败:', err);
+          reject(err);
+        }
+      });
+    });
   },
   bindStoreChange: function (e) {
     const index = e.detail.value;
@@ -534,41 +670,19 @@ Page({
   },
   // 改进记账跳转，传递默认设置
   goToAddAccount: function (e) {
-    // 获取用户点击的类型，收入或支出
-    const type = e.currentTarget.dataset.type;
+    const accountType = e.currentTarget.dataset.type;
+    const typeId = accountType === 'income' ? 
+                  (this.data.selectedIncomeType ? this.data.selectedIncomeType.id : '') : 
+                  (this.data.selectedExpenseType ? this.data.selectedExpenseType.id : '');
     
-    // 获取默认设置
-    const defaultSettings = wx.getStorageSync('defaultSettings');
-    
-    // 如果没有默认设置，提示用户设置
-    if (!defaultSettings || 
-      !defaultSettings.storeId ||
-      (type === 'income' && !defaultSettings.incomeTypeId) ||
-      (type === 'expense' && !defaultSettings.expenseTypeId)) {
-
-      // 提示用户先设置默认参数
-      wx.showModal({
-        title: '提示',
-        content: '请先设置记账默认参数',
-        confirmText: '去设置',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            this.showDefaultSettings();
-          }
-        }
-      });
-      return;
-    }
-
-    // 从默认设置中获取正确的类型ID
-    const typeId = type === 'income'
-      ? defaultSettings.incomeTypeId
-      : defaultSettings.expenseTypeId;
-
-    // 带上默认参数跳转
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?storeId=${defaultSettings.storeId}&typeId=${typeId}&type=${type}&isDefault=true`
+      url: `/pages/addAccount/addAccount?type=${accountType}&storeId=${this.data.selectedStoreId}&typeId=${typeId}`
+    });
+  },
+  // 导航到账目列表页面
+  goToAccountList: function() {
+    wx.navigateTo({
+      url: `/pages/accountList/accountList?storeId=${this.data.selectedStoreId}`
     });
   },
   // 显示默认设置弹窗
@@ -852,5 +966,357 @@ Page({
     } catch (e) {
       console.error('缓存清理出错:', e);
     }
-  }
+  },
+  getStatistics: function() {
+    return new Promise((resolve, reject) => {
+      const storeId = this.data.selectedStoreId;
+      
+      console.log('正在获取统计数据，店铺ID:', storeId, '类型:', typeof storeId);
+      
+      // 清空现有数据以避免显示旧数据
+      this.setData({
+        income: 0,
+        expense: 0,
+        profit: 0,
+        totalIncome: 0,
+        totalExpense: 0,
+        netAmount: 0,
+        todayIncome: 0,
+        todayExpense: 0
+      });
+      
+      // 确保storeId是整数类型
+      const numericStoreId = parseInt(storeId);
+      
+      // 检查storeId是否为有效数字，如果不是则使用0（全部店铺）
+      if (isNaN(numericStoreId) || numericStoreId <= 0) {
+        console.log('使用默认店铺ID（所有店铺）');
+      }
+      
+      // 获取月度统计数据
+      wx.request({
+        url: `${config.apiBaseUrl}/api/accounts/statistics`,
+        method: 'GET',
+        data: {
+          store_id: numericStoreId,
+          period: 'month' // 指定获取月度数据
+        },
+        header: {
+          'X-User-ID': this.data.userInfo.id
+        },
+        success: (res) => {
+          console.log('统计数据响应:', res.data);
+          
+          if (res.data.code === 200 && res.data.data) {
+            const data = res.data.data;
+            
+            // 确保数据为数字类型并格式化
+            const income = parseFloat(data.income || 0).toFixed(2);
+            const expense = parseFloat(data.expense || 0).toFixed(2);
+            const profit = (parseFloat(data.income || 0) - parseFloat(data.expense || 0)).toFixed(2);
+            
+            this.setData({
+              income: income,
+              expense: expense,
+              profit: profit,
+              // 同时更新前端显示变量
+              totalIncome: income,
+              totalExpense: expense,
+              netAmount: profit
+            });
+            
+            console.log('格式化后的统计数据:', {
+              income: income,
+              expense: expense,
+              profit: profit
+            });
+            
+            // 获取今日统计数据并返回原始月度数据
+            this.getTodayStatistics(numericStoreId)
+              .then(() => resolve(data))
+              .catch(() => resolve(data)); // 即使今日数据获取失败，也返回月度数据
+          } else {
+            console.error('获取统计数据失败:', res.data.message);
+            reject(new Error(res.data.message || '获取统计数据失败'));
+          }
+        },
+        fail: (err) => {
+          console.error('请求统计数据失败:', err);
+          reject(err);
+        }
+      });
+    });
+  },
+  getTodayStatistics: function(storeId) {
+    return new Promise((resolve, reject) => {
+      console.log('正在获取今日统计数据，店铺ID:', storeId);
+      
+      // 确保storeId是整数类型
+      const numericStoreId = parseInt(storeId);
+      
+      wx.request({
+        url: `${config.apiBaseUrl}/api/accounts/statistics`,
+        method: 'GET',
+        data: {
+          store_id: numericStoreId,
+          period: 'day' // 指定获取今日数据
+        },
+        header: {
+          'X-User-ID': this.data.userInfo.id
+        },
+        success: (res) => {
+          console.log('今日统计数据响应:', res.data);
+          
+          if (res.data.code === 200 && res.data.data) {
+            const data = res.data.data;
+            
+            // 确保数据为数字类型并格式化
+            const todayIncome = parseFloat(data.income || 0).toFixed(2);
+            const todayExpense = parseFloat(data.expense || 0).toFixed(2);
+            
+            this.setData({
+              todayIncome: todayIncome,
+              todayExpense: todayExpense
+            });
+            
+            console.log('格式化后的今日数据:', {
+              todayIncome: todayIncome,
+              todayExpense: todayExpense
+            });
+            
+            resolve(data);
+          } else {
+            console.error('获取今日统计数据失败:', res.data.message);
+            // 这里只记录错误但不拒绝Promise，确保主流程继续
+            resolve({});
+          }
+        },
+        fail: (err) => {
+          console.error('请求今日统计数据失败:', err);
+          // 这里只记录错误但不拒绝Promise，确保主流程继续
+          resolve({});
+        }
+      });
+    });
+  },
+  getRecentAccounts: function() {
+    return new Promise((resolve, reject) => {
+      const storeId = this.data.selectedStoreId;
+      
+      console.log('正在获取近期账务，店铺ID:', storeId);
+      
+      // 确保storeId是整数类型
+      const numericStoreId = parseInt(storeId);
+      
+      // 清空现有数据以避免显示旧数据
+      this.setData({
+        recentAccounts: []
+      });
+      
+      wx.request({
+        url: `${config.apiBaseUrl}/api/accounts`,
+        method: 'GET',
+        data: {
+          store_id: numericStoreId,
+          limit: 5  // 只获取最近5条
+        },
+        header: {
+          'X-User-ID': this.data.userInfo.id
+        },
+        success: (res) => {
+          console.log('近期账务响应:', res.data);
+          
+          if (res.data.code === 200) {
+            // 格式化时间显示
+            const accounts = res.data.data || [];
+            accounts.forEach(account => {
+              if (account.create_time) {
+                // 保存原始时间用于详情显示
+                account.create_time_raw = account.create_time;
+                // 将完整时间格式化为"MM-DD HH:MM"格式
+                const dateObj = new Date(account.create_time);
+                const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+                const day = String(dateObj.getDate()).padStart(2, '0');
+                const hours = String(dateObj.getHours()).padStart(2, '0');
+                const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+                account.create_time = `${month}-${day} ${hours}:${minutes}`;
+              } else {
+                account.create_time = '';
+              }
+            });
+            
+            this.setData({
+              recentAccounts: accounts
+            });
+            resolve(res.data.data);
+          } else {
+            console.error('获取最近账务失败:', res.data.message);
+            reject(new Error(res.data.message || '获取最近账务失败'));
+          }
+        },
+        fail: (err) => {
+          console.error('请求最近账务失败:', err);
+          reject(err);
+        }
+      });
+    });
+  },
+  storeChange: function(e) {
+    const index = e.detail.value;
+    const selectedStore = this.data.stores[index];
+    
+    console.log('切换到店铺:', selectedStore);
+    
+    // 检查店铺数据有效性
+    if (!selectedStore) {
+      wx.showToast({
+        title: '店铺数据无效',
+        icon: 'none'
+      });
+      return;
+    }
+    
+    // 对于"全部店铺"选项特殊处理
+    const storeId = selectedStore.id === '' ? 0 : selectedStore.id;
+    
+    // 设置加载状态
+    this.setData({
+      isLoading: true,
+      selectedStoreId: storeId,
+      selectedStoreName: selectedStore.name
+    });
+    
+    // 清空现有统计数据，避免显示旧数据
+    this.setData({
+      income: 0,
+      expense: 0,
+      profit: 0,
+      totalIncome: 0,
+      totalExpense: 0,
+      netAmount: 0,
+      todayIncome: 0,
+      todayExpense: 0,
+      recentAccounts: []
+    });
+    
+    // 强制组件刷新，确保数据变化会重新渲染
+    setTimeout(() => {
+      // 先获取统计数据，再获取最近账务，避免并行请求可能造成的问题
+      this.getStatistics()
+        .then(() => {
+          return this.getRecentAccounts();
+        })
+        .then(() => {
+          console.log('数据更新完成，统计数据:', {
+            totalIncome: this.data.totalIncome,
+            totalExpense: this.data.totalExpense,
+            netAmount: this.data.netAmount,
+            todayIncome: this.data.todayIncome,
+            todayExpense: this.data.todayExpense
+          });
+          this.setData({ isLoading: false });
+          
+          // 再次强制更新
+          this.setData({
+            forceUpdate: Date.now()
+          });
+        })
+        .catch(err => {
+          console.error('数据更新失败:', err);
+          wx.showToast({
+            title: '数据加载失败',
+            icon: 'none'
+          });
+          this.setData({ isLoading: false });
+        });
+    }, 100);
+  },
+  // 显示账目详情
+  showAccountDetail: function(e) {
+    const account = e.currentTarget.dataset.account;
+    
+    // 格式化完整时间显示
+    if (account.create_time_full === undefined && account.create_time) {
+      const dateObj = new Date(account.create_time_raw || account.create_time);
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      const hours = String(dateObj.getHours()).padStart(2, '0');
+      const minutes = String(dateObj.getMinutes()).padStart(2, '0');
+      account.create_time_full = `${year}-${month}-${day} ${hours}:${minutes}`;
+    }
+    
+    this.setData({
+      showAccountDetail: true,
+      currentAccount: account
+    });
+  },
+  // 隐藏账目详情
+  hideAccountDetail: function() {
+    this.setData({
+      showAccountDetail: false,
+      currentAccount: null
+    });
+  },
+  // 编辑账目
+  editAccount: function() {
+    const account = this.data.currentAccount;
+    if (!account) return;
+    
+    this.hideAccountDetail();
+    wx.navigateTo({
+      url: `/pages/addAccount/addAccount?id=${account.id}&edit=true`
+    });
+  },
+  // 删除账目
+  deleteAccount: function() {
+    const account = this.data.currentAccount;
+    if (!account) return;
+    
+    wx.showModal({
+      title: '确认删除',
+      content: '确定要删除这条记账记录吗？',
+      success: (res) => {
+        if (res.confirm) {
+          wx.showLoading({
+            title: '删除中...',
+          });
+          
+          wx.request({
+            url: `${config.apiBaseUrl}/api/accounts/${account.id}`,
+            method: 'DELETE',
+            header: {
+              'X-User-ID': this.data.userInfo.id
+            },
+            success: (res) => {
+              wx.hideLoading();
+              if (res.data.code === 200) {
+                wx.showToast({
+                  title: '删除成功',
+                  icon: 'success'
+                });
+                
+                // 刷新数据
+                this.hideAccountDetail();
+                this.getStatistics();
+                this.getRecentAccounts();
+              } else {
+                wx.showToast({
+                  title: res.data.message || '删除失败',
+                  icon: 'none'
+                });
+              }
+            },
+            fail: () => {
+              wx.hideLoading();
+              wx.showToast({
+                title: '网络错误',
+                icon: 'none'
+              });
+            }
+          });
+        }
+      }
+    });
+  },
 })
