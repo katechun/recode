@@ -276,23 +276,22 @@ Page({
   // 提交权限设置
   submitPermissions: function () {
     const userId = this.data.currentPermUserId;
-    if (!userId) {
-      this.setData({
-        permErrorMsg: '用户ID无效'
-      });
-      return;
-    }
+    const selectedStores = this.data.storePermissions
+      .filter(store => store.has_permission === 1)
+      .map(store => store.store_id);
 
-    const selectedStoreIds = this.data.storePermissions
-      .filter(p => p.has_permission === 1)
-      .map(p => p.store_id);
-
-    const requestUrl = `${config.apiBaseUrl}${config.apis.users.permissions}`;
     const requestData = {
       user_id: userId,
-      store_ids: selectedStoreIds
+      store_ids: selectedStores
     };
 
+    console.log('提交的权限数据:', {
+      permissions: this.data.storePermissions,
+      selectedStores: selectedStores,
+      requestData: requestData
+    });
+
+    const requestUrl = `${config.apiBaseUrl}${config.apis.users.permissions}`;
     console.log('【请求】更新用户权限:', {
       url: requestUrl,
       method: 'POST',
@@ -315,7 +314,7 @@ Page({
           data: res.data
         });
         wx.hideLoading();
-        if (res.statusCode === 200) {
+        if (res.code === 200) {
           wx.showToast({
             title: '保存成功',
             icon: 'success'
@@ -324,15 +323,12 @@ Page({
             showPermissionsDialog: false,
             permErrorMsg: ''
           });
-          // 重新加载权限
-          this.loadUserPermissions(userId);
         } else {
           this.setData({
-            permErrorMsg: res.data?.message || '保存失败，请重试'
+            permErrorMsg: res.message || '保存失败，请重试'
           });
           console.error('权限更新失败:', {
-            statusCode: res.statusCode,
-            response: res.data
+            response: res
           });
         }
       })
@@ -341,11 +337,14 @@ Page({
         console.error('【错误】更新用户权限失败:', {
           url: requestUrl,
           requestData: requestData,
-          error: err.message || err,
+          error: err,
           stack: err.stack,
           fullError: JSON.stringify(err, null, 2)
         });
-        const errorMsg = err.data?.message || err.message || '网络请求失败，请重试';
+        let errorMsg = '网络请求失败，请重试';
+        if (typeof err === 'object') {
+          errorMsg = err.message || err.msg || errorMsg;
+        }
         this.setData({
           permErrorMsg: errorMsg
         });

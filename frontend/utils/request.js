@@ -33,13 +33,22 @@ const request = (url, options = {}) => {
       ...newOptions,
       success: (res) => {
         if (res.data.code === 200) {
-          resolve(res.data);
+          // 返回响应数据
+          resolve({
+            code: res.data.code,
+            message: res.data.message,
+            data: res.data.data
+          });
         } else {
           wx.showToast({
             title: res.data.message || '请求失败',
             icon: 'none'
           });
-          reject(res.data);
+          // 返回错误信息
+          reject({
+            code: res.data.code,
+            message: res.data.message
+          });
         }
       },
       fail: (err) => {
@@ -47,7 +56,10 @@ const request = (url, options = {}) => {
           title: '网络请求失败',
           icon: 'none'
         });
-        reject(err);
+        reject({
+          code: -1,
+          message: '网络请求失败'
+        });
       },
       complete: () => {
         if (!newOptions.hideLoading) {
