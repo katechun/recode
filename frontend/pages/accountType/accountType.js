@@ -1,4 +1,7 @@
 // pages/accountType/accountType.js
+import request from '../../utils/request';
+import config from '../../config/config';
+
 Page({
 
   /**
@@ -104,42 +107,29 @@ Page({
   },
 
   // 加载账务类型
-  loadAccountTypes: function() {
+  loadAccountTypes: function () {
     wx.showLoading({
       title: '加载中...',
     });
-    
-    wx.request({
-      url: 'http://localhost:8080/api/account-types',
-      method: 'GET',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+
+    request.get(config.apis.accountTypes.list)
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
-          this.setData({
-            accountTypes: res.data.data
-          });
-        } else {
-          wx.showToast({
-            title: '获取账务类型失败',
-            icon: 'none'
-          });
-        }
-      },
-      fail: () => {
+        this.setData({
+          accountTypes: res.data
+        });
+      })
+      .catch(() => {
         wx.hideLoading();
         wx.showToast({
           title: '网络请求失败',
           icon: 'none'
         });
-      }
-    });
+      });
   },
-  
+
   // 显示添加对话框
-  showAddDialog: function() {
+  showAddDialog: function () {
     this.setData({
       showDialog: true,
       isEditing: false,
@@ -152,12 +142,12 @@ Page({
       errorMsg: ''
     });
   },
-  
+
   // 编辑账务类型
-  editType: function(e) {
+  editType: function (e) {
     const typeId = e.currentTarget.dataset.id;
     const accountType = this.data.accountTypes.find(item => item.id === typeId);
-    
+
     if (accountType) {
       this.setData({
         showDialog: true,
@@ -168,32 +158,32 @@ Page({
       });
     }
   },
-  
+
   // 关闭对话框
-  closeDialog: function() {
+  closeDialog: function () {
     this.setData({
       showDialog: false
     });
   },
-  
+
   // 输入类型名称
-  inputTypeName: function(e) {
+  inputTypeName: function (e) {
     this.setData({
       'currentType.name': e.detail.value
     });
   },
-  
+
   // 选择类型分类
-  bindCategoryChange: function(e) {
+  bindCategoryChange: function (e) {
     const index = e.detail.value;
     this.setData({
       categoryIndex: index,
       'currentType.is_expense': this.data.categoryOptions[index].id
     });
   },
-  
+
   // 确认删除
-  confirmDelete: function(e) {
+  confirmDelete: function (e) {
     const typeId = e.currentTarget.dataset.id;
     wx.showModal({
       title: '确认删除',
@@ -205,99 +195,71 @@ Page({
       }
     });
   },
-  
+
   // 删除账务类型
-  deleteType: function(typeId) {
+  deleteType: function (typeId) {
     wx.showLoading({
       title: '删除中...',
     });
-    
-    wx.request({
-      url: `http://localhost:8080/api/account-types/delete?id=${typeId}`,
-      method: 'DELETE',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+
+    request.delete(`${config.apis.accountTypes.delete}?id=${typeId}`)
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
-          wx.showToast({
-            title: '删除成功',
-            icon: 'success'
-          });
-          this.loadAccountTypes();
-        } else {
-          wx.showModal({
-            title: '删除失败',
-            content: res.data.message || '该账务类型可能已被使用，无法删除',
-            showCancel: false
-          });
-        }
-      },
-      fail: () => {
+        wx.showToast({
+          title: '删除成功',
+          icon: 'success'
+        });
+        this.loadAccountTypes();
+      })
+      .catch(() => {
         wx.hideLoading();
         wx.showToast({
           title: '网络请求失败',
           icon: 'none'
         });
-      }
-    });
+      });
   },
-  
+
   // 阻止事件冒泡
-  stopPropagation: function() {
+  stopPropagation: function () {
     return;
   },
-  
+
   // 提交表单
-  submitType: function() {
+  submitType: function () {
     const { currentType, isEditing } = this.data;
-    
+
     // 表单验证
     if (!currentType.name.trim()) {
       this.setData({ errorMsg: '类型名称不能为空' });
       return;
     }
-    
+
     wx.showLoading({
       title: isEditing ? '更新中...' : '添加中...',
     });
-    
-    const url = isEditing 
-      ? 'http://localhost:8080/api/account-types/update' 
-      : 'http://localhost:8080/api/account-types/create';
-    
-    const method = isEditing ? 'PUT' : 'POST';
-    
-    wx.request({
-      url: url,
-      method: method,
-      data: currentType,
-      header: {
-        'X-User-ID': this.data.userInfo.id,
-        'Content-Type': 'application/json'
-      },
-      success: (res) => {
+
+    const url = isEditing
+      ? config.apis.accountTypes.update
+      : config.apis.accountTypes.create;
+
+    const requestMethod = isEditing ? request.put : request.post;
+
+    requestMethod(url, currentType)
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
-          wx.showToast({
-            title: isEditing ? '更新成功' : '添加成功',
-            icon: 'success'
-          });
-          this.setData({ showDialog: false });
-          this.loadAccountTypes();
-        } else {
-          this.setData({ 
-            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败') 
-          });
-        }
-      },
-      fail: () => {
-        wx.hideLoading();
-        this.setData({ 
-          errorMsg: '网络请求失败' 
+        wx.showToast({
+          title: isEditing ? '更新成功' : '添加成功',
+          icon: 'success'
         });
-      }
-    });
+        this.setData({ showDialog: false });
+        this.loadAccountTypes();
+      })
+      .catch(() => {
+        wx.hideLoading();
+        this.setData({
+          errorMsg: '网络请求失败'
+        });
+      });
   }
 })

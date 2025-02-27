@@ -1,4 +1,7 @@
 // pages/storeManage/storeManage.js
+import request from '../../utils/request';
+import config from '../../config/config';
+
 Page({
 
   /**
@@ -107,31 +110,26 @@ Page({
       title: '加载中...',
     });
 
-    wx.request({
-      url: 'http://localhost:8080/api/stores',
-      method: 'GET',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+    request.get(config.apis.stores.list)
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200 && res.data.data) {
-          this.setData({ stores: res.data.data });
+        if (res.data) {
+          this.setData({ stores: res.data });
         } else {
           wx.showToast({
-            title: res.data.message || '获取店铺列表失败',
+            title: '获取店铺列表失败',
             icon: 'none'
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
+        console.error('获取店铺列表失败:', err);
         wx.showToast({
           title: '网络请求失败',
           icon: 'none'
         });
-      }
-    });
+      });
   },
 
   // 显示添加店铺弹窗
@@ -153,7 +151,7 @@ Page({
   editStore: function (e) {
     const storeId = e.currentTarget.dataset.id;
     const store = this.data.stores.find(s => s.id === storeId);
-    
+
     if (store) {
       this.setData({
         showDialog: true,
@@ -168,7 +166,7 @@ Page({
   confirmDelete: function (e) {
     const storeId = e.currentTarget.dataset.id;
     const store = this.data.stores.find(s => s.id === storeId);
-    
+
     if (store) {
       wx.showModal({
         title: '确认删除',
@@ -189,7 +187,7 @@ Page({
     });
 
     wx.request({
-      url: 'http://localhost:8080/api/stores/delete',
+      url: config.apiBaseUrl + '/api/stores/delete',
       method: 'DELETE',
       data: {
         id: storeId
@@ -259,23 +257,23 @@ Page({
   // 提交表单
   submitStore: function () {
     const { currentStore, isEditing } = this.data;
-    
+
     // 表单验证
     if (!currentStore.name.trim()) {
       this.setData({ errorMsg: '店铺名称不能为空' });
       return;
     }
-    
+
     wx.showLoading({
       title: isEditing ? '更新中...' : '添加中...',
     });
-    
-    const url = isEditing 
-      ? 'http://localhost:8080/api/stores/update' 
-      : 'http://localhost:8080/api/stores/create';
-    
+
+    const url = isEditing
+      ? config.apiBaseUrl+'/api/stores/update'
+      : config.apiBaseUrl+'/api/stores/create';
+
     const method = isEditing ? 'PUT' : 'POST';
-    
+
     wx.request({
       url: url,
       method: method,
@@ -294,15 +292,15 @@ Page({
           this.setData({ showDialog: false });
           this.loadStores();
         } else {
-          this.setData({ 
-            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败') 
+          this.setData({
+            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败')
           });
         }
       },
       fail: () => {
         wx.hideLoading();
-        this.setData({ 
-          errorMsg: '网络请求失败' 
+        this.setData({
+          errorMsg: '网络请求失败'
         });
       }
     });

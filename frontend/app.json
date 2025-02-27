@@ -1,8 +1,8 @@
 {
   "pages": [
+    "pages/login/login",
     "pages/index/index",
     "pages/logs/logs",
-    "pages/login/login",
     "pages/account/account",
     "pages/accountType/accountType",
     "pages/report/report",
@@ -10,6 +10,9 @@
     "pages/storeManage/storeManage",
     "pages/addAccount/addAccount"
   ],
+  "useExtendedLib": {
+    "weui": true
+  },
   "window": {
     "backgroundTextStyle": "light",
     "navigationBarBackgroundColor": "#fff",

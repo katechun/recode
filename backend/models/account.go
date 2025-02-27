@@ -6,7 +6,7 @@ import "time"
 type Account struct {
 	ID             int64     `json:"id" db:"id"`
 	StoreID        int64     `json:"store_id" db:"store_id"`
-	UserID         string    `json:"user_id" db:"user_id"`
+	UserID         int64     `json:"user_id" db:"user_id"`
 	TypeID         int64     `json:"type_id" db:"type_id"`
 	Amount         float64   `json:"amount" db:"amount"`
 	Remark         string    `json:"remark" db:"remark"`

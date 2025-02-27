@@ -1,4 +1,7 @@
 // pages/account/account.js
+import request from '../../utils/request';
+import config from '../../config/config';
+
 Page({
 
   /**
@@ -13,7 +16,11 @@ Page({
     amount: '',
     remark: '',
     errorMsg: '',
-    recentRecords: []
+    recentRecords: [],
+    currentStoreId: '',
+    startDate: '',
+    endDate: '',
+    accounts: []
   },
 
   /**
@@ -87,7 +94,7 @@ Page({
   // 加载用户可访问的店铺
   loadStores() {
     wx.request({
-      url: 'http://localhost:8080/api/stores',
+      url: 'http://localhost:/api/stores',
       method: 'GET',
       header: {
         'X-User-ID': this.data.userInfo.id
@@ -96,7 +103,7 @@ Page({
         console.log('店铺数据:', res.data);
         if (res.data.code === 200 && res.data.data) {
           this.setData({ stores: res.data.data });
-          
+
           // 如果只有一个店铺，自动选中
           if (res.data.data.length === 1) {
             this.setData({ storeIndex: 0 });
@@ -116,7 +123,7 @@ Page({
   // 加载账务类型
   loadAccountTypes() {
     wx.request({
-      url: 'http://localhost:8080/api/account-types',
+      url: config.apiBaseUrl+'/api/account-types',
       method: 'GET',
       success: (res) => {
         console.log('账务类型数据:', res.data);
@@ -138,9 +145,9 @@ Page({
   loadRecentRecords() {
     // 当前选中的店铺ID
     const storeID = this.data.storeIndex >= 0 ? this.data.stores[this.data.storeIndex].id : '';
-    
+
     wx.request({
-      url: 'http://localhost:8080/api/accounts',
+      url: config.apiBaseUrl+'/api/accounts',
       method: 'GET',
       data: {
         store_id: storeID,
@@ -166,7 +173,7 @@ Page({
     this.setData({
       storeIndex: e.detail.value
     });
-    
+
     // 当店铺变更时，重新加载该店铺的记账记录
     this.loadRecentRecords();
   },
@@ -195,32 +202,32 @@ Page({
   // 提交记账
   submitAccount() {
     const { storeIndex, typeIndex, amount, remark, stores, accountTypes, userInfo } = this.data;
-    
+
     // 表单验证
     if (storeIndex < 0) {
       this.setData({ errorMsg: '请选择店铺' });
       return;
     }
-    
+
     if (typeIndex < 0) {
       this.setData({ errorMsg: '请选择账务类型' });
       return;
     }
-    
+
     if (!amount) {
       this.setData({ errorMsg: '请输入金额' });
       return;
     }
-    
+
     const amountValue = parseFloat(amount);
     if (isNaN(amountValue)) {
       this.setData({ errorMsg: '金额格式不正确' });
       return;
     }
-    
+
     // 清除错误提示
     this.setData({ errorMsg: '' });
-    
+
     // 准备数据
     const accountData = {
       store_id: stores[storeIndex].id,
@@ -228,12 +235,12 @@ Page({
       amount: accountTypes[typeIndex].category === '收入' ? Math.abs(amountValue) : -Math.abs(amountValue),
       remark: remark
     };
-    
+
     console.log('提交记账数据:', accountData);
-    
+
     // 调用API创建账务记录
     wx.request({
-      url: 'http://localhost:8080/api/accounts/create',
+      url: config.apiBaseUrl+'/api/accounts/create',
       method: 'POST',
       data: accountData,
       header: {
@@ -255,7 +262,7 @@ Page({
                 amount: '',
                 remark: ''
               });
-              
+
               // 刷新最近记录
               this.loadRecentRecords();
             }
@@ -268,6 +275,21 @@ Page({
         console.error('记账请求失败:', err);
         this.setData({ errorMsg: '网络请求失败，请稍后再试' });
       }
+    });
+  },
+
+  // 加载账务记录
+  loadAccounts: function () {
+    request.get(config.apis.accounts.list, {
+      params: {
+        store_id: this.data.currentStoreId,
+        start_date: this.data.startDate,
+        end_date: this.data.endDate
+      }
+    }).then(res => {
+      this.setData({
+        accounts: res.data || []
+      });
     });
   }
 })

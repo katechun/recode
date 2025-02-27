@@ -8,9 +8,14 @@
   <view class="user-list" wx:if="{{users.length > 0}}">
     <view class="user-item" wx:for="{{users}}" wx:key="id">
       <view class="user-info">
-        <text class="user-name">{{item.nickname || item.username}}</text>
-        <text class="user-role">{{item.role === 1 ? '管理员' : '店员'}}</text>
-        <text class="user-username">账号: {{item.username}}</text>
+        <image class="user-avatar" src="{{item.avatar || 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'}}"/>
+        <view class="user-detail">
+          <text class="user-name">{{item.nickname || item.username}}</text>
+          <view class="user-info-row">
+            <text class="user-role">{{item.role === 1 ? '管理员' : '店员'}}</text>
+            <text class="user-username">账号: {{item.username}}</text>
+          </view>
+        </view>
       </view>
       <view class="user-actions">
         <text class="action-btn perm" bindtap="showPermDialog" data-id="{{item.id}}">权限</text>
@@ -91,25 +96,26 @@
     </view>
   </view>
 
-  <!-- 店铺权限弹窗 -->
+  <!-- 权限设置弹窗 -->
   <view class="dialog-mask" wx:if="{{showPermissionsDialog}}" bindtap="closePermDialog">
     <view class="dialog permissions-dialog" catchtap="stopPropagation">
       <view class="dialog-header">
-        <text>设置店铺权限</text>
+        <text>权限设置</text>
         <view class="close-icon" bindtap="closePermDialog">×</view>
       </view>
       
       <view class="dialog-content">
         <view class="perm-list">
-          <view class="perm-item" wx:for="{{storePermissions}}" wx:key="store_id">
-            <checkbox value="{{item.store_id}}" checked="{{item.has_permission}}" bindtap="togglePermission" data-id="{{item.store_id}}"></checkbox>
+          <view class="perm-item" wx:for="{{storePermissions}}" wx:key="store_id" 
+                bindtap="togglePermission" data-id="{{item.store_id}}">
+            <checkbox checked="{{item.has_permission === 1}}" />
             <text class="store-name">{{item.store_name}}</text>
           </view>
         </view>
         
         <view class="error-msg" wx:if="{{permErrorMsg}}">{{permErrorMsg}}</view>
         
-        <button class="submit-btn" bindtap="submitPermissions">保存权限</button>
+        <button class="submit-btn" bindtap="submitPermissions">保存</button>
       </view>
     </view>
   </view>

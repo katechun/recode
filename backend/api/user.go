@@ -2,8 +2,10 @@ package api
 
 import (
 	"encoding/json"
+	"log"
 	"net/http"
 	"strconv"
+	"time"
 
 	"account/backend/database"
 	"account/backend/models"
@@ -66,6 +68,13 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		SendResponse(w, http.StatusUnauthorized, 401, err.Error(), nil)
 		return
+	}
+
+	// 更新最后登录时间
+	_, err = database.DB.Exec("UPDATE users SET last_login = ? WHERE id = ?", time.Now(), user.ID)
+	if err != nil {
+		log.Printf("更新登录时间失败: %v", err)
+		// 继续处理，不要因为这个错误中断登录流程
 	}
 
 	// 登录成功，返回用户信息
@@ -171,7 +180,7 @@ func (h *UserHandler) CreateUser(w http.ResponseWriter, r *http.Request) {
 	// 隐藏密码
 	user.ID = id
 	user.Password = ""
-	
+
 	SendResponse(w, http.StatusOK, 200, "创建用户成功", user)
 }
 
@@ -376,42 +385,24 @@ func (h *UserHandler) UpdateUserStorePermissions(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 验证权限
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
-		SendResponse(w, http.StatusUnauthorized, 401, "未授权访问", nil)
-		return
-	}
-
-	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
-	isAdmin, err := database.IsUserAdmin(userIDInt)
-	if err != nil || !isAdmin {
-		SendResponse(w, http.StatusForbidden, 403, "无权限执行此操作", nil)
-		return
-	}
-
-	// 解析请求数据
+	// 解析请求体
 	var req struct {
-		UserID   int64   `json:"user_id"`
-		StoreIDs []int64 `json:"store_ids"`
+		UserId    int64   `json:"user_id"`
+		StoreIds  []int64 `json:"store_ids"`
 	}
+
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		SendResponse(w, http.StatusBadRequest, 400, "请求数据格式错误", nil)
+		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
 		return
 	}
 
-	// 验证数据
-	if req.UserID <= 0 {
-		SendResponse(w, http.StatusBadRequest, 400, "用户ID无效", nil)
-		return
-	}
-
-	// 更新用户权限
-	err = database.UpdateUserStorePermissions(req.UserID, req.StoreIDs)
+	// 更新权限
+	err := database.UpdateUserStorePermissions(req.UserId, req.StoreIds)
 	if err != nil {
-		SendResponse(w, http.StatusInternalServerError, 500, "更新用户权限失败: "+err.Error(), nil)
+		SendResponse(w, http.StatusInternalServerError, 500, "更新权限失败: "+err.Error(), nil)
 		return
 	}
 
-	SendResponse(w, http.StatusOK, 200, "更新用户权限成功", nil)
+	// 成功时返回
+	SendResponse(w, http.StatusOK, 200, "权限更新成功", nil)
 }

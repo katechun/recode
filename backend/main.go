@@ -3,18 +3,37 @@ package main
 import (
 	"log"
 	"net/http"
+	"os"
+	"account/backend/middleware"
+	"github.com/gorilla/mux"
 
 	"account/backend/api"
 	"account/backend/database"
 )
 
+func init() {
+	// 设置日志格式（只保留时间）
+	log.SetFlags(0)
+	// 输出到控制台
+	log.SetOutput(os.Stdout)
+}
+
 func main() {
+	router := mux.NewRouter()
+	
+	// 应用日志中间件
+	router.Use(middleware.LoggerMiddleware)
+
 	// 初始化数据库
 	database.InitDB()
-	defer database.DB.Close()
 
-	// 插入默认管理员
-	database.InsertDefaultAdmin()
+	// 重置数据库（仅在开发环境使用）
+	if err := database.ResetDatabase(); err != nil {
+		log.Printf("重置数据库失败: %v", err)
+	}
+
+	// 初始化用户数据
+	database.InitUsers()
 
 	// 插入测试数据
 	database.InsertTestData()
@@ -26,10 +45,10 @@ func main() {
 	accountTypeHandler := &api.AccountTypeHandler{}
 
 	// 注册路由 - 使用CORS中间件
-	http.HandleFunc("/api/login", api.CORSMiddleware(userHandler.Login))
+	router.HandleFunc("/api/login", api.CORSMiddleware(userHandler.Login))
 
 	// 添加查询用户的调试接口
-	http.HandleFunc("/api/debug/users", api.CORSMiddleware(func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc("/api/debug/users", api.CORSMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		// 简单的调试API，列出所有用户
 		users, err := database.GetAllUsersDebug()
 		if err != nil {
@@ -40,34 +59,32 @@ func main() {
 	}))
 
 	// 账务相关API
-	http.HandleFunc("/api/accounts", api.CORSMiddleware(accountHandler.List))
-	http.HandleFunc("/api/accounts/create", api.CORSMiddleware(accountHandler.Create))
-	http.HandleFunc("/api/accounts/statistics", api.CORSMiddleware(accountHandler.Statistics))
+	router.HandleFunc("/api/accounts", api.CORSMiddleware(accountHandler.List))
+	router.HandleFunc("/api/accounts/create", api.CORSMiddleware(accountHandler.Create))
+	router.HandleFunc("/api/accounts/statistics", api.CORSMiddleware(accountHandler.Statistics))
 
 	// 店铺相关API
-	http.HandleFunc("/api/stores", api.CORSMiddleware(storeHandler.GetUserStores))
-	http.HandleFunc("/api/stores/create", api.CORSMiddleware(storeHandler.CreateStore))
-	http.HandleFunc("/api/stores/update", api.CORSMiddleware(storeHandler.UpdateStore))
-	http.HandleFunc("/api/stores/delete", api.CORSMiddleware(storeHandler.DeleteStore))
+	router.HandleFunc("/api/stores", api.CORSMiddleware(storeHandler.GetUserStores))
+	router.HandleFunc("/api/stores/create", api.CORSMiddleware(storeHandler.CreateStore))
+	router.HandleFunc("/api/stores/update", api.CORSMiddleware(storeHandler.UpdateStore))
+	router.HandleFunc("/api/stores/delete", api.CORSMiddleware(storeHandler.DeleteStore))
 
 	// 账务类型相关API
-	http.HandleFunc("/api/account-types", api.CORSMiddleware(accountTypeHandler.GetAll))
-	http.HandleFunc("/api/account-types/create", api.CORSMiddleware(accountTypeHandler.CreateAccountType))
-	http.HandleFunc("/api/account-types/update", api.CORSMiddleware(accountTypeHandler.UpdateAccountType))
-	http.HandleFunc("/api/account-types/delete", api.CORSMiddleware(accountTypeHandler.DeleteAccountType))
+	router.HandleFunc("/api/account-types", api.CORSMiddleware(accountTypeHandler.GetAll))
+	router.HandleFunc("/api/account-types/create", api.CORSMiddleware(accountTypeHandler.CreateAccountType))
+	router.HandleFunc("/api/account-types/update", api.CORSMiddleware(accountTypeHandler.UpdateAccountType))
+	router.HandleFunc("/api/account-types/delete", api.CORSMiddleware(accountTypeHandler.DeleteAccountType))
 
 	// 用户管理相关API
-	http.HandleFunc("/api/users", api.CORSMiddleware(userHandler.GetAllUsers))
-	http.HandleFunc("/api/users/create", api.CORSMiddleware(userHandler.CreateUser))
-	http.HandleFunc("/api/users/update", api.CORSMiddleware(userHandler.UpdateUser))
-	http.HandleFunc("/api/users/delete", api.CORSMiddleware(userHandler.DeleteUser))
-	http.HandleFunc("/api/users/reset-password", api.CORSMiddleware(userHandler.ResetPassword))
-	http.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.GetUserStorePermissions))
-	http.HandleFunc("/api/users/update-permissions", api.CORSMiddleware(userHandler.UpdateUserStorePermissions))
+	router.HandleFunc("/api/users", api.CORSMiddleware(userHandler.GetAllUsers))
+	router.HandleFunc("/api/users/create", api.CORSMiddleware(userHandler.CreateUser))
+	router.HandleFunc("/api/users/update", api.CORSMiddleware(userHandler.UpdateUser))
+	router.HandleFunc("/api/users/delete", api.CORSMiddleware(userHandler.DeleteUser))
+	router.HandleFunc("/api/users/reset-password", api.CORSMiddleware(userHandler.ResetPassword))
+	// 用户权限API - 使用Methods指定允许的HTTP方法
+	router.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.GetUserStorePermissions)).Methods("GET")
+	router.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.UpdateUserStorePermissions)).Methods("POST")
 
-	// 启动服务器
-	log.Println("服务器启动在 http://localhost:8080")
-	if err := http.ListenAndServe(":8080", nil); err != nil {
-		log.Fatalf("服务器启动失败: %v", err)
-	}
+	log.Printf("服务器启动在 :8080")
+	log.Fatal(http.ListenAndServe(":8080", router))
 }

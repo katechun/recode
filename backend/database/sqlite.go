@@ -8,7 +8,9 @@ import (
 	"time"
 
 	"account/backend/models"
-	_ "github.com/mattn/go-sqlite3"
+	"account/backend/utils"
+
+	_ "modernc.org/sqlite"
 )
 
 var DB *sql.DB
@@ -22,7 +24,7 @@ func InitDB() {
 	}
 
 	dbPath := filepath.Join(dbDir, "account.db")
-	db, err := sql.Open("sqlite3", dbPath)
+	db, err := sql.Open("sqlite", dbPath)
 	if err != nil {
 		log.Fatalf("无法连接数据库: %v", err)
 	}
@@ -149,11 +151,11 @@ func InsertDefaultAdmin() {
 		INSERT INTO users (username, password, nickname, role)
 		VALUES (?, ?, ?, ?)
 	`, "admin", "123456", "系统管理员", 1)
-	
+
 	if err != nil {
 		log.Fatalf("创建默认管理员失败: %v", err)
 	}
-	
+
 	log.Println("默认管理员创建成功")
 }
 
@@ -234,7 +236,7 @@ func InsertTestData() {
 		var count int
 		DB.QueryRow("SELECT COUNT(*) FROM account_types WHERE name = ?", t.name).Scan(&count)
 		if count == 0 {
-			_, err := DB.Exec("INSERT INTO account_types (name, is_expense) VALUES (?, ?)", 
+			_, err := DB.Exec("INSERT INTO account_types (name, is_expense) VALUES (?, ?)",
 				t.name, t.isExpense)
 			if err != nil {
 				log.Printf("插入账务类型失败: %v", err)
@@ -259,7 +261,7 @@ func InsertTestData() {
 			if storeID > 0 {
 				// 检查权限是否已存在
 				var count int
-				DB.QueryRow("SELECT COUNT(*) FROM user_store_permissions WHERE user_id = ? AND store_id = ?", 
+				DB.QueryRow("SELECT COUNT(*) FROM user_store_permissions WHERE user_id = ? AND store_id = ?",
 					staff1ID, storeID).Scan(&count)
 				if count == 0 {
 					_, err = DB.Exec(`
@@ -288,7 +290,7 @@ func InsertTestData() {
 		if store3ID > 0 {
 			// 检查权限是否已存在
 			var count int
-			DB.QueryRow("SELECT COUNT(*) FROM user_store_permissions WHERE user_id = ? AND store_id = ?", 
+			DB.QueryRow("SELECT COUNT(*) FROM user_store_permissions WHERE user_id = ? AND store_id = ?",
 				staff2ID, store3ID).Scan(&count)
 			if count == 0 {
 				_, err = DB.Exec(`
@@ -337,11 +339,11 @@ func InsertTestData() {
 
 	// 插入账务记录
 	accounts := []struct {
-		storeID        int64
-		userID         int64
-		typeID         int64
-		amount         float64
-		remark         string
+		storeID         int64
+		userID          int64
+		typeID          int64
+		amount          float64
+		remark          string
 		transactionTime time.Time
 	}{
 		{store1ID, adminID, salesIncomeID, 1200, "日常销售", currentTime},
@@ -472,4 +474,101 @@ func UpdateAccountTypeTable() {
 
 		log.Println("账务类型表结构已更新")
 	}
-} 
+}
+
+// InitUsers 初始化基本用户
+func InitUsers() {
+	log.Println("检查默认用户...")
+	
+	// 检查管理员账号
+	var adminCount int
+	err := DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = 1").Scan(&adminCount)
+	if err != nil {
+		log.Printf("检查管理员账号失败: %v", err)
+		return
+	}
+	
+	// 如果没有管理员账号，创建默认管理员
+	if adminCount == 0 {
+		// 使用utils包中的函数生成密码哈希
+		hashedPassword, err := utils.HashPassword("admin123")
+		if err != nil {
+			log.Printf("生成密码哈希失败: %v", err)
+			return
+		}
+		
+		_, err = DB.Exec(`
+			INSERT INTO users (username, password, nickname, role, create_time, update_time) 
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, "admin", hashedPassword, "系统管理员", 1, time.Now(), time.Now())
+		
+		if err != nil {
+			log.Printf("创建管理员账号失败: %v", err)
+		} else {
+			log.Println("创建默认管理员账号成功")
+		}
+	}
+
+	// 检查店员账号
+	var staffCount int
+	err = DB.QueryRow("SELECT COUNT(*) FROM users WHERE role = 2").Scan(&staffCount)
+	if err != nil {
+		log.Printf("检查店员账号失败: %v", err)
+		return
+	}
+
+	// 如果没有店员账号，创建默认店员
+	if staffCount == 0 {
+		// 使用utils包中的函数生成密码哈希
+		hashedPassword, err := utils.HashPassword("staff123")
+		if err != nil {
+			log.Printf("生成密码哈希失败: %v", err)
+			return
+		}
+		
+		_, err = DB.Exec(`
+			INSERT INTO users (username, password, nickname, role, create_time, update_time) 
+			VALUES (?, ?, ?, ?, ?, ?)
+		`, "staff1", hashedPassword, "默认店员", 2, time.Now(), time.Now())
+		
+		if err != nil {
+			log.Printf("创建店员账号失败: %v", err)
+		} else {
+			log.Println("创建默认店员账号成功")
+		}
+	}
+}
+
+// ResetDatabase 重置数据库
+func ResetDatabase() error {
+	// 删除现有的users表
+	_, err := DB.Exec("DROP TABLE IF EXISTS users")
+	if err != nil {
+		return err
+	}
+
+	// 重新创建users表
+	createUserTable := `
+	CREATE TABLE IF NOT EXISTS users (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		username TEXT NOT NULL UNIQUE,
+		password TEXT NOT NULL,
+		nickname TEXT,
+		role INTEGER NOT NULL,
+		phone TEXT,
+		email TEXT,
+		avatar TEXT,
+		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		last_login TIMESTAMP
+	);`
+
+	_, err = DB.Exec(createUserTable)
+	if err != nil {
+		return err
+	}
+
+	// 初始化用户数据
+	InitUsers()
+	return nil
+}

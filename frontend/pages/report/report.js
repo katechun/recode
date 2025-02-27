@@ -99,7 +99,7 @@ Page({
   // 加载用户可访问的店铺
   loadStores() {
     wx.request({
-      url: 'http://localhost:8080/api/stores',
+      url: config.apiBaseUrl+'/api/stores',
       method: 'GET',
       header: {
         'X-User-ID': this.data.userInfo.id
@@ -122,7 +122,7 @@ Page({
 
     // 请求账务数据进行分析
     wx.request({
-      url: 'http://localhost:8080/api/accounts',
+      url: config.apiBaseUrl+'/api/accounts',
       method: 'GET',
       data: {
         store_id: this.data.selectedStoreId,

@@ -1,4 +1,7 @@
 // pages/userManage/userManage.js
+import request from '../../utils/request';
+import config from '../../config/config';
+
 Page({
 
   /**
@@ -22,14 +25,14 @@ Page({
     ],
     roleIndex: 1, // 默认选中店员
     errorMsg: '',
-    
+
     // 重置密码
     showResetPwdDialog: false,
     targetUserId: 0,
     newPassword: '',
     confirmPassword: '',
     resetErrorMsg: '',
-    
+
     // 权限管理
     showPermissionsDialog: false,
     currentPermUserId: 0,
@@ -126,31 +129,26 @@ Page({
       title: '加载中...',
     });
 
-    wx.request({
-      url: 'http://localhost:8080/api/users',
-      method: 'GET',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+    request.get(config.apis.users.list)
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200 && res.data.data) {
-          this.setData({ users: res.data.data });
+        if (res.data) {  // 直接检查是否有数据
+          this.setData({ users: res.data });
         } else {
           wx.showToast({
-            title: res.data.message || '获取用户列表失败',
+            title: '获取用户列表失败',
             icon: 'none'
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
+        console.error('获取用户列表失败:', err);
         wx.showToast({
           title: '网络请求失败',
           icon: 'none'
         });
-      }
-    });
+      });
   },
 
   // 显示添加用户弹窗
@@ -174,7 +172,7 @@ Page({
   editUser: function (e) {
     const userId = e.currentTarget.dataset.id;
     const user = this.data.users.find(u => u.id === userId);
-    
+
     if (user) {
       this.setData({
         showDialog: true,
@@ -201,45 +199,65 @@ Page({
   // 显示权限设置弹窗
   showPermDialog: function (e) {
     const userId = e.currentTarget.dataset.id;
+    if (!userId) {
+      wx.showToast({
+        title: '用户ID无效',
+        icon: 'none'
+      });
+      return;
+    }
+
     this.loadUserPermissions(userId);
   },
 
   // 加载用户权限
   loadUserPermissions: function (userId) {
+    const requestUrl = `${config.apiBaseUrl}${config.apis.users.permissions}?user_id=${userId}`;
+    console.log('【请求】获取用户权限:', {
+      url: requestUrl,
+      method: 'GET',
+      headers: {
+        'X-User-ID': wx.getStorageSync('userInfo').id
+      }
+    });
+
     wx.showLoading({
       title: '加载中...',
     });
 
-    wx.request({
-      url: `http://localhost:8080/api/users/permissions?user_id=${userId}`,
-      method: 'GET',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+    request.get(`${config.apis.users.permissions}?user_id=${userId}`)
+      .then(res => {
+        console.log('【响应】获取用户权限:', {
+          url: requestUrl,
+          statusCode: res.statusCode,
+          data: res.data
+        });
         wx.hideLoading();
-        if (res.data.code === 200 && res.data.data) {
+        if (res.data) {
           this.setData({
             showPermissionsDialog: true,
             currentPermUserId: userId,
-            storePermissions: res.data.data,
+            storePermissions: res.data,
             permErrorMsg: ''
           });
         } else {
           wx.showToast({
-            title: res.data.message || '获取用户权限失败',
+            title: '获取用户权限失败',
             icon: 'none'
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
-        wx.showToast({
-          title: '网络请求失败',
-          icon: 'none'
+        console.error('【错误】获取用户权限失败:', {
+          url: requestUrl,
+          error: err.message || err,
+          stack: err.stack
         });
-      }
-    });
+        this.setData({
+          permErrorMsg: '获取权限失败'
+        });
+      });
   },
 
   // 切换权限状态
@@ -247,63 +265,98 @@ Page({
     const storeId = e.currentTarget.dataset.id;
     const permissions = [...this.data.storePermissions];
     const index = permissions.findIndex(p => p.store_id === storeId);
-    
+
     if (index >= 0) {
-      permissions[index].has_permission = permissions[index].has_permission === 1 ? 0 : 1;
+      const currentValue = parseInt(permissions[index].has_permission) || 0;
+      permissions[index].has_permission = currentValue === 1 ? 0 : 1;
       this.setData({ storePermissions: permissions });
     }
   },
 
   // 提交权限设置
   submitPermissions: function () {
-    wx.showLoading({
-      title: '保存中...',
-    });
+    const userId = this.data.currentPermUserId;
+    if (!userId) {
+      this.setData({
+        permErrorMsg: '用户ID无效'
+      });
+      return;
+    }
 
-    // 获取所有已选择的店铺ID
     const selectedStoreIds = this.data.storePermissions
       .filter(p => p.has_permission === 1)
       .map(p => p.store_id);
 
-    wx.request({
-      url: 'http://localhost:8080/api/users/update-permissions',
+    const requestUrl = `${config.apiBaseUrl}${config.apis.users.permissions}`;
+    const requestData = {
+      user_id: userId,
+      store_ids: selectedStoreIds
+    };
+
+    console.log('【请求】更新用户权限:', {
+      url: requestUrl,
       method: 'POST',
-      data: {
-        user_id: this.data.currentPermUserId,
-        store_ids: selectedStoreIds
+      headers: {
+        'Content-Type': 'application/json',
+        'X-User-ID': wx.getStorageSync('userInfo').id
       },
-      header: {
-        'X-User-ID': this.data.userInfo.id,
-        'Content-Type': 'application/json'
-      },
-      success: (res) => {
+      data: requestData
+    });
+
+    wx.showLoading({
+      title: '保存中...',
+    });
+
+    request.post(config.apis.users.permissions, requestData)
+      .then(res => {
+        console.log('【响应】更新用户权限:', {
+          url: requestUrl,
+          statusCode: res.statusCode,
+          data: res.data
+        });
         wx.hideLoading();
-        if (res.data.code === 200) {
+        if (res.statusCode === 200) {
           wx.showToast({
             title: '保存成功',
             icon: 'success'
           });
-          this.setData({ showPermissionsDialog: false });
+          this.setData({
+            showPermissionsDialog: false,
+            permErrorMsg: ''
+          });
+          // 重新加载权限
+          this.loadUserPermissions(userId);
         } else {
-          this.setData({ 
-            permErrorMsg: res.data.message || '保存失败' 
+          this.setData({
+            permErrorMsg: res.data?.message || '保存失败，请重试'
+          });
+          console.error('权限更新失败:', {
+            statusCode: res.statusCode,
+            response: res.data
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
-        this.setData({ 
-          permErrorMsg: '网络请求失败' 
+        console.error('【错误】更新用户权限失败:', {
+          url: requestUrl,
+          requestData: requestData,
+          error: err.message || err,
+          stack: err.stack,
+          fullError: JSON.stringify(err, null, 2)
         });
-      }
-    });
+        const errorMsg = err.data?.message || err.message || '网络请求失败，请重试';
+        this.setData({
+          permErrorMsg: errorMsg
+        });
+      });
   },
 
   // 确认删除
   confirmDelete: function (e) {
     const userId = e.currentTarget.dataset.id;
     const user = this.data.users.find(u => u.id === userId);
-    
+
     if (user) {
       // 不能删除自己
       if (user.id === this.data.userInfo.id) {
@@ -332,15 +385,12 @@ Page({
       title: '删除中...',
     });
 
-    wx.request({
-      url: `http://localhost:8080/api/users/delete?id=${userId}`,
-      method: 'DELETE',
-      header: {
-        'X-User-ID': this.data.userInfo.id
-      },
-      success: (res) => {
+    request.delete(config.apis.users.delete, {
+      params: { id: userId }  // 添加查询参数
+    })
+      .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
+        if (res.data) {
           wx.showToast({
             title: '删除成功',
             icon: 'success'
@@ -348,19 +398,19 @@ Page({
           this.loadUsers();
         } else {
           wx.showToast({
-            title: res.data.message || '删除失败',
+            title: '删除失败',
             icon: 'none'
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
+        console.error('删除用户失败:', err);
         wx.showToast({
           title: '网络请求失败',
           icon: 'none'
         });
-      }
-    });
+      });
   },
 
   // 关闭弹窗
@@ -437,37 +487,30 @@ Page({
   // 提交用户表单
   submitUser: function () {
     const { currentUser, isEditing } = this.data;
-    
+
     // 表单验证
     if (!currentUser.username.trim()) {
       this.setData({ errorMsg: '用户名不能为空' });
       return;
     }
-    
+
     if (!isEditing && !currentUser.password.trim()) {
       this.setData({ errorMsg: '密码不能为空' });
       return;
     }
-    
+
     wx.showLoading({
       title: isEditing ? '更新中...' : '添加中...',
     });
-    
-    const url = isEditing 
-      ? 'http://localhost:8080/api/users/update' 
-      : 'http://localhost:8080/api/users/create';
-    
+
+    const url = isEditing
+      ? config.apis.users.update
+      : config.apis.users.create;
+
     const method = isEditing ? 'PUT' : 'POST';
-    
-    wx.request({
-      url: url,
-      method: method,
-      data: currentUser,
-      header: {
-        'X-User-ID': this.data.userInfo.id,
-        'Content-Type': 'application/json'
-      },
-      success: (res) => {
+
+    request.post(url, currentUser)
+      .then(res => {
         wx.hideLoading();
         if (res.data.code === 200) {
           wx.showToast({
@@ -477,18 +520,18 @@ Page({
           this.setData({ showDialog: false });
           this.loadUsers();
         } else {
-          this.setData({ 
-            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败') 
+          this.setData({
+            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败')
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
-        this.setData({ 
-          errorMsg: '网络请求失败' 
+        console.error('提交用户表单失败:', err);
+        this.setData({
+          errorMsg: '网络请求失败'
         });
-      }
-    });
+      });
   },
 
   // 提交重置密码
@@ -498,28 +541,21 @@ Page({
       this.setData({ resetErrorMsg: '新密码不能为空' });
       return;
     }
-    
+
     if (this.data.newPassword !== this.data.confirmPassword) {
       this.setData({ resetErrorMsg: '两次输入的密码不一致' });
       return;
     }
-    
+
     wx.showLoading({
       title: '重置中...',
     });
-    
-    wx.request({
-      url: 'http://localhost:8080/api/users/reset-password',
-      method: 'POST',
-      data: {
-        user_id: this.data.targetUserId,
-        new_password: this.data.newPassword
-      },
-      header: {
-        'X-User-ID': this.data.userInfo.id,
-        'Content-Type': 'application/json'
-      },
-      success: (res) => {
+
+    request.post(config.apis.users.resetPassword, {
+      user_id: this.data.targetUserId,
+      new_password: this.data.newPassword
+    })
+      .then(res => {
         wx.hideLoading();
         if (res.data.code === 200) {
           wx.showToast({
@@ -528,17 +564,17 @@ Page({
           });
           this.setData({ showResetPwdDialog: false });
         } else {
-          this.setData({ 
-            resetErrorMsg: res.data.message || '密码重置失败' 
+          this.setData({
+            resetErrorMsg: res.data.message || '密码重置失败'
           });
         }
-      },
-      fail: () => {
+      })
+      .catch(err => {
         wx.hideLoading();
-        this.setData({ 
-          resetErrorMsg: '网络请求失败' 
+        console.error('提交重置密码失败:', err);
+        this.setData({
+          resetErrorMsg: '网络请求失败'
         });
-      }
-    });
+      });
   }
 })

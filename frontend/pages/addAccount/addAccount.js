@@ -1,3 +1,6 @@
+import request from '../../utils/request';
+import config from '../../config/config';
+
 Page({
   data: {
     storeId: '',
@@ -16,41 +19,59 @@ Page({
   onLoad: function (options) {
     console.log('接收到的参数:', options);
     
+    const isDefault = options.isDefault === 'true';
+    
     // 设置当前日期
     const now = new Date();
     const currentDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
     
     this.setData({
-      currentDate: currentDate,
-      transactionTime: currentDate
+      currentDate,
+      transactionTime: currentDate,
+      storeId: options.storeId || '',
+      typeId: options.typeId || '',
+      accountType: options.type || 'expense'
     });
-    
-    // 获取传递的参数
-    if (options.storeId && options.typeId && options.type) {
-      this.setData({
-        storeId: options.storeId,
-        typeId: options.typeId,
-        accountType: options.type // 收入或支出
-      });
-    }
-    
-    // 加载必要数据
-    this.loadStores();
-    this.loadAccountTypes();
+
+    // 加载店铺列表
+    this.loadStores().then(() => {
+      if (isDefault && options.storeId) {
+        // 设置默认选中的店铺
+        const storeIndex = this.data.stores.findIndex(
+          store => store.id.toString() === options.storeId
+        );
+        if (storeIndex >= 0) {
+          this.setData({
+            selectedStoreName: this.data.stores[storeIndex].name
+          });
+        }
+      }
+    });
+
+    // 获取账务类型
+    this.loadAccountTypes().then(() => {
+      if (isDefault && options.typeId) {
+        // 设置默认选中的类型
+        const accountTypes = this.data.accountTypes || [];
+        const typeIndex = accountTypes.findIndex(
+          type => type.id.toString() === options.typeId
+        );
+        if (typeIndex >= 0) {
+          this.setData({
+            selectedTypeName: accountTypes[typeIndex].name
+          });
+        }
+      }
+    });
   },
 
   // 加载店铺列表
   loadStores: function() {
-    wx.request({
-      url: 'http://localhost:8080/api/stores',
-      method: 'GET',
-      header: {
-        'X-User-ID': wx.getStorageSync('userInfo').id || ''
-      },
-      success: (res) => {
-        if (res.data.code === 200) {
+    return new Promise((resolve, reject) => {
+      request.get(config.apis.stores.list)
+        .then(res => {
           this.setData({
-            stores: res.data.data || []
+            stores: res.data || []
           });
           
           // 如果已设置storeId，找到对应的店铺名称
@@ -67,30 +88,22 @@ Page({
               selectedStoreName: this.data.stores[0].name
             });
           }
-        }
-      },
-      fail: (err) => {
-        console.error('获取店铺失败:', err);
-        wx.showToast({
-          title: '获取店铺列表失败',
-          icon: 'none'
+          resolve();
+        })
+        .catch(err => {
+          console.error('获取店铺失败:', err);
+          reject(err);
         });
-      }
     });
   },
 
   // 加载账务类型
   loadAccountTypes: function() {
-    wx.request({
-      url: 'http://localhost:8080/api/account-types',
-      method: 'GET',
-      header: {
-        'X-User-ID': wx.getStorageSync('userInfo').id || ''
-      },
-      success: (res) => {
-        if (res.data.code === 200) {
+    return new Promise((resolve, reject) => {
+      request.get(config.apis.accountTypes.list)
+        .then(res => {
           // 根据当前选择的类型(收入/支出)筛选账务类型
-          const types = res.data.data.filter(item => 
+          const types = res.data.filter(item => 
             (this.data.accountType === 'income' && !item.is_expense) || 
             (this.data.accountType === 'expense' && item.is_expense)
           );
@@ -99,21 +112,17 @@ Page({
             accountTypes: types
           });
           
-          // 如果已设置typeId，则不需要再设置
           if (!this.data.typeId && types.length > 0) {
             this.setData({
               typeId: types[0].id
             });
           }
-        }
-      },
-      fail: (err) => {
-        console.error('获取账务类型失败:', err);
-        wx.showToast({
-          title: '获取账务类型失败',
-          icon: 'none'
+          resolve();
+        })
+        .catch(err => {
+          console.error('获取账务类型失败:', err);
+          reject(err);
         });
-      }
     });
   },
 
@@ -171,7 +180,7 @@ Page({
 
   // 提交记账
   submitAccount: function() {
-    // 验证数据
+    // 表单验证
     if (!this.data.storeId) {
       wx.showToast({
         title: '请选择店铺',
@@ -179,7 +188,7 @@ Page({
       });
       return;
     }
-    
+
     if (!this.data.typeId) {
       wx.showToast({
         title: '请选择账务类型',
@@ -187,63 +196,38 @@ Page({
       });
       return;
     }
-    
-    if (!this.data.amount || isNaN(parseFloat(this.data.amount))) {
+
+    if (!this.data.amount || isNaN(this.data.amount) || parseFloat(this.data.amount) <= 0) {
       wx.showToast({
         title: '请输入有效金额',
         icon: 'none'
       });
       return;
     }
-    
-    // 处理金额（支出为负数）
-    let amount = parseFloat(this.data.amount);
-    if (this.data.accountType === 'expense') {
-      amount = -Math.abs(amount);
-    } else {
-      amount = Math.abs(amount);
-    }
-    
-    // 发送请求
-    wx.request({
-      url: 'http://localhost:8080/api/accounts/create',
-      method: 'POST',
-      header: {
-        'X-User-ID': wx.getStorageSync('userInfo').id || ''
-      },
-      data: {
-        store_id: this.data.storeId,
-        type_id: this.data.typeId,
-        amount: amount,
-        remark: this.data.remark,
-        transaction_time: this.data.transactionTime
-      },
-      success: (res) => {
-        if (res.data.code === 200) {
-          wx.showToast({
-            title: '记账成功',
-            icon: 'success'
-          });
-          
-          // 延迟返回上一页
-          setTimeout(() => {
-            wx.navigateBack();
-          }, 1500);
-        } else {
-          wx.showToast({
-            title: res.data.message || '记账失败',
-            icon: 'none'
-          });
-        }
-      },
-      fail: (err) => {
-        console.error('记账失败:', err);
+
+    const amount = this.data.accountType === 'expense' ? 
+      -Math.abs(parseFloat(this.data.amount)) : 
+      Math.abs(parseFloat(this.data.amount));
+
+    const accountData = {
+      store_id: parseInt(this.data.storeId),
+      type_id: parseInt(this.data.typeId),
+      amount: amount,
+      remark: this.data.remark || '',
+      transaction_time: this.data.transactionTime
+    };
+
+    request.post(config.apis.accounts.create, accountData)
+      .then(() => {
         wx.showToast({
-          title: '网络请求失败',
-          icon: 'none'
+          title: '记账成功',
+          icon: 'success',
+          duration: 2000
         });
-      }
-    });
+        setTimeout(() => {
+          wx.navigateBack();
+        }, 2000);
+      });
   },
 
   // 取消记账

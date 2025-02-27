@@ -51,4 +51,9 @@
       </view>
     </view>
   </view>
+
+  <view class="user-section">
+    <image class="user-avatar" src="{{userInfo.avatar || 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'}}"/>
+    <text class="user-name">{{userInfo.nickname || userInfo.username}}</text>
+  </view>
 </view>

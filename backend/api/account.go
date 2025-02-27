@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"account/backend/database"
@@ -39,33 +40,43 @@ func (h *AccountHandler) Create(w http.ResponseWriter, r *http.Request) {
 	// 解析请求体
 	var req CreateAccountRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		log.Printf("解析请求体失败: %v", err)
 		SendResponse(w, http.StatusBadRequest, 400, "请求参数错误", nil)
 		return
 	}
 
 	// 参数验证
-	if req.StoreID <= 0 || req.TypeID <= 0 {
-		SendResponse(w, http.StatusBadRequest, 400, "店铺ID和账务类型ID不能为空", nil)
+	if req.StoreID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "店铺ID无效", nil)
 		return
 	}
 
-	// 处理交易时间
-	var transactionTime time.Time
+	if req.TypeID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "账务类型ID无效", nil)
+		return
+	}
+
+	// 转换用户ID
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "用户ID格式错误", nil)
+		return
+	}
+
+	// 设置交易时间，如果未提供则使用当前时间
+	transactionTime := time.Now()
 	if req.TransactionTime != "" {
-		var err error
-		transactionTime, err = time.Parse("2006-01-02 15:04:05", req.TransactionTime)
+		transactionTime, err = time.Parse("2006-01-02", req.TransactionTime)
 		if err != nil {
-			SendResponse(w, http.StatusBadRequest, 400, "交易时间格式错误", nil)
+			SendResponse(w, http.StatusBadRequest, 400, "交易日期格式错误", nil)
 			return
 		}
-	} else {
-		transactionTime = time.Now()
 	}
 
 	// 创建账务记录
 	account := &models.Account{
 		StoreID:         req.StoreID,
-		UserID:          userIDStr,
+		UserID:          userID,
 		TypeID:          req.TypeID,
 		Amount:          req.Amount,
 		Remark:          req.Remark,

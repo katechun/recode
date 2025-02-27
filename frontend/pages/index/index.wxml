@@ -1,10 +1,11 @@
 <!--index.wxml-->
-<scroll-view class="scrollarea" scroll-y type="list">
+<scroll-view class="scrollarea" scroll-y type="list" refresher-enabled="{{true}}" 
+             refresher-triggered="{{isRefreshing}}" bindrefresherrefresh="onPullRefresh">
   <view class="container">
     <!-- 顶部用户信息和设置区域 -->
     <view class="top-section">
       <view class="user-info-card">
-        <image class="avatar" src="{{userInfo.avatar || '/static/images/default-avatar.png'}}"></image>
+        <image class="avatar" src="{{userInfo.avatar || 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'}}"></image>
         <view class="user-basic-info">
           <text class="nickname">{{userInfo.nickname || userInfo.username}}</text>
           <text class="role">{{isAdmin ? '管理员' : '店员'}}</text>
@@ -50,21 +51,6 @@
       </view>
     </view>
     
-    <!-- 快捷记账区域 -->
-    <view class="quick-actions-area">
-      <view class="section-title">快捷记账</view>
-      <view class="quick-actions">
-        <view class="quick-action income" bindtap="quickAddAccount" data-type="income" data-store-id="{{selectedStore.id || ''}}" data-type-id="{{selectedIncomeType.id || ''}}">
-          <text class="quick-icon">+</text>
-          <text>收入</text>
-        </view>
-        <view class="quick-action expense" bindtap="quickAddAccount" data-type="expense" data-store-id="{{selectedStore.id || ''}}" data-type-id="{{selectedExpenseType.id || ''}}">
-          <text class="quick-icon">-</text>
-          <text>支出</text>
-        </view>
-      </view>
-    </view>
-    
     <!-- 今日数据概览 -->
     <view class="data-overview card">
       <view class="card-title">今日数据</view>
@@ -84,7 +70,16 @@
     <view class="recent-accounts card">
       <view class="card-header">
         <text class="card-title">最近账目</text>
-        <view class="view-all" bindtap="navigateToAccount">查看全部</view>
+        <view class="quick-account-btns">
+          <view class="quick-btn income" bindtap="goToAddAccount" data-type="income">
+            <text class="quick-btn-icon">+</text>
+            <text class="quick-btn-text">收入</text>
+          </view>
+          <view class="quick-btn expense" bindtap="goToAddAccount" data-type="expense">
+            <text class="quick-btn-icon">-</text>
+            <text class="quick-btn-text">支出</text>
+          </view>
+        </view>
       </view>
       <view class="account-list">
         <block wx:if="{{recentAccounts.length > 0}}">
@@ -99,7 +94,15 @@
             </view>
           </view>
         </block>
-        <view wx:else class="no-data">暂无账目数据</view>
+        <view class="empty-state" wx:if="{{recentAccounts.length === 0 && !isLoading}}">
+          <view class="empty-icon">
+            <text class="iconfont icon-empty"></text>
+          </view>
+          <text class="empty-text">暂无账目数据</text>
+          <view class="empty-action" bindtap="goToAddAccount" data-type="expense">
+            <text>去记一笔</text>
+          </view>
+        </view>
       </view>
     </view>
     
@@ -146,49 +149,99 @@
       </view>
     </view>
 
-    <!-- 添加记账默认弹窗 -->
-    <view class="settings-mask" wx:if="{{defaultSettingsVisible}}" bindtap="closeDefaultSettings">
-      <view class="settings-modal" catchtap="stopPropagation">
-        <view class="settings-header">
-          <text class="settings-title">记账默认设置</text>
-          <view class="close-icon" bindtap="closeDefaultSettings">×</view>
+    <!-- 优化记账默认设置弹窗 -->
+    <view class="settings-modal-mask {{showDefaultSettings ? 'visible' : ''}}" bindtap="closeDefaultSettings">
+      <view class="settings-modal-container" catchtap="stopPropagation">
+        <view class="settings-modal-header">
+          <text class="settings-modal-title">记账默认设置</text>
+          <view class="settings-modal-close" bindtap="closeDefaultSettings">×</view>
         </view>
-        <view class="settings-content">
-          <!-- 店铺选择 -->
-          <view class="settings-item">
-            <text class="settings-label">店铺:</text>
-            <picker mode="selector" range="{{stores}}" range-key="name" value="{{storeIndex}}" bindchange="bindStoreChange">
-              <view class="settings-picker">
-                {{selectedStore ? selectedStore.name : '请选择店铺'}}
+        
+        <view class="settings-modal-content">
+          <view class="settings-modal-item">
+            <text class="settings-modal-label">店铺设置</text>
+            <picker mode="selector" 
+                    range="{{stores}}" 
+                    range-key="name" 
+                    value="{{storeIndex}}" 
+                    bindchange="bindStoreChange">
+              <view class="settings-modal-picker {{!selectedStore ? 'empty' : ''}}">
+                <text>{{selectedStore ? selectedStore.name : '请选择店铺'}}</text>
+                <text class="settings-modal-arrow">▼</text>
               </view>
             </picker>
           </view>
           
-          <!-- 收入类型选择 -->
-          <view class="settings-item">
-            <text class="settings-label">收入类型:</text>
-            <picker mode="selector" range="{{incomeTypes}}" range-key="name" value="{{incomeTypeIndex}}" bindchange="bindIncomeTypeChange">
-              <view class="settings-picker">
-                {{selectedIncomeType ? selectedIncomeType.name : '请选择收入类型'}}
+          <view class="settings-modal-section">
+            <text class="settings-modal-label">默认收入类型</text>
+            <picker mode="selector" 
+                    range="{{incomeTypes || []}}" 
+                    range-key="name" 
+                    value="{{incomeTypeIndex}}" 
+                    bindchange="bindIncomeTypeChange">
+              <view class="settings-modal-picker {{!selectedIncomeType ? 'empty' : ''}}">
+                <text>{{selectedIncomeType ? selectedIncomeType.name : '请选择收入类型'}}</text>
+                <text class="settings-modal-arrow">▼</text>
               </view>
             </picker>
           </view>
           
-          <!-- 支出类型选择 -->
-          <view class="settings-item">
-            <text class="settings-label">支出类型:</text>
-            <picker mode="selector" range="{{expenseTypes}}" range-key="name" value="{{expenseTypeIndex}}" bindchange="bindExpenseTypeChange">
-              <view class="settings-picker">
-                {{selectedExpenseType ? selectedExpenseType.name : '请选择支出类型'}}
+          <view class="settings-modal-section">
+            <text class="settings-modal-label">默认支出类型</text>
+            <picker mode="selector" 
+                    range="{{expenseTypes || []}}" 
+                    range-key="name" 
+                    value="{{expenseTypeIndex}}" 
+                    bindchange="bindExpenseTypeChange">
+              <view class="settings-modal-picker {{!selectedExpenseType ? 'empty' : ''}}">
+                <text>{{selectedExpenseType ? selectedExpenseType.name : '请选择支出类型'}}</text>
+                <text class="settings-modal-arrow">▼</text>
               </view>
             </picker>
           </view>
-          
-          <view class="btn-container">
-            <button class="save-btn" bindtap="closeDefaultSettings">确定</button>
-          </view>
+        </view>
+        
+        <view class="settings-modal-footer">
+          <button class="settings-modal-btn cancel" bindtap="closeDefaultSettings">取消</button>
+          <button class="settings-modal-btn confirm" bindtap="saveDefaultSettings">保存</button>
         </view>
       </view>
     </view>
+
+    <!-- 添加在现有视图适当位置 -->
+    <view class="loading-container" wx:if="{{isLoading}}">
+      <view class="loading-spinner"></view>
+      <text class="loading-text">加载中...</text>
+    </view>
+
+    <view class="error-container" wx:if="{{loadError && !isLoading}}">
+      <icon type="warn" size="40"></icon>
+      <text class="error-text">{{loadError}}</text>
+      <button class="retry-btn" bindtap="refreshData">重试</button>
+    </view>
   </view>
 </scroll-view>
+
+<!-- 在主内容外层添加条件渲染 -->
+<view wx:if="{{isFirstLoad}}" class="skeleton-screen">
+  <view class="skeleton-header"></view>
+  <view class="skeleton-card">
+    <view class="skeleton-row"></view>
+    <view class="skeleton-row small"></view>
+  </view>
+  <view class="skeleton-stats">
+    <view class="skeleton-stat"></view>
+    <view class="skeleton-stat"></view>
+  </view>
+  <view class="skeleton-list">
+    <view class="skeleton-item" wx:for="{{3}}" wx:key="index">
+      <view class="skeleton-item-left">
+        <view class="skeleton-title"></view>
+        <view class="skeleton-subtitle"></view>
+      </view>
+      <view class="skeleton-item-right">
+        <view class="skeleton-amount"></view>
+      </view>
+    </view>
+  </view>
+</view>
