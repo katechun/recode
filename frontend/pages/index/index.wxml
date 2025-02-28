@@ -5,17 +5,17 @@
     <!-- 顶部用户信息和设置区域 -->
     <view class="top-section">
       <view class="user-info-card">
-        <image class="avatar" src="{{userInfo.avatar || 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'}}" mode="aspectFill"></image>
+        <image class="avatar" src="{{userInfo.avatar || 'https://mmbiz.qpic.cn/mmbiz/icTdbqWNOwNRna42FI242Lcia07jQodd2FJGIYQfG0LAJGFxM4FbnQP6yfMxBgJ0F3YRqJCJ1aPAK2dQagdusBZg/0'}}"></image>
         <view class="user-basic-info">
           <text class="nickname">{{userInfo.nickname || userInfo.username}}</text>
-          <text class="role {{isAdmin ? 'admin-role' : 'staff-role'}}">{{isAdmin ? '管理员' : '店员'}}</text>
+          <text class="role">{{isAdmin ? '管理员' : '店员'}}</text>
         </view>
       </view>
       
-      <!-- 优化默认设置按钮 -->
-      <view class="default-settings-btn" bindtap="showDefaultSettings" hover-class="btn-hover">
-        <text class="settings-btn-icon">⚙️</text>
+      <!-- 修改为按钮形式 -->
+      <view class="default-settings-btn" bindtap="showDefaultSettings">
         <text class="settings-btn-text">记账默认</text>
+        <text class="settings-btn-icon">⚙️</text>
       </view>
     </view>
     
@@ -25,67 +25,51 @@
         <picker mode="selector" range="{{dateOptions}}" bindchange="bindDateRangeChange">
           <view class="date-range">
             <text>{{dateRange}}</text>
-            <text class="dropdown-icon">▼</text>
+            <view class="dropdown-icon"></view>
           </view>
         </picker>
         
-        <view class="store-selector">
-          <text>当前店铺：</text>
-          <picker mode="selector" range="{{stores}}" range-key="name" bindchange="storeChange">
-            <view class="picker">
-              <text class="{{!selectedStoreName ? 'placeholder-text' : ''}}">{{selectedStoreName || '请选择店铺'}}</text>
-              <text class="arrow">▼</text>
-            </view>
-          </picker>
+        <view class="store-selector" bindtap="showStorePicker">
+          <text>{{selectedStoreName || '全部店铺'}}</text>
+          <view class="dropdown-icon"></view>
         </view>
       </view>
       
       <view class="stats-card">
         <view class="stats-item">
           <text class="stats-label">收入</text>
-          <text class="stats-value income">¥{{totalIncome || '0.00'}}</text>
+          <text class="stats-value income">{{totalIncome}}</text>
         </view>
         <view class="stats-item">
           <text class="stats-label">支出</text>
-          <text class="stats-value expense">¥{{totalExpense || '0.00'}}</text>
+          <text class="stats-value expense">{{totalExpense}}</text>
         </view>
         <view class="stats-item">
           <text class="stats-label">结余</text>
-          <text class="stats-value {{netAmount >= 0 ? 'income' : 'expense'}}">¥{{netAmount || '0.00'}}</text>
+          <text class="stats-value {{netAmount >= 0 ? 'income' : 'expense'}}">{{netAmount}}</text>
         </view>
-      </view>
-      
-      <!-- 优化加载指示器 -->
-      <view class="loading-indicator" wx:if="{{isLoading}}">
-        <view class="loading-spinner"></view>
-        <text class="loading-text">加载中...</text>
       </view>
     </view>
     
     <!-- 今日数据概览 -->
     <view class="data-overview card">
-      <view class="card-title">
-        <text class="title-text">今日数据</text>
-        <text class="today-date">{{todayDateStr}}</text>
-      </view>
+      <view class="card-title">今日数据</view>
       <view class="overview-content">
         <view class="overview-item">
           <text class="overview-label">收入</text>
-          <text class="overview-value income">¥{{todayIncome || '0.00'}}</text>
-          <view class="overview-icon income-icon">+</view>
+          <text class="overview-value income">¥{{todayIncome}}</text>
         </view>
         <view class="overview-item">
           <text class="overview-label">支出</text>
-          <text class="overview-value expense">¥{{todayExpense || '0.00'}}</text>
-          <view class="overview-icon expense-icon">-</view>
+          <text class="overview-value expense">¥{{todayExpense}}</text>
         </view>
       </view>
     </view>
     
-    <!-- 近期账务记录部分 -->
-    <view class="recent-records card">
-      <view class="record-header">
-        <text class="card-title">近期记录</text>
+    <!-- 最近账目 -->
+    <view class="recent-accounts card">
+      <view class="card-header">
+        <text class="card-title">最近账目</text>
         <view class="quick-account-btns">
           <view class="quick-btn income" bindtap="goToAddAccount" data-type="income">
             <text class="quick-btn-icon">+</text>
@@ -97,54 +81,45 @@
           </view>
         </view>
       </view>
-      <view class="record-empty" wx:if="{{recentAccounts.length === 0}}">
-        <view class="empty-icon">📋</view>
-        <text class="empty-text">暂无近期账务记录</text>
-        <text class="empty-subtext">点击上方按钮添加记账</text>
-      </view>
-      <view class="record-list" wx:else>
-        <view class="record-item" wx:for="{{recentAccounts}}" wx:key="id" bindtap="showAccountDetail" data-account="{{item}}">
-          <view class="record-left">
-            <text class="record-title">{{item.description || '无描述'}}</text>
-            <view class="record-details">
-              <text class="record-type">{{item.type_name}}</text>
-              <text class="record-separator">|</text>
-              <text class="record-store">{{item.store_name}}</text>
-              <text class="record-time">{{item.create_time || '未知时间'}}</text>
+      <view class="account-list">
+        <block wx:if="{{recentAccounts.length > 0}}">
+          <view wx:for="{{recentAccounts}}" wx:key="id" class="account-item">
+            <view class="account-info">
+              <text class="account-store">{{item.store_name}}</text>
+              <text class="account-type">{{item.type_name}}</text>
+            </view>
+            <view class="account-detail">
+              <text class="account-amount {{item.amount >= 0 ? 'income' : 'expense'}}">{{item.amount >= 0 ? '+' : ''}}{{item.amount}}</text>
+              <text class="account-time">{{item.create_time}}</text>
             </view>
           </view>
-          <view class="record-right">
-            <text class="record-amount {{item.account_type === 1 ? 'income' : 'expense'}}">
-              {{item.account_type === 1 ? '+' : '-'}}{{item.amount}}
-            </text>
-            <text class="record-date">{{item.create_time}}</text>
+        </block>
+        <view class="empty-state" wx:if="{{recentAccounts.length === 0 && !isLoading}}">
+          <view class="empty-icon">
+            <text class="iconfont icon-empty"></text>
+          </view>
+          <text class="empty-text">暂无账目数据</text>
+          <view class="empty-action" bindtap="goToAddAccount" data-type="expense">
+            <text>去记一笔</text>
           </view>
         </view>
-      </view>
-      <view class="record-more" bindtap="goToAccountList">
-        <text>查看更多记录</text>
-        <text class="arrow">→</text>
       </view>
     </view>
     
     <!-- 管理功能区域移动到最近账目下面 -->
     <block wx:if="{{isAdmin}}">
       <view class="admin-functions">
-        <view class="section-title">
-          <view class="title-line"></view>
-          <text>管理功能</text>
-          <view class="title-line"></view>
-        </view>
+        <view class="section-title">管理功能</view>
         <view class="function-list">
-          <view class="function-item" bindtap="goToStoreManage" hover-class="function-item-hover">
+          <view class="function-item" bindtap="goToStoreManage">
             <text class="function-icon">🏪</text>
             <text class="function-text">店铺管理</text>
           </view>
-          <view class="function-item" bindtap="goToUserManage" hover-class="function-item-hover">
+          <view class="function-item" bindtap="goToUserManage">
             <text class="function-icon">👤</text>
             <text class="function-text">用户管理</text>
           </view>
-          <view class="function-item" bindtap="goToAccountType" hover-class="function-item-hover">
+          <view class="function-item" bindtap="goToAccountType">
             <text class="function-icon">📊</text>
             <text class="function-text">账务类型</text>
           </view>
@@ -152,11 +127,8 @@
       </view>
     </block>
     
-    <!-- 优化退出登录按钮 -->
-    <view class="logout-btn" bindtap="logout" hover-class="logout-btn-hover">
-      <text class="logout-icon">🚪</text>
-      <text>退出登录</text>
-    </view>
+    <!-- 退出登录按钮 -->
+    <view class="logout-btn" bindtap="logout">退出登录</view>
     
     <!-- 店铺选择弹窗 -->
     <view class="store-picker-mask" wx:if="{{storePickerVisible}}" bindtap="closeStorePicker">
@@ -246,52 +218,6 @@
       <icon type="warn" size="40"></icon>
       <text class="error-text">{{loadError}}</text>
       <button class="retry-btn" bindtap="refreshData">重试</button>
-    </view>
-
-    <!-- 添加账目详情弹窗 -->
-    <view class="account-detail-modal" wx:if="{{showAccountDetail}}">
-      <view class="account-detail-mask" bindtap="hideAccountDetail"></view>
-      <view class="account-detail-content">
-        <view class="account-detail-header">
-          <text class="account-detail-title">记账详情</text>
-          <text class="account-detail-close" bindtap="hideAccountDetail">×</text>
-        </view>
-        <view class="account-detail-body">
-          <view class="detail-amount {{currentAccount.account_type === 1 ? 'income' : 'expense'}}">
-            {{currentAccount.account_type === 1 ? '+' : '-'}}¥{{currentAccount.amount}}
-          </view>
-          
-          <view class="detail-item">
-            <text class="detail-label">描述</text>
-            <text class="detail-value">{{currentAccount.description || '无描述'}}</text>
-          </view>
-          
-          <view class="detail-item">
-            <text class="detail-label">类型</text>
-            <text class="detail-value">{{currentAccount.type_name}}</text>
-          </view>
-          
-          <view class="detail-item">
-            <text class="detail-label">店铺</text>
-            <text class="detail-value">{{currentAccount.store_name}}</text>
-          </view>
-          
-          <view class="detail-item">
-            <text class="detail-label">时间</text>
-            <text class="detail-value">{{currentAccount.create_time_full || currentAccount.create_time}}</text>
-          </view>
-          
-          <view class="detail-item" wx:if="{{currentAccount.remark}}">
-            <text class="detail-label">备注</text>
-            <text class="detail-value">{{currentAccount.remark}}</text>
-          </view>
-        </view>
-        
-        <view class="account-detail-footer">
-          <button class="detail-btn edit" bindtap="editAccount">编辑</button>
-          <button class="detail-btn delete" bindtap="deleteAccount">删除</button>
-        </view>
-      </view>
     </view>
   </view>
 </scroll-view>
