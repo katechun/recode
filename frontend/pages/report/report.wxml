@@ -1,72 +1,95 @@
 <!--pages/report/report.wxml-->
 <view class="container">
-  <view class="filter-bar card">
-    <picker mode="date" value="{{startDate}}" start="2020-01-01" end="2030-12-31" bindchange="bindStartDateChange">
-      <view class="date-picker">
-        <text class="date-label">开始日期:</text>
-        <text class="date-value">{{startDate}}</text>
-      </view>
-    </picker>
+  <!-- 顶部筛选区域 -->
+  <view class="filter-section">
+    <view class="date-filter">
+      <view class="date-item {{timeRange === 'day' ? 'active' : ''}}" bindtap="changeTimeRange" data-range="day">今日</view>
+      <view class="date-item {{timeRange === 'week' ? 'active' : ''}}" bindtap="changeTimeRange" data-range="week">本周</view>
+      <view class="date-item {{timeRange === 'month' ? 'active' : ''}}" bindtap="changeTimeRange" data-range="month">本月</view>
+      <view class="date-item {{timeRange === 'year' ? 'active' : ''}}" bindtap="changeTimeRange" data-range="year">本年</view>
+    </view>
     
-    <picker mode="date" value="{{endDate}}" start="2020-01-01" end="2030-12-31" bindchange="bindEndDateChange">
-      <view class="date-picker">
-        <text class="date-label">结束日期:</text>
-        <text class="date-value">{{endDate}}</text>
-      </view>
-    </picker>
-    
-    <picker mode="selector" range="{{stores || []}}" range-key="name" bindchange="bindStoreChange">
-      <view class="store-picker">
-        <text class="store-label">店铺:</text>
-        <text class="store-value">{{selectedStoreName || '全部店铺'}}</text>
-      </view>
-    </picker>
+    <view class="store-filter" bindtap="showStorePicker">
+      <text>{{selectedStore ? selectedStore.name : '全部店铺'}}</text>
+      <view class="dropdown-icon"></view>
+    </view>
   </view>
   
-  <view class="report-tabs">
-    <view class="tab {{showIncome ? 'active' : ''}}" bindtap="toggleReportType">收入分析</view>
-    <view class="tab {{!showIncome ? 'active' : ''}}" bindtap="toggleReportType">支出分析</view>
+  <!-- 数据概览卡片 -->
+  <view class="overview-card">
+    <view class="overview-item">
+      <text class="overview-label">总收入</text>
+      <text class="overview-value income">¥{{totalIncome}}</text>
+    </view>
+    <view class="overview-item">
+      <text class="overview-label">总支出</text>
+      <text class="overview-value expense">¥{{totalExpense}}</text>
+    </view>
+    <view class="overview-item">
+      <text class="overview-label">净收入</text>
+      <text class="overview-value {{netIncome >= 0 ? 'income' : 'expense'}}">¥{{netIncome}}</text>
+    </view>
   </view>
   
-  <view class="report-content card">
-    <view class="empty-tip" wx:if="{{showIncome && incomeData.length === 0}}">
-      <text>暂无收入数据</text>
+  <!-- 图表区域 -->
+  <view class="chart-section">
+    <view class="chart-title">收支走势</view>
+    <view class="chart-tabs">
+      <view class="chart-tab {{chartType === 'trend' ? 'active' : ''}}" bindtap="changeChartType" data-type="trend">趋势图</view>
+      <view class="chart-tab {{chartType === 'compare' ? 'active' : ''}}" bindtap="changeChartType" data-type="compare">对比图</view>
     </view>
-    
-    <view class="empty-tip" wx:if="{{!showIncome && expenseData.length === 0}}">
-      <text>暂无支出数据</text>
+    <view class="chart-container">
+      <canvas canvas-id="trend-chart" class="trend-chart {{chartType === 'trend' ? '' : 'hidden'}}"></canvas>
+      <canvas canvas-id="compare-chart" class="compare-chart {{chartType === 'compare' ? '' : 'hidden'}}"></canvas>
     </view>
-    
-    <view class="data-list" wx:if="{{showIncome && incomeData.length > 0}}">
-      <view class="data-item" wx:for="{{incomeData}}" wx:key="type_id">
-        <view class="data-info">
-          <text class="data-name">{{item.type_name}}</text>
-          <text class="data-count">{{item.count}}笔</text>
+  </view>
+  
+  <!-- 分类统计 -->
+  <view class="category-section">
+    <view class="section-title">分类统计</view>
+    <view class="category-tabs">
+      <view class="category-tab {{categoryType === 'income' ? 'active' : ''}}" bindtap="changeCategoryType" data-type="income">收入</view>
+      <view class="category-tab {{categoryType === 'expense' ? 'active' : ''}}" bindtap="changeCategoryType" data-type="expense">支出</view>
+    </view>
+    <view class="category-list">
+      <view wx:if="{{categoryData.length === 0}}" class="empty-tip">暂无数据</view>
+      <view wx:for="{{categoryData}}" wx:key="id" class="category-item">
+        <view class="category-info">
+          <text class="category-name">{{item.name}}</text>
+          <view class="category-bar-container">
+            <view class="category-bar" style="width: {{item.percentage}}%; background-color: {{categoryType === 'income' ? '#52c41a' : '#f5222d'}}"></view>
+          </view>
         </view>
-        <view class="data-value-container">
-          <text class="data-value income">¥{{item.total}}</text>
-          <text class="data-percentage">{{item.percentage}}%</text>
-        </view>
-        <view class="progress-bar">
-          <view class="progress-inner income" style="width: {{item.percentage}}%"></view>
+        <view class="category-amount">
+          <text>¥{{item.amount}}</text>
+          <text class="category-percentage">{{item.percentage}}%</text>
         </view>
       </view>
     </view>
-    
-    <view class="data-list" wx:if="{{!showIncome && expenseData.length > 0}}">
-      <view class="data-item" wx:for="{{expenseData}}" wx:key="type_id">
-        <view class="data-info">
-          <text class="data-name">{{item.type_name}}</text>
-          <text class="data-count">{{item.count}}笔</text>
-        </view>
-        <view class="data-value-container">
-          <text class="data-value expense">¥{{item.total}}</text>
-          <text class="data-percentage">{{item.percentage}}%</text>
-        </view>
-        <view class="progress-bar">
-          <view class="progress-inner expense" style="width: {{item.percentage}}%"></view>
+  </view>
+  
+  <!-- 店铺选择弹窗 -->
+  <view class="store-picker-mask" wx:if="{{storePickerVisible}}" bindtap="closeStorePicker">
+    <view class="store-picker" catchtap="stopPropagation">
+      <view class="store-picker-header">
+        <text>选择店铺</text>
+        <view class="close-icon" bindtap="closeStorePicker">×</view>
+      </view>
+      <view class="store-list">
+        <view class="store-item {{selectedStoreId === (item.id || '') ? 'active' : ''}}" 
+              wx:for="{{stores}}" 
+              wx:key="id" 
+              data-id="{{item.id || ''}}"
+              data-name="{{item.name}}"
+              bindtap="selectStore">
+          {{item.name}}
         </view>
       </view>
     </view>
+  </view>
+  
+  <!-- 加载状态 -->
+  <view class="loading-mask" wx:if="{{isLoading}}">
+    <view class="loading-spinner"></view>
   </view>
 </view>

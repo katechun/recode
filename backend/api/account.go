@@ -1,6 +1,7 @@
 package api
 
 import (
+	"database/sql"
 	"encoding/json"
 	"log"
 	"net/http"
@@ -9,6 +10,8 @@ import (
 
 	"account/backend/database"
 	"account/backend/models"
+
+	"github.com/gorilla/mux"
 )
 
 // AccountHandler 处理账务相关请求
@@ -133,8 +136,16 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	endDate := r.URL.Query().Get("end_date")
 	limit := r.URL.Query().Get("limit")
 
-	// 调用数据库获取账务记录
-	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, limit)
+	// 添加关键词参数
+	keyword := r.URL.Query().Get("keyword")
+
+	// 记录搜索请求
+	if keyword != "" {
+		log.Printf("搜索关键词: %s", keyword)
+	}
+
+	// 调用数据库获取账务记录，传入关键词
+	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit)
 	if err != nil {
 		log.Printf("获取账务记录失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务记录失败", nil)
@@ -165,4 +176,75 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendResponse(w, http.StatusOK, 200, "获取账务统计成功", stats)
+}
+
+// DeleteAccount 删除指定ID的账目记录
+func DeleteAccount(w http.ResponseWriter, r *http.Request) {
+	// 检查是否是OPTIONS请求
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// 获取URL参数中的ID
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的账目ID", nil)
+		return
+	}
+
+	// 调用数据库函数删除账目
+	err = database.DeleteAccount(id)
+	if err != nil {
+		// 如果是记录不存在
+		if err == sql.ErrNoRows {
+			SendResponse(w, http.StatusNotFound, 404, "账目不存在", nil)
+			return
+		}
+
+		// 其他数据库错误
+		SendResponse(w, http.StatusInternalServerError, 500, "删除账目失败: "+err.Error(), nil)
+		return
+	}
+
+	// 删除成功
+	SendResponse(w, http.StatusOK, 200, "账目删除成功", nil)
+}
+
+// DeleteAccountByQuery 通过查询参数删除账目
+func DeleteAccountByQuery(w http.ResponseWriter, r *http.Request) {
+	// 检查是否是OPTIONS请求
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// 从查询参数获取ID
+	idStr := r.URL.Query().Get("id")
+	if idStr == "" {
+		SendResponse(w, http.StatusBadRequest, 400, "缺少账目ID参数", nil)
+		return
+	}
+
+	id, err := strconv.Atoi(idStr)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的账目ID", nil)
+		return
+	}
+
+	// 复用删除逻辑
+	err = database.DeleteAccount(id)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			SendResponse(w, http.StatusNotFound, 404, "账目不存在", nil)
+			return
+		}
+
+		SendResponse(w, http.StatusInternalServerError, 500, "删除账目失败: "+err.Error(), nil)
+		return
+	}
+
+	SendResponse(w, http.StatusOK, 200, "账目删除成功", nil)
 }

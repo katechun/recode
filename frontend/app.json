@@ -31,7 +31,7 @@
         "text": "首页"
       },
       {
-        "pagePath": "pages/account/account",
+        "pagePath": "pages/accountList/accountList",
         "text": "记账"
       },
       {

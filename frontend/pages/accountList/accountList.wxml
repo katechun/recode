@@ -1,24 +1,195 @@
 <view class="container">
-  <view class="header">
-    <text class="title">账户列表</text>
+  <!-- 搜索和筛选区域 -->
+  <view class="search-filter-bar">
+    <view class="search-box">
+      <input type="text" placeholder="搜索备注关键词" bindinput="onSearchInput" value="{{searchKeyword}}" confirm-type="search"/>
+      <view class="search-icon" bindtap="doSearch">🔍</view>
+    </view>
+    <view class="filter-btn" bindtap="showFilter">
+      <text>筛选</text>
+      <text class="filter-icon">▼</text>
+    </view>
   </view>
   
-  <view class="account-list">
-    <block wx:for="{{accounts}}" wx:key="id">
-      <view class="account-item">
-        <view class="account-info">
-          <text class="account-name">{{item.name}}</text>
-          <text class="account-balance">余额: {{item.balance}}</text>
+  <!-- 日期范围选择 -->
+  <view class="date-range-bar">
+    <picker mode="date" value="{{startDate}}" bindchange="bindStartDateChange">
+      <view class="date-picker">{{startDate}}</view>
+    </picker>
+    <text class="date-separator">至</text>
+    <picker mode="date" value="{{endDate}}" bindchange="bindEndDateChange">
+      <view class="date-picker">{{endDate}}</view>
+    </picker>
+    <button class="date-search-btn" bindtap="applyDateFilter">查询</button>
+  </view>
+
+  <!-- 统计信息 -->
+  <view class="statistics-card">
+    <view class="statistics-item">
+      <text class="statistics-label">总收入</text>
+      <text class="statistics-value income">{{totalIncome || '0.00'}}</text>
+    </view>
+    <view class="statistics-item">
+      <text class="statistics-label">总支出</text>
+      <text class="statistics-value expense">{{totalExpense || '0.00'}}</text>
+    </view>
+    <view class="statistics-item">
+      <text class="statistics-label">净额</text>
+      <text class="statistics-value {{netAmount >= 0 ? 'income' : 'expense'}}">{{netAmount || '0.00'}}</text>
+    </view>
+  </view>
+  
+  <!-- 记账列表 -->
+  <scroll-view scroll-y="true" class="account-list-scroll" 
+               refresher-enabled="{{true}}" 
+               refresher-triggered="{{isRefreshing}}"
+               bindrefresherrefresh="onPullDownRefresh"
+               bindscrolltolower="onReachBottom"
+               style="height: calc(100vh - 380rpx); width: 100%;">
+    <view class="account-list" style="padding: 20rpx;">
+      <view wx:for="{{accounts}}" wx:key="id" class="account-item" bindtap="viewAccountDetail" data-id="{{item.id}}" style="margin-bottom: 20rpx;">
+        <view class="account-left">
+          <view class="account-info">
+            <text class="account-store">{{item.store_name || '未知店铺'}}</text>
+            <text class="account-type">{{item.type_name || '未分类'}}</text>
+            <text class="account-user">记录人: {{item.username || '未知用户'}}</text>
+          </view>
+          <view class="account-detail">
+            <text class="account-time">{{item.formattedDate || item.transaction_time}}</text>
+            <text class="account-remark" wx:if="{{item.remark}}">{{item.remark}}</text>
+          </view>
         </view>
-        <view class="account-actions">
-          <button size="mini" bindtap="editAccount" data-id="{{item.id}}">编辑</button>
-          <button size="mini" type="warn" bindtap="deleteAccount" data-id="{{item.id}}">删除</button>
+        <view class="account-right">
+          <text class="account-amount {{item.isIncome ? 'income' : 'expense'}}">
+            {{item.isIncome ? '+' : ''}}{{item.formattedAmount}}
+          </text>
+          <view class="account-actions">
+            <text class="action-edit" catchtap="editAccount" data-id="{{item.id}}">编辑</text>
+            <text class="action-delete" catchtap="deleteAccount" data-id="{{item.id}}">删除</text>
+          </view>
         </view>
       </view>
-    </block>
+      
+      <!-- 加载状态显示在列表后 -->
+      <view class="loading-more" wx:if="{{isLoading}}" style="text-align: center; padding: 20rpx;">
+        <text>加载中...</text>
+      </view>
+    </view>
+  </scroll-view>
+  
+  <!-- 底部添加按钮 -->
+  <view class="add-btns">
+    <button class="add-btn income" bindtap="navigateToAddAccount" data-type="income">
+      <text class="add-icon">+</text>
+      <text>收入</text>
+    </button>
+    <button class="add-btn expense" bindtap="navigateToAddAccount" data-type="expense">
+      <text class="add-icon">-</text>
+      <text>支出</text>
+    </button>
   </view>
   
-  <view class="add-btn-area">
-    <button type="primary" bindtap="addAccount">添加账户</button>
+  <!-- 筛选弹窗 -->
+  <view class="filter-modal {{showFilterModal ? 'show' : ''}}" catchtouchmove="preventTouchMove">
+    <view class="filter-mask" bindtap="hideFilter"></view>
+    <view class="filter-content">
+      <view class="filter-header">
+        <text class="filter-title">筛选条件</text>
+        <text class="filter-close" bindtap="hideFilter">×</text>
+      </view>
+      
+      <view class="filter-body">
+        <view class="filter-section">
+          <text class="filter-label">店铺</text>
+          <picker mode="selector" range="{{stores}}" range-key="name" bindchange="bindStoreChange">
+            <view class="filter-selector">
+              <text>{{selectedStoreName}}</text>
+              <text class="arrow-down">▼</text>
+            </view>
+          </picker>
+        </view>
+        
+        <view class="filter-section">
+          <text class="filter-label">记账类型</text>
+          <picker mode="selector" range="{{accountTypes}}" range-key="name" bindchange="bindTypeChange">
+            <view class="filter-selector">
+              <text>{{selectedTypeName}}</text>
+              <text class="arrow-down">▼</text>
+            </view>
+          </picker>
+        </view>
+        
+        <view class="filter-section">
+          <text class="filter-label">金额区间</text>
+          <view class="amount-range">
+            <input type="digit" placeholder="最小金额" value="{{minAmount}}" bindinput="onMinAmountInput" />
+            <text class="amount-separator">至</text>
+            <input type="digit" placeholder="最大金额" value="{{maxAmount}}" bindinput="onMaxAmountInput" />
+          </view>
+        </view>
+      </view>
+      
+      <view class="filter-footer">
+        <button class="filter-btn reset" bindtap="resetFilter">重置</button>
+        <button class="filter-btn apply" bindtap="applyFilter">确定</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 添加账目详情弹窗 -->
+  <view class="detail-modal {{showDetailModal ? 'show' : ''}}" catchtouchmove="preventTouchMove">
+    <view class="detail-mask" bindtap="hideDetail"></view>
+    <view class="detail-content">
+      <view class="detail-header">
+        <text class="detail-title">账目详情</text>
+        <text class="detail-close" bindtap="hideDetail">×</text>
+      </view>
+      
+      <view class="detail-body">
+        <view class="detail-row">
+          <text class="detail-label">类型</text>
+          <text class="detail-value {{currentAccount.isIncome ? 'income' : 'expense'}}">
+            {{currentAccount.isIncome ? '收入' : '支出'}}
+          </text>
+        </view>
+        
+        <view class="detail-row">
+          <text class="detail-label">金额</text>
+          <text class="detail-value {{currentAccount.isIncome ? 'income' : 'expense'}}">
+            ¥{{currentAccount.formattedAmount}}
+          </text>
+        </view>
+        
+        <view class="detail-row">
+          <text class="detail-label">店铺</text>
+          <text class="detail-value">{{currentAccount.store_name || '未知店铺'}}</text>
+        </view>
+        
+        <view class="detail-row">
+          <text class="detail-label">分类</text>
+          <text class="detail-value">{{currentAccount.type_name || '未分类'}}</text>
+        </view>
+        
+        <view class="detail-row">
+          <text class="detail-label">时间</text>
+          <text class="detail-value">{{currentAccount.formattedDate || '未知时间'}}</text>
+        </view>
+        
+        <view class="detail-row" wx:if="{{currentAccount.remark}}">
+          <text class="detail-label">备注</text>
+          <text class="detail-value remark">{{currentAccount.remark}}</text>
+        </view>
+        
+        <view class="detail-row">
+          <text class="detail-label">记录人</text>
+          <text class="detail-value">{{currentAccount.username || '未知用户'}}</text>
+        </view>
+      </view>
+      
+      <view class="detail-footer">
+        <button class="detail-btn edit" catchtap="editDetailAccount">编辑</button>
+        <button class="detail-btn delete" catchtap="deleteDetailAccount">删除</button>
+      </view>
+    </view>
   </view>
 </view> 

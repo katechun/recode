@@ -91,6 +91,16 @@ func main() {
 	router.HandleFunc("/api/settings/default", api.CORSMiddleware(settingsHandler.SaveDefaultSettings)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/settings/default", api.CORSMiddleware(settingsHandler.GetDefaultSettings)).Methods("GET", "OPTIONS")
 
+	// 删除账目接口 - RESTful风格
+	router.HandleFunc("/api/accounts/{id}", api.CORSMiddleware(api.DeleteAccount)).Methods("DELETE", "OPTIONS")
+
+	// 也可以添加查询参数风格的接口做兼容
+	router.HandleFunc("/api/account", api.CORSMiddleware(api.DeleteAccountByQuery)).Methods("DELETE", "OPTIONS")
+
+	// 在路由部分添加统计报表接口
+	// 统计相关接口
+	router.HandleFunc("/api/statistics/report", api.CORSMiddleware(api.GetReport)).Methods("GET", "OPTIONS")
+
 	log.Printf("服务器启动在 :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))
 }

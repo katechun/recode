@@ -49,6 +49,8 @@ Page({
     selectedExpenseType: null,  // 添加选中的支出类型对象
     currentStoreId: '', // 添加当前店铺ID属性
     isLoadingStoreData: false, // 添加标记防止数据覆盖
+    currentAccount: null,
+    showDetailModal: false,
   },
   bindViewTap() {
     wx.navigateTo({
@@ -301,7 +303,10 @@ Page({
   },
   // 格式化日期为YYYY-MM-DD
   formatDate(date) {
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
   },
   // 加载统计数据
   loadStatistics() {
@@ -387,31 +392,21 @@ Page({
     return `${year}-${month}-${day} ${hour}:${minute}`;
   },
   // 跳转到记账页面
-  goToAccount: function () {
-    // 检查是否已选择店铺和账务类型
-    if (!this.data.selectedStore || !this.data.selectedStore.id) {
-      wx.showToast({
-        title: '请先选择店铺',
-        icon: 'none'
-      });
-      return;
-    }
-
-    // 默认使用收入类型
-    let typeId = '';
-    if (this.data.selectedIncomeType && this.data.selectedIncomeType.id) {
-      typeId = this.data.selectedIncomeType.id;
-    }
-
+  navigateToAccounting: function () {
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=income`,
-      fail: function (err) {
-        console.error('导航到记账页面失败:', err);
-        wx.showToast({
-          title: '页面跳转失败: ' + err.errMsg,
-          icon: 'none'
-        });
-      }
+      url: '/pages/logs/logs'
+    })
+  },
+  // 添加收入跳转
+  navigateToIncome: function () {
+    wx.navigateTo({
+      url: '/pages/accountList/accountList?showAdd=true&type=income'
+    });
+  },
+  // 添加支出跳转
+  navigateToExpense: function () {
+    wx.navigateTo({
+      url: '/pages/accountList/accountList?showAdd=true&type=expense'
     });
   },
   // 跳转到店铺管理
@@ -631,43 +626,38 @@ Page({
       expenseTypeId: this.data.selectedExpenseType ? this.data.selectedExpenseType.id : '',
     };
   },
-  // 改进记账跳转，传递默认设置
+  // 修改添加账目的方法
   goToAddAccount: function (e) {
-    // 获取用户点击的类型，收入或支出
-    const type = e.currentTarget.dataset.type;
-
-    // 获取默认设置
-    const defaultSettings = wx.getStorageSync('defaultSettings');
-
-    // 如果没有默认设置，提示用户设置
-    if (!defaultSettings ||
-      !defaultSettings.storeId ||
-      (type === 'income' && !defaultSettings.incomeTypeId) ||
-      (type === 'expense' && !defaultSettings.expenseTypeId)) {
-
-      // 提示用户先设置默认参数
-      wx.showModal({
-        title: '提示',
-        content: '请先设置记账默认参数',
-        confirmText: '去设置',
-        cancelText: '取消',
-        success: (res) => {
-          if (res.confirm) {
-            this.showDefaultSettings();
-          }
-        }
+    // 检查是否已选择店铺和账务类型
+    if (!this.data.selectedStore || !this.data.selectedStore.id) {
+      wx.showToast({
+        title: '请先选择店铺',
+        icon: 'none'
       });
       return;
     }
 
-    // 从默认设置中获取正确的类型ID
-    const typeId = type === 'income'
-      ? defaultSettings.incomeTypeId
-      : defaultSettings.expenseTypeId;
+    // 获取类型：收入或支出
+    const type = e.currentTarget.dataset.type;
 
-    // 带上默认参数跳转
+    // 根据类型选择默认的类型ID
+    let typeId = '';
+    if (type === 'income' && this.data.selectedIncomeType && this.data.selectedIncomeType.id) {
+      typeId = this.data.selectedIncomeType.id;
+    } else if (type === 'expense' && this.data.selectedExpenseType && this.data.selectedExpenseType.id) {
+      typeId = this.data.selectedExpenseType.id;
+    }
+
+    // 跳转到添加账目页面
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?storeId=${defaultSettings.storeId}&typeId=${typeId}&type=${type}&isDefault=true`
+      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${type}`,
+      fail: function (err) {
+        console.error('导航到记账页面失败:', err);
+        wx.showToast({
+          title: '页面跳转失败: ' + err.errMsg,
+          icon: 'none'
+        });
+      }
     });
   },
   // 显示默认设置弹窗
@@ -1289,5 +1279,274 @@ Page({
 
     // 转为数字并保留两位小数
     return parseFloat(amount).toFixed(2);
+  },
+
+  // 获取当月第一天
+  getMonthStartDate: function () {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  },
+
+  // 获取本周第一天
+  getWeekStartDate: function () {
+    const now = new Date();
+    const dayOfWeek = now.getDay() || 7; // 将周日的0转为7
+    const dayOffset = dayOfWeek - 1; // 周一为本周第一天
+    const monday = new Date(now);
+    monday.setDate(now.getDate() - dayOffset);
+    return this.formatDate(monday);
+  },
+
+  // 获取本年第一天
+  getYearStartDate: function () {
+    const now = new Date();
+    return `${now.getFullYear()}-01-01`;
+  },
+
+  // 修改navigateToAccountList函数，使用简化日期逻辑
+  navigateToAccountList: function () {
+    // 获取当前选中的店铺ID
+    const storeId = this.data.currentStoreId || '';
+
+    // 准备日期参数
+    const now = new Date();
+    const today = this.formatDate(now);
+
+    // 获取日期范围参数
+    let startDate = today;
+    let endDate = today;
+
+    // 根据当前选择的日期范围设置参数
+    switch (this.data.dateRange) {
+      case '今日':
+        // 默认已经设置为today
+        break;
+      case '本周':
+        startDate = this.getWeekStartDate();
+        endDate = today;
+        break;
+      case '本月':
+        startDate = this.getMonthStartDate();
+        endDate = today;
+        break;
+      case '本年':
+        startDate = this.getYearStartDate();
+        endDate = today;
+        break;
+      default:
+        // 默认使用本月
+        startDate = this.getMonthStartDate();
+        endDate = today;
+    }
+
+    // 跳转到账目列表页面，传递筛选参数
+    wx.navigateTo({
+      url: `/pages/accountList/accountList?storeId=${storeId}&startDate=${startDate}&endDate=${endDate}&title=账务管理`
+    });
+  },
+
+  // 修改底部TAB点击处理
+  handleTabClick: function (e) {
+    const tabId = e.currentTarget.dataset.id;
+
+    switch (tabId) {
+      case 'home':
+        // 首页，不需要跳转
+        break;
+      case 'account':
+        // 跳转到账目列表页
+        wx.navigateTo({
+          url: '/pages/accountList/accountList'
+        });
+        break;
+      case 'add':
+        // 修改为使用与"查看更多"相同的跳转逻辑
+        this.navigateToAccountList();
+        break;
+      case 'statistics':
+        // 统计页面
+        wx.navigateTo({
+          url: '/pages/statistics/statistics'
+        });
+        break;
+      case 'mine':
+        // 我的页面
+        wx.navigateTo({
+          url: '/pages/user/user'
+        });
+        break;
+    }
+  },
+
+  // 添加记账选项点击处理
+  handleAddOptionClick: function (e) {
+    const type = e.currentTarget.dataset.type;
+
+    // 隐藏选项窗口
+    this.setData({
+      showAddOptions: false
+    });
+
+    // 检查是否已选择店铺
+    if (!this.data.selectedStore || !this.data.selectedStore.id) {
+      wx.showToast({
+        title: '请先选择店铺',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // 根据类型选择默认的类型ID
+    let typeId = '';
+    if (type === 'income' && this.data.selectedIncomeType && this.data.selectedIncomeType.id) {
+      typeId = this.data.selectedIncomeType.id;
+    } else if (type === 'expense' && this.data.selectedExpenseType && this.data.selectedExpenseType.id) {
+      typeId = this.data.selectedExpenseType.id;
+    }
+
+    // 跳转到添加账目页面而不是账目列表页
+    wx.navigateTo({
+      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${type}`
+    });
+  },
+
+  // 修改账目详情处理函数，确保金额正确格式化
+  viewAccountDetail: function (e) {
+    const accountId = e.currentTarget.dataset.id;
+    console.log('查看首页账目详情, ID:', accountId);
+
+    // 从现有数据中查找账目
+    const account = this.data.recentAccounts.find(item => item.id === accountId);
+
+    if (account) {
+      // 处理金额格式化
+      const amountValue = parseFloat(account.amount);
+      const formattedAccount = {
+        ...account,
+        amountValue: amountValue,
+        formattedAmount: this.formatAmount(Math.abs(amountValue)),
+        isIncome: amountValue >= 0
+      };
+
+      // 显示详情弹窗
+      this.setData({
+        currentAccount: formattedAccount,
+        showDetailModal: true
+      });
+    } else {
+      // 如果在本地找不到，发起请求获取详情
+      this.loadAccountDetail(accountId);
+    }
+  },
+
+  // 加载单个账目详情
+  loadAccountDetail: function (accountId) {
+    wx.showLoading({
+      title: '加载中...',
+    });
+
+    request.get(`${config.apis.accounts.detail}?id=${accountId}`)
+      .then(res => {
+        wx.hideLoading();
+
+        if (res.data) {
+          const amountValue = parseFloat(res.data.amount);
+
+          // 处理账目数据
+          const account = {
+            ...res.data,
+            amountValue: amountValue,
+            formattedAmount: this.formatAmount(Math.abs(amountValue)),
+            formattedDate: res.data.transaction_time ? res.data.transaction_time.substring(0, 16).replace('T', ' ') : '',
+            isIncome: amountValue >= 0
+          };
+
+          // 显示详情弹窗
+          this.setData({
+            currentAccount: account,
+            showDetailModal: true
+          });
+        } else {
+          wx.showToast({
+            title: '账目不存在',
+            icon: 'none'
+          });
+        }
+      })
+      .catch(err => {
+        wx.hideLoading();
+        console.error('加载账目详情失败:', err);
+
+        wx.showToast({
+          title: '加载失败',
+          icon: 'none'
+        });
+      });
+  },
+
+  // 隐藏详情弹窗
+  hideDetail: function () {
+    this.setData({
+      showDetailModal: false
+    });
+  },
+
+  // 从详情弹窗编辑账目
+  editDetailAccount: function () {
+    // 隐藏弹窗
+    this.hideDetail();
+
+    // 跳转到编辑页面
+    wx.navigateTo({
+      url: `/pages/addAccount/addAccount?id=${this.data.currentAccount.id}&edit=true`
+    });
+  },
+
+  // 从详情弹窗删除账目
+  deleteDetailAccount: function () {
+    // 隐藏弹窗
+    this.hideDetail();
+
+    // 确认删除
+    wx.showModal({
+      title: '确认删除',
+      content: '确定要删除这条账目记录吗？',
+      success: (res) => {
+        if (res.confirm) {
+          // 用户点击确定，执行删除
+          this.deleteAccount(this.data.currentAccount.id);
+        }
+      }
+    });
+  },
+
+  // 删除账目
+  deleteAccount: function (accountId) {
+    wx.showLoading({
+      title: '删除中...'
+    });
+
+    request.delete(`${config.apis.accounts.delete}?id=${accountId}`)
+      .then(res => {
+        wx.hideLoading();
+
+        wx.showToast({
+          title: '删除成功',
+          icon: 'success'
+        });
+
+        // 刷新账目列表
+        this.loadRecentRecords();
+        this.loadStatistics();
+      })
+      .catch(err => {
+        wx.hideLoading();
+        console.error('删除账目失败:', err);
+
+        wx.showToast({
+          title: '删除失败',
+          icon: 'none'
+        });
+      });
   }
 })

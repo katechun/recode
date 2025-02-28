@@ -21,7 +21,10 @@ const config = {
     login: '/api/login',
     accounts: {
       list: '/api/accounts',
-      create: '/api/accounts/create',
+      detail: '/api/account',
+      add: '/api/account',
+      update: '/api/account',
+      delete: '/api/accounts',
       statistics: '/api/accounts/statistics'
     },
     stores: {
@@ -47,6 +50,9 @@ const config = {
     settings: {
       save: '/api/settings/default',  // 保存默认设置
       get: '/api/settings/default'    // 获取默认设置
+    },
+    statistics: {
+      report: '/api/statistics/report',
     }
   }
 };

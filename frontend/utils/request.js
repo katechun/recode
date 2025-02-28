@@ -33,22 +33,15 @@ const request = (url, options = {}) => {
       ...newOptions,
       success: (res) => {
         if (res.data.code === 200) {
-          // 返回响应数据
-          resolve({
-            code: res.data.code,
-            message: res.data.message,
-            data: res.data.data
-          });
+          // 返回完整响应，让业务代码决定如何提取数据
+          resolve(res.data);
         } else {
           wx.showToast({
             title: res.data.message || '请求失败',
             icon: 'none'
           });
           // 返回错误信息
-          reject({
-            code: res.data.code,
-            message: res.data.message
-          });
+          reject(res.data);
         }
       },
       fail: (err) => {
@@ -56,10 +49,7 @@ const request = (url, options = {}) => {
           title: '网络请求失败',
           icon: 'none'
         });
-        reject({
-          code: -1,
-          message: '网络请求失败'
-        });
+        reject(err);
       },
       complete: () => {
         if (!newOptions.hideLoading) {
@@ -117,5 +107,34 @@ export default {
     });
   },
   put: (url, data, options = {}) => request(url, { ...options, method: 'PUT', data }),
-  delete: (url, options = {}) => request(url, { ...options, method: 'DELETE' })
+  delete: (url, options = {}) => {
+    console.log(`发起DELETE请求: ${url}`);
+    
+    // 确保传入的是有效URL
+    if (!url || url.indexOf('undefined') !== -1) {
+      console.error('无效的API URL:', url);
+      return Promise.reject({
+        code: -1,
+        message: '无效的API URL'
+      });
+    }
+    
+    // 显示加载状态
+    wx.showLoading({
+      title: '处理中...',
+      mask: true
+    });
+    
+    return request(url, { 
+      ...options, 
+      method: 'DELETE'
+    }).then(res => {
+      wx.hideLoading();
+      return res;
+    }).catch(err => {
+      wx.hideLoading();
+      console.error(`DELETE请求失败: ${url}`, err);
+      throw err;
+    });
+  }
 }; 

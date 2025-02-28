@@ -1,6 +1,7 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
 	"log"
 	"strconv"
@@ -79,7 +80,7 @@ func CreateAccount(account *models.Account) (int64, error) {
 }
 
 // GetAccounts 获取账务记录列表
-func GetAccounts(storeID, typeID, startDate, endDate, limitStr string) ([]map[string]interface{}, error) {
+func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string) ([]map[string]interface{}, error) {
 	query := `
 		SELECT a.id, a.store_id, s.name as store_name, a.user_id, u.username, 
 		a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time
@@ -112,6 +113,36 @@ func GetAccounts(storeID, typeID, startDate, endDate, limitStr string) ([]map[st
 	if endDate != "" {
 		query += " AND a.transaction_time <= ?"
 		args = append(args, endDate+" 23:59:59")
+	}
+
+	// 优化关键词搜索逻辑，尤其是金额搜索
+	if keyword != "" {
+		// 尝试将关键词转换为数字，用于精确匹配金额
+		numericValue, err := strconv.ParseFloat(keyword, 64)
+
+		if err == nil {
+			// 如果是数字，添加金额精确匹配条件
+			query += ` AND (
+				a.remark LIKE ? OR 
+				s.name LIKE ? OR 
+				t.name LIKE ? OR 
+				u.username LIKE ? OR
+				ABS(a.amount) = ? OR  
+				CAST(a.amount AS CHAR) LIKE ?
+			)`
+			searchTerm := "%" + keyword + "%"
+			args = append(args, searchTerm, searchTerm, searchTerm, searchTerm, numericValue, searchTerm)
+		} else {
+			// 如果不是数字，使用常规搜索
+			query += ` AND (
+				a.remark LIKE ? OR 
+				s.name LIKE ? OR 
+				t.name LIKE ? OR 
+				u.username LIKE ?
+			)`
+			searchTerm := "%" + keyword + "%"
+			args = append(args, searchTerm, searchTerm, searchTerm, searchTerm)
+		}
 	}
 
 	// 排序
@@ -207,4 +238,29 @@ func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interf
 	}
 
 	return stats, nil
+}
+
+// DeleteAccount 从数据库中删除指定ID的账目
+func DeleteAccount(id int) error {
+	// 构建SQL语句
+	query := "DELETE FROM accounts WHERE id = ?"
+
+	// 执行删除操作
+	result, err := DB.Exec(query, id)
+	if err != nil {
+		return err
+	}
+
+	// 检查是否有行被删除
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return err
+	}
+
+	// 如果没有行被删除，说明记录不存在
+	if rowsAffected == 0 {
+		return sql.ErrNoRows
+	}
+
+	return nil
 }
