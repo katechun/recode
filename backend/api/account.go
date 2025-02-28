@@ -16,10 +16,10 @@ type AccountHandler struct{}
 
 // 添加账务记录请求结构
 type CreateAccountRequest struct {
-	StoreID        int64   `json:"store_id"`
-	TypeID         int64   `json:"type_id"`
-	Amount         float64 `json:"amount"`
-	Remark         string  `json:"remark"`
+	StoreID         int64   `json:"store_id"`
+	TypeID          int64   `json:"type_id"`
+	Amount          float64 `json:"amount"`
+	Remark          string  `json:"remark"`
 	TransactionTime string  `json:"transaction_time,omitempty"` // 可选，默认为当前时间
 }
 
@@ -63,24 +63,46 @@ func (h *AccountHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 设置交易时间，如果未提供则使用当前时间
-	transactionTime := time.Now()
-	if req.TransactionTime != "" {
-		transactionTime, err = time.Parse("2006-01-02", req.TransactionTime)
-		if err != nil {
-			SendResponse(w, http.StatusBadRequest, 400, "交易日期格式错误", nil)
-			return
+	// 处理日期格式转换
+	layout := "2006-01-02 15:04"
+	layoutWithSeconds := "2006-01-02 15:04:05"
+
+	var formattedTime string
+
+	// 尝试解析完整格式（带秒）
+	_, err = time.Parse(layoutWithSeconds, req.TransactionTime)
+	if err == nil {
+		// 如果是完整格式，直接使用
+		formattedTime = req.TransactionTime
+	} else {
+		// 尝试解析不带秒的格式
+		t, err := time.Parse(layout, req.TransactionTime)
+		if err == nil {
+			// 转换为标准格式（带秒）
+			formattedTime = t.Format(layoutWithSeconds)
+		} else {
+			// 尝试解析仅日期格式
+			layoutDate := "2006-01-02"
+			t, err = time.Parse(layoutDate, req.TransactionTime)
+			if err == nil {
+				// 添加默认时间 00:00:00
+				formattedTime = t.Format(layoutWithSeconds)
+			} else {
+				// 格式无效
+				SendResponse(w, http.StatusBadRequest, 400, "交易日期格式错误", nil)
+				return
+			}
 		}
 	}
 
-	// 创建账务记录
+	// 使用格式化后的日期时间
 	account := &models.Account{
 		StoreID:         req.StoreID,
 		UserID:          userID,
 		TypeID:          req.TypeID,
 		Amount:          req.Amount,
 		Remark:          req.Remark,
-		TransactionTime: transactionTime,
+		TransactionTime: formattedTime,
 		CreateTime:      time.Now(),
 		UpdateTime:      time.Now(),
 	}
@@ -143,4 +165,4 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	SendResponse(w, http.StatusOK, 200, "获取账务统计成功", stats)
-} 
+}

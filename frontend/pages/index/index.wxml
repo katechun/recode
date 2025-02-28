@@ -57,11 +57,15 @@
       <view class="overview-content">
         <view class="overview-item">
           <text class="overview-label">收入</text>
-          <text class="overview-value income">¥{{todayIncome}}</text>
+          <text class="overview-value income">¥{{todayData.income}}</text>
         </view>
         <view class="overview-item">
           <text class="overview-label">支出</text>
-          <text class="overview-value expense">¥{{todayExpense}}</text>
+          <text class="overview-value expense">¥{{todayData.expense}}</text>
+        </view>
+        <view class="overview-item">
+          <text class="overview-label">净额</text>
+          <text class="overview-value {{todayData.net < 0 ? 'expense' : 'income'}}">¥{{todayData.net}}</text>
         </view>
       </view>
     </view>
@@ -218,6 +222,25 @@
       <icon type="warn" size="40"></icon>
       <text class="error-text">{{loadError}}</text>
       <button class="retry-btn" bindtap="refreshData">重试</button>
+    </view>
+
+    <!-- 修改展示统计数据的部分 -->
+    <view class="statistics-card">
+      <view class="statistics-title">今日统计</view>
+      <view class="statistics-data">
+        <view class="statistics-item">
+          <view class="label">收入</view>
+          <view class="value income">{{todayData.income || '0.00'}}</view>
+        </view>
+        <view class="statistics-item">
+          <view class="label">支出</view>
+          <view class="value expense">{{todayData.expense || '0.00'}}</view>
+        </view>
+        <view class="statistics-item">
+          <view class="label">净额</view>
+          <view class="value {{todayData.net < 0 ? 'negative' : 'positive'}}">{{todayData.net || '0.00'}}</view>
+        </view>
+      </view>
     </view>
   </view>
 </scroll-view>

@@ -36,14 +36,20 @@
       </picker>
     </view>
     
-    <view class="form-item">
-      <text class="form-label">日期</text>
-      <picker mode="date" value="{{transactionTime}}" bindchange="bindDateChange">
-        <view class="form-picker">
-          <text>{{transactionTime || currentDate}}</text>
-          <text class="picker-arrow">▼</text>
-        </view>
-      </picker>
+    <view class="form-item datetime-container">
+      <text class="form-label">日期时间</text>
+      <view class="datetime-pickers">
+        <picker mode="date" value="{{currentDate}}" bindchange="bindDateChange" class="date-picker">
+          <view class="mini-picker">
+            <text>{{currentDate}}</text>
+          </view>
+        </picker>
+        <picker mode="time" value="{{currentTime}}" bindchange="bindTimeChange" class="time-picker">
+          <view class="mini-picker">
+            <text>{{currentTime}}</text>
+          </view>
+        </picker>
+      </view>
     </view>
     
     <view class="form-item">

@@ -10,7 +10,7 @@ type Account struct {
 	TypeID         int64     `json:"type_id" db:"type_id"`
 	Amount         float64   `json:"amount" db:"amount"`
 	Remark         string    `json:"remark" db:"remark"`
-	TransactionTime time.Time `json:"transaction_time" db:"transaction_time"`
+	TransactionTime string    `json:"transaction_time" db:"transaction_time"`
 	CreateTime     time.Time `json:"create_time" db:"create_time"`
 	UpdateTime     time.Time `json:"update_time" db:"update_time"`
 } 

@@ -47,6 +47,8 @@ Page({
     selectedStoreName: '',      // 添加选中的店铺名称
     selectedIncomeType: null,   // 添加选中的收入类型对象
     selectedExpenseType: null,  // 添加选中的支出类型对象
+    currentStoreId: '', // 添加当前店铺ID属性
+    isLoadingStoreData: false, // 添加标记防止数据覆盖
   },
   bindViewTap() {
     wx.navigateTo({
@@ -105,12 +107,27 @@ Page({
     setTimeout(() => {
       this.setData({ isFirstLoad: false });
     }, 3000);
+
+    // 获取当前选中的店铺ID
+    const currentStoreId = wx.getStorageSync('currentStoreId') || '';
+    this.setData({
+      currentStoreId: currentStoreId
+    });
+
+    // 加载数据
+    this.loadPageData();
   },
   onShow() {
     // 检查userInfo是否存在
     if (this.data.userInfo) {
-      this.loadStatistics();
-      this.loadRecentRecords();
+      // 避免自动加载覆盖店铺特定数据
+      if (this.data.isLoadingStoreData !== true) {
+        console.log('页面显示，加载常规数据');
+        this.loadStatistics();
+        this.loadRecentRecords();
+      } else {
+        console.log('跳过常规数据加载，因为店铺数据正在加载中');
+      }
     } else {
       // 尝试从Storage获取用户信息
       const userInfo = wx.getStorageSync('userInfo');
@@ -123,6 +140,19 @@ Page({
         wx.reLaunch({
           url: '/pages/login/login',
         });
+      }
+    }
+
+    // 检查店铺是否已切换
+    this.checkStoreChanged();
+
+    // 如果没有选择店铺ID，使用默认值
+    if (!this.data.currentStoreId) {
+      const defaultStoreId = wx.getStorageSync('defaultSettings')?.storeId || '';
+      if (defaultStoreId) {
+        this.setData({ currentStoreId: defaultStoreId });
+        wx.setStorageSync('currentStoreId', defaultStoreId);
+        this.loadPageData();
       }
     }
   },
@@ -170,14 +200,74 @@ Page({
     const selectedStoreId = selectedStore.id;
     const selectedStoreName = selectedStore.name;
 
+    console.log('开始切换店铺:', selectedStoreName, '(ID:', selectedStoreId, ')');
+
+    // 设置标记，防止onShow覆盖数据
+    this.setData({ isLoadingStoreData: true });
+
+    // 保存当前选择的店铺ID到本地存储
+    wx.setStorageSync('currentStoreId', selectedStoreId);
+
+    // 显示加载提示
+    wx.showLoading({
+      title: '加载数据中...',
+      mask: true
+    });
+
+    // 更新页面数据
     this.setData({
       selectedStoreId,
       selectedStoreName,
+      currentStoreId: selectedStoreId,
       storePickerVisible: false
     });
 
-    this.loadStatistics();
-    this.loadRecentRecords();
+    // 清空当前数据
+    this.setData({
+      todayData: {
+        income: '0.00',
+        expense: '0.00',
+        profit: '0.00'
+      },
+      recentAccounts: [],
+      totalIncome: '0.00',
+      totalExpense: '0.00',
+      netAmount: '0.00'
+    });
+
+    // 重新请求所有数据
+    Promise.all([
+      this.requestStoreStatistics(selectedStoreId),
+      this.requestTodayData(selectedStoreId),
+      this.requestRecentAccounts(selectedStoreId)
+    ])
+      .then((results) => {
+        wx.hideLoading();
+        // 显示更详细的完成信息
+        console.log('============店铺数据更新结果============');
+        console.log('月度数据:', results[0]);
+        console.log('今日数据:', results[1]);
+        console.log('账目数据:', results[2]?.length || 0, '条记录');
+
+        wx.showToast({
+          title: '数据已更新',
+          icon: 'success'
+        });
+
+        // 移除标记
+        this.setData({ isLoadingStoreData: false });
+      })
+      .catch(err => {
+        wx.hideLoading();
+        wx.showToast({
+          title: '更新失败',
+          icon: 'error'
+        });
+        console.error('店铺切换数据更新失败:', err);
+
+        // 移除标记
+        this.setData({ isLoadingStoreData: false });
+      });
   },
   // 获取日期范围
   getDateRange() {
@@ -222,14 +312,22 @@ Page({
     }
 
     const { startDate, endDate } = this.getDateRange();
+    const storeId = this.data.currentStoreId; // 使用currentStoreId而不是selectedStoreId
 
-    request.get(config.apis.accounts.statistics, {
-      params: {
-        store_id: this.data.selectedStoreId,
-        start_date: startDate,
-        end_date: endDate
-      }
-    })
+    console.log('加载统计数据，店铺ID:', storeId, '日期范围:', startDate, '至', endDate);
+
+    // 构建请求参数
+    const params = {
+      start_date: startDate,
+      end_date: endDate
+    };
+
+    // 只在有选择特定店铺时添加store_id
+    if (storeId) {
+      params.store_id = storeId;
+    }
+
+    request.get(config.apis.accounts.statistics, { params })
       .then(res => {
         const stats = res.data;
         this.setData({
@@ -237,6 +335,7 @@ Page({
           totalExpense: stats.total_expense.toFixed(2),
           netAmount: stats.net_amount.toFixed(2)
         });
+        console.log('统计数据加载成功, 收入:', stats.total_income, '支出:', stats.total_expense);
       })
       .catch(err => {
         console.error('获取统计数据失败:', err);
@@ -260,23 +359,23 @@ Page({
         limit: 10
       }
     })
-    .then(res => {
-      if (res.data) {
-        // 格式化数据用于显示
-        const formattedRecords = res.data.map(record => ({
-          ...record,
-          amount: record.amount.toFixed(2),
-          create_time: this.formatDateTime(new Date(record.transaction_time))
-        }));
-        
-        this.setData({ 
-          recentAccounts: formattedRecords
-        });
-      }
-    })
-    .catch(err => {
-      console.error('获取最近记录失败:', err);
-    });
+      .then(res => {
+        if (res.data) {
+          // 格式化数据用于显示
+          const formattedRecords = res.data.map(record => ({
+            ...record,
+            amount: record.amount.toFixed(2),
+            create_time: this.formatDateTime(new Date(record.transaction_time))
+          }));
+
+          this.setData({
+            recentAccounts: formattedRecords
+          });
+        }
+      })
+      .catch(err => {
+        console.error('获取最近记录失败:', err);
+      });
   },
   // 添加日期时间格式化方法
   formatDateTime(date) {
@@ -413,20 +512,20 @@ Page({
           // 分离收入和支出类型
           const incomeTypes = res.data.filter(type => !type.is_expense);
           const expenseTypes = res.data.filter(type => type.is_expense);
-          
+
           // 查找默认选中的类型
           const selectedIncomeType = incomeTypes.find(t => t.id === this.data.defaultIncomeTypeId);
           const selectedExpenseType = expenseTypes.find(t => t.id === this.data.defaultExpenseTypeId);
-          
+
           // 设置索引，如果没有找到对应类型则设为0
-          const incomeTypeIndex = selectedIncomeType ? 
-            incomeTypes.findIndex(t => t.id === this.data.defaultIncomeTypeId) : 
+          const incomeTypeIndex = selectedIncomeType ?
+            incomeTypes.findIndex(t => t.id === this.data.defaultIncomeTypeId) :
             (incomeTypes.length > 0 ? 0 : -1);
-          
-          const expenseTypeIndex = selectedExpenseType ? 
-            expenseTypes.findIndex(t => t.id === this.data.defaultExpenseTypeId) : 
+
+          const expenseTypeIndex = selectedExpenseType ?
+            expenseTypes.findIndex(t => t.id === this.data.defaultExpenseTypeId) :
             (expenseTypes.length > 0 ? 0 : -1);
-          
+
           this.setData({
             incomeTypes,
             expenseTypes,
@@ -536,12 +635,12 @@ Page({
   goToAddAccount: function (e) {
     // 获取用户点击的类型，收入或支出
     const type = e.currentTarget.dataset.type;
-    
+
     // 获取默认设置
     const defaultSettings = wx.getStorageSync('defaultSettings');
-    
+
     // 如果没有默认设置，提示用户设置
-    if (!defaultSettings || 
+    if (!defaultSettings ||
       !defaultSettings.storeId ||
       (type === 'income' && !defaultSettings.incomeTypeId) ||
       (type === 'expense' && !defaultSettings.expenseTypeId)) {
@@ -596,7 +695,7 @@ Page({
   loadDefaultSettings: function () {
     const defaultSettings = wx.getStorageSync('defaultSettings');
     console.log('读取到的默认设置:', defaultSettings);
-    
+
     // 先尝试从服务器获取设置
     request.get(config.apis.settings.get)
       .then(res => {
@@ -611,9 +710,9 @@ Page({
             expenseTypeId: res.data.expense_type_id,
             expenseTypeName: ''
           };
-          
+
           wx.setStorageSync('defaultSettings', settings);
-          
+
           // 应用设置
           this.applyDefaultSettings(settings);
         } else if (defaultSettings) {
@@ -629,9 +728,9 @@ Page({
         }
       });
   },
-  
+
   // 新增函数用于应用默认设置
-  applyDefaultSettings: function(settings) {
+  applyDefaultSettings: function (settings) {
     // 等待店铺和账户类型加载完成
     const checkAndApply = () => {
       if (!this.data.stores || !this.data.incomeTypes || !this.data.expenseTypes) {
@@ -641,7 +740,7 @@ Page({
       }
 
       console.log('开始应用默认设置', settings);
-      
+
       // 应用默认店铺
       if (settings.storeId) {
         const storeIndex = this.data.stores.findIndex(
@@ -718,7 +817,7 @@ Page({
       expenseTypeId: this.data.selectedExpenseType.id,
       expenseTypeName: this.data.selectedExpenseType.name
     };
-    
+
     console.log('保存的设置:', settings);
 
     // 先调用后端接口保存设置
@@ -727,44 +826,44 @@ Page({
       income_type_id: settings.incomeTypeId,
       expense_type_id: settings.expenseTypeId
     })
-    .then(res => {
-      // 后端保存成功后，再保存到本地存储
-      wx.setStorage({
-        key: 'defaultSettings',
-        data: settings,
-        success: () => {
-          wx.showToast({
-            title: '保存成功',
-            icon: 'success'
-          });
-          this.setData({ 
-            showDefaultSettings: false,
-            // 更新当前选中的值和名称
-            selectedStore: this.data.stores[this.data.storeIndex],
-            selectedStoreName: this.data.stores[this.data.storeIndex].name,
-            selectedIncomeType: this.data.incomeTypes[this.data.incomeTypeIndex],
-            selectedExpenseType: this.data.expenseTypes[this.data.expenseTypeIndex],
-            storeIndex: this.data.stores.findIndex(s => s.id === settings.storeId),
-            incomeTypeIndex: this.data.incomeTypes.findIndex(t => t.id === settings.incomeTypeId),
-            expenseTypeIndex: this.data.expenseTypes.findIndex(t => t.id === settings.expenseTypeId)
-          });
-        },
-        fail: (err) => {
-          console.error('本地保存设置失败:', err);
-          wx.showToast({
-            title: '保存失败',
-            icon: 'error'
-          });
-        }
+      .then(res => {
+        // 后端保存成功后，再保存到本地存储
+        wx.setStorage({
+          key: 'defaultSettings',
+          data: settings,
+          success: () => {
+            wx.showToast({
+              title: '保存成功',
+              icon: 'success'
+            });
+            this.setData({
+              showDefaultSettings: false,
+              // 更新当前选中的值和名称
+              selectedStore: this.data.stores[this.data.storeIndex],
+              selectedStoreName: this.data.stores[this.data.storeIndex].name,
+              selectedIncomeType: this.data.incomeTypes[this.data.incomeTypeIndex],
+              selectedExpenseType: this.data.expenseTypes[this.data.expenseTypeIndex],
+              storeIndex: this.data.stores.findIndex(s => s.id === settings.storeId),
+              incomeTypeIndex: this.data.incomeTypes.findIndex(t => t.id === settings.incomeTypeId),
+              expenseTypeIndex: this.data.expenseTypes.findIndex(t => t.id === settings.expenseTypeId)
+            });
+          },
+          fail: (err) => {
+            console.error('本地保存设置失败:', err);
+            wx.showToast({
+              title: '保存失败',
+              icon: 'error'
+            });
+          }
+        });
+      })
+      .catch(err => {
+        console.error('保存设置到服务器失败:', err);
+        wx.showToast({
+          title: '保存失败',
+          icon: 'error'
+        });
       });
-    })
-    .catch(err => {
-      console.error('保存设置到服务器失败:', err);
-      wx.showToast({
-        title: '保存失败',
-        icon: 'error'
-      });
-    });
   },
   // 添加刷新数据的方法
   refreshData: function () {
@@ -852,5 +951,343 @@ Page({
     } catch (e) {
       console.error('缓存清理出错:', e);
     }
+  },
+  // 检查店铺是否已切换
+  checkStoreChanged: function () {
+    const currentStoreId = wx.getStorageSync('currentStoreId') || '';
+
+    // 如果店铺ID变化，则重新加载数据
+    if (currentStoreId !== this.data.currentStoreId) {
+      console.log('店铺已切换，从', this.data.currentStoreId, '到', currentStoreId);
+      this.setData({
+        currentStoreId: currentStoreId
+      });
+
+      // 重新加载页面数据
+      this.loadPageData();
+    }
+  },
+  // 加载页面数据（今日数据和最近账目）
+  loadPageData: function () {
+    // 清空之前的数据
+    this.setData({
+      todayData: {
+        income: '0.00',
+        expense: '0.00',
+        profit: '0.00'
+      },
+      recentAccounts: [],
+      // 同时清空月度统计
+      totalIncome: '0.00',
+      totalExpense: '0.00',
+      netAmount: '0.00'
+    });
+
+    // 根据当前店铺ID加载今日数据
+    this.loadTodayData();
+
+    // 根据当前店铺ID加载最近账目
+    this.loadRecentAccounts();
+
+    // 加载月度统计数据 - 添加这一行
+    this.loadStatistics();
+  },
+
+  // 加载今日数据
+  loadTodayData: function () {
+    const storeId = this.data.currentStoreId;
+    console.log('加载店铺ID为', storeId, '的今日数据');
+
+    // 使用项目中已有的API获取今日数据
+    const now = new Date();
+    const today = this.formatDate(now);
+
+    // 确定API请求参数
+    const params = {
+      start_date: today,
+      end_date: today
+    };
+
+    // 只有当选择了特定店铺时才添加店铺过滤
+    if (storeId) {
+      params.store_id = storeId;
+    }
+
+    request.get(config.apis.accounts.statistics, { params })
+      .then(res => {
+        const stats = res.data;
+        this.setData({
+          todayData: {
+            income: stats.total_income.toFixed(2),
+            expense: stats.total_expense.toFixed(2),
+            profit: stats.net_amount.toFixed(2)
+          },
+          totalIncome: stats.total_income.toFixed(2),
+          totalExpense: stats.total_expense.toFixed(2),
+          netAmount: stats.net_amount.toFixed(2)
+        });
+        console.log('今日数据加载成功，店铺:', this.data.selectedStoreName || '全部');
+      })
+      .catch(err => {
+        console.error('获取今日数据失败:', err);
+      });
+  },
+
+  // 加载最近账目
+  loadRecentAccounts: function () {
+    const storeId = this.data.currentStoreId;
+    console.log('加载店铺ID为', storeId, '的最近账目');
+
+    // 确定API请求参数
+    const params = {
+      limit: 10
+    };
+
+    // 只有当选择了特定店铺时才添加店铺过滤
+    if (storeId) {
+      params.store_id = storeId;
+    }
+
+    request.get(config.apis.accounts.list, { params })
+      .then(res => {
+        if (res.data) {
+          // 格式化数据用于显示
+          let formattedRecords = res.data.map(record => ({
+            ...record,
+            amount: record.amount.toFixed(2),
+            create_time: this.formatDateTime(new Date(record.transaction_time))
+          }));
+
+          // 如果服务器没有按店铺过滤，在前端再次过滤
+          if (storeId && storeId !== '') {
+            formattedRecords = formattedRecords.filter(record =>
+              record.store_id === storeId || record.store_id === parseInt(storeId)
+            );
+          }
+
+          this.setData({
+            recentAccounts: formattedRecords
+          });
+          console.log('最近账目加载成功，共', formattedRecords.length, '条记录');
+        }
+      })
+      .catch(err => {
+        console.error('获取最近账目失败:', err);
+      });
+  },
+
+  // 新增函数：专门请求店铺统计数据
+  requestStoreStatistics(storeId) {
+    console.log('请求店铺统计数据, ID:', storeId);
+
+    const { startDate, endDate } = this.getDateRange();
+
+    // 直接构建URL查询字符串，确保参数能被后端读取
+    let url = `${config.apis.accounts.statistics}?start_date=${startDate}&end_date=${endDate}`;
+
+    // 只有在有特定店铺ID时才添加店铺参数
+    if (storeId !== undefined && storeId !== null && storeId !== '') {
+      const parsedId = parseInt(storeId);
+      url += `&store_id=${parsedId}`;
+      console.log(`添加店铺过滤，URL中包含store_id参数: ${parsedId}`);
+    }
+
+    console.log('完整请求URL:', url);
+
+    return new Promise((resolve, reject) => {
+      // 直接使用构建的URL，不再使用params对象
+      request.get(url)
+        .then(res => {
+          console.log('统计API完整响应:', JSON.stringify(res.data));
+
+          const stats = res.data;
+          if (stats && typeof stats.total_income !== 'undefined') {
+            console.log(`店铺ID ${storeId || '全部'} 的统计数据: 收入=${stats.total_income}, 支出=${stats.total_expense}`);
+
+            this.setData({
+              totalIncome: parseFloat(stats.total_income).toFixed(2),
+              totalExpense: parseFloat(stats.total_expense).toFixed(2),
+              netAmount: parseFloat(stats.net_amount).toFixed(2)
+            });
+            resolve(stats);
+          } else {
+            console.error('无效的统计数据响应:', stats);
+            reject(new Error('无效的统计数据'));
+          }
+        })
+        .catch(err => {
+          console.error('获取店铺统计数据失败:', err);
+          reject(err);
+        });
+    });
+  },
+
+  // 修改requestTodayData函数，统一数据格式和处理方式
+  requestTodayData(storeId) {
+    console.log('请求今日数据, 店铺ID:', storeId);
+
+    const now = new Date();
+    const today = this.formatDate(now);
+
+    // 使用后端理解的准确时间格式
+    const startTime = `${today} 00:00:00`;
+    const endTime = `${today} 23:59:59`;
+
+    // 添加调试信息
+    console.log('今日数据时间范围:', startTime, '至', endTime);
+
+    // 构建URL
+    let url = `${config.apis.accounts.statistics}?start_date=${today}&end_date=${today}`;
+
+    // 明确添加店铺ID
+    if (storeId !== undefined && storeId !== null && storeId !== '') {
+      url += `&store_id=${storeId}`;
+      console.log(`今日数据请求包含店铺ID: ${storeId}`);
+    } else {
+      console.log('今日数据请求不包含店铺ID，将获取所有店铺数据');
+    }
+
+    console.log('今日数据完整请求URL:', url);
+
+    return new Promise((resolve, reject) => {
+      request.get(url)
+        .then(res => {
+          console.log('今日数据API响应:', JSON.stringify(res.data));
+
+          const stats = res.data || { total_income: 0, total_expense: 0, net_amount: 0 };
+
+          // 确保数据为数字且转为两位小数
+          const todayData = {
+            income: this.formatAmount(stats.total_income),
+            expense: this.formatAmount(stats.total_expense),
+            net: this.formatAmount(stats.net_amount)
+          };
+
+          // 同时更新两种数据格式，保证兼容性
+          this.setData({
+            todayData,
+            todayIncome: todayData.income,
+            todayExpense: todayData.expense
+          });
+
+          // 输出红框内将要显示的数据
+          console.log(`今日数据更新成功: 收入=${todayData.income}, 支出=${todayData.expense}, 净额=${todayData.net}`);
+          resolve(stats);
+        })
+        .catch(err => {
+          console.error('获取今日数据失败:', err);
+
+          // 出错时显示零值
+          const defaultData = {
+            income: '0.00',
+            expense: '0.00',
+            net: '0.00'
+          };
+
+          this.setData({
+            todayData: defaultData,
+            todayIncome: defaultData.income,
+            todayExpense: defaultData.expense
+          });
+
+          reject(err);
+        });
+    });
+  },
+
+  // 同样修改最近账目请求函数
+  requestRecentAccounts(storeId) {
+    console.log('请求最近账目, 店铺ID:', storeId);
+
+    // 直接构建URL查询字符串
+    let url = `${config.apis.accounts.list}?limit=10`;
+
+    // 添加店铺ID参数
+    if (storeId !== undefined && storeId !== null && storeId !== '') {
+      const parsedId = parseInt(storeId);
+      url += `&store_id=${parsedId}`;
+      console.log(`添加店铺过滤，URL中包含store_id参数: ${parsedId}`);
+    }
+
+    console.log('完整请求URL:', url);
+
+    return new Promise((resolve, reject) => {
+      request.get(url)
+        .then(res => {
+          console.log('最近账目API响应:', JSON.stringify(res.data));
+
+          if (res.data) {
+            // 格式化数据
+            let formattedRecords = res.data.map(record => ({
+              ...record,
+              amount: record.amount.toFixed(2),
+              create_time: this.formatDateTime(new Date(record.transaction_time))
+            }));
+
+            this.setData({
+              recentAccounts: formattedRecords
+            });
+            console.log('最近账目加载成功, 条数:', formattedRecords.length);
+            resolve(formattedRecords);
+          } else {
+            this.setData({
+              recentAccounts: []
+            });
+            resolve([]);
+          }
+        })
+        .catch(err => {
+          console.error('获取最近账目失败:', err);
+          reject(err);
+        });
+    });
+  },
+
+  // 修改数据展示部分的处理逻辑
+  getStatistics: function (storeId = '') {
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+
+    // 获取今日统计
+    request.get(`${config.apis.accounts.statistics}?store_id=${storeId}&start_date=${todayStr}&end_date=${todayStr}`)
+      .then(res => {
+        // 确保数值正确处理，防止NaN或undefined
+        const todayStats = res.data || { total_income: 0, total_expense: 0, net_amount: 0 };
+
+        this.setData({
+          todayData: {
+            income: parseFloat(todayStats.total_income || 0).toFixed(2),
+            expense: parseFloat(todayStats.total_expense || 0).toFixed(2),
+            net: parseFloat(todayStats.net_amount || 0).toFixed(2)
+          }
+        });
+      })
+      .catch(err => {
+        console.error('获取今日统计失败:', err);
+        // 发生错误时显示为0
+        this.setData({
+          todayData: {
+            income: '0.00',
+            expense: '0.00',
+            net: '0.00'
+          }
+        });
+      });
+
+    // 获取本月统计...同样添加错误处理和默认值
+  },
+
+  // 优化金额显示的辅助函数
+  formatAmount: function (amount) {
+    // 处理非数值情况
+    if (amount === null || amount === undefined || isNaN(amount)) {
+      return '0.00';
+    }
+
+    // 转为数字并保留两位小数
+    return parseFloat(amount).toFixed(2);
   }
 })

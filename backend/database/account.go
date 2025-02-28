@@ -11,11 +11,60 @@ import (
 
 // CreateAccount 创建账务记录
 func CreateAccount(account *models.Account) (int64, error) {
-	result, err := DB.Exec(`
+	// 准备SQL语句
+	query := `
 		INSERT INTO accounts (store_id, user_id, type_id, amount, remark, transaction_time, create_time, update_time)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-	`, account.StoreID, account.UserID, account.TypeID, account.Amount, account.Remark,
-		account.TransactionTime, account.CreateTime, account.UpdateTime)
+	`
+
+	// 确保有一个有效的交易日期时间
+	var transactionTimeStr string
+
+	// 检查并处理日期时间格式
+	if account.TransactionTime == "" {
+		// 如果未提供日期时间，使用当前时间的完整格式
+		transactionTimeStr = time.Now().Format("2006-01-02 15:04:05")
+	} else {
+		// 尝试解析前端提供的日期时间
+		layout := "2006-01-02 15:04"
+		layoutWithSeconds := "2006-01-02 15:04:05"
+
+		// 先尝试完整格式（带秒）
+		_, err := time.Parse(layoutWithSeconds, account.TransactionTime)
+		if err == nil {
+			// 如果是完整格式，直接使用
+			transactionTimeStr = account.TransactionTime
+		} else {
+			// 尝试不带秒的格式
+			t, err := time.Parse(layout, account.TransactionTime)
+			if err == nil {
+				// 转换为标准格式
+				transactionTimeStr = t.Format(layoutWithSeconds)
+			} else {
+				// 尝试仅日期格式
+				layoutDate := "2006-01-02"
+				t, err = time.Parse(layoutDate, account.TransactionTime)
+				if err == nil {
+					// 添加默认时间 00:00:00
+					transactionTimeStr = t.Format(layoutWithSeconds)
+				} else {
+					// 格式无效，使用当前时间
+					transactionTimeStr = time.Now().Format(layoutWithSeconds)
+				}
+			}
+		}
+	}
+
+	// 执行查询
+	result, err := DB.Exec(query,
+		account.StoreID,
+		account.UserID,
+		account.TypeID,
+		account.Amount,
+		account.Remark,
+		transactionTimeStr, // 使用格式化后的日期时间
+		account.CreateTime,
+		account.UpdateTime)
 
 	if err != nil {
 		return 0, err
@@ -145,6 +194,7 @@ func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interf
 
 	// 执行查询
 	var totalIncome, totalExpense, netAmount float64
+	log.Printf("执行SQL: %s, 参数: %v", query, args)
 	err := DB.QueryRow(query, args...).Scan(&totalIncome, &totalExpense, &netAmount)
 	if err != nil {
 		return nil, err
@@ -157,4 +207,4 @@ func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interf
 	}
 
 	return stats, nil
-} 
+}
