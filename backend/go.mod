@@ -5,7 +5,6 @@ go 1.23.0
 toolchain go1.23.6
 
 require (
-	github.com/mattn/go-sqlite3 v1.14.24 // indirect
 	modernc.org/sqlite v1.29.2
 )
 

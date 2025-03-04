@@ -122,47 +122,38 @@ func getTotalAmounts(startDate, endDate time.Time, storeId int64) (float64, floa
 func getTrendData(startDate, endDate time.Time, storeId int64) ([]TrendData, error) {
 	var trendData []TrendData
 
-	// 计算趋势图的时间分组
-	timeFormat := "%Y-%m-%d" // 默认按天分组
-	duration := endDate.Sub(startDate)
+	// 将时间戳参数转换为字符串格式
+	startDateStr := startDate.Format("2006-01-02 15:04:05")
+	endDateStr := endDate.Format("2006-01-02 15:04:05")
 
-	if duration.Hours() <= 24 {
-		timeFormat = "%Y-%m-%d %H" // 小于一天，按小时分组
-	} else if duration.Hours() <= 24*7 {
-		timeFormat = "%Y-%m-%d" // 一周内，按天分组
-	} else if duration.Hours() <= 24*31*3 {
-		timeFormat = "%Y-%m-%d" // 三个月内，按天分组
-	} else {
-		timeFormat = "%Y-%m" // 超过三个月，按月分组
-	}
-
-	// SQL查询条件
-	storeCondition := ""
-	args := []interface{}{startDate, endDate}
-
-	if storeId > 0 {
-		storeCondition = " AND store_id = ?"
-		args = append(args, storeId)
-	}
-
-	// 查询趋势数据
+	// 修改SQL查询，避免使用SQLite特有的日期函数
 	query := `
 		SELECT 
-			strftime('` + timeFormat + `', transaction_time) as date,
+			SUBSTR(transaction_time, 1, 10) as date,
 			SUM(CASE WHEN amount >= 0 THEN amount ELSE 0 END) as income,
 			SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END) as expense,
 			SUM(amount) as net
 		FROM accounts
-		WHERE transaction_time BETWEEN ? AND ?` + storeCondition + `
-		GROUP BY date
-		ORDER BY date`
+		WHERE transaction_time BETWEEN ? AND ?
+	`
 
+	args := []interface{}{startDateStr, endDateStr}
+
+	if storeId > 0 {
+		query += " AND store_id = ?"
+		args = append(args, storeId)
+	}
+
+	query += " GROUP BY SUBSTR(transaction_time, 1, 10) ORDER BY date"
+
+	// 执行查询
 	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("查询趋势数据失败: %w", err)
 	}
 	defer rows.Close()
 
+	// 处理结果集
 	for rows.Next() {
 		var item TrendData
 		err := rows.Scan(&item.Date, &item.Income, &item.Expense, &item.Net)
@@ -183,16 +174,11 @@ func getTrendData(startDate, endDate time.Time, storeId int64) ([]TrendData, err
 func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData, error) {
 	var compareData []CompareData
 
-	// SQL查询条件
-	storeCondition := ""
-	args := []interface{}{startDate, endDate}
+	// 将时间戳参数转换为字符串格式
+	startDateStr := startDate.Format("2006-01-02 15:04:05")
+	endDateStr := endDate.Format("2006-01-02 15:04:05")
 
-	if storeId > 0 {
-		storeCondition = " AND a.store_id = ?"
-		args = append(args, storeId)
-	}
-
-	// 查询分类对比数据
+	// 构建查询字符串
 	query := `
 		SELECT 
 			COALESCE(t.name, '未分类') as category,
@@ -201,10 +187,21 @@ func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData,
 			SUM(a.amount) as net
 		FROM accounts a
 		LEFT JOIN account_types t ON a.type_id = t.id
-		WHERE a.transaction_time BETWEEN ? AND ?` + storeCondition + `
+		WHERE a.transaction_time BETWEEN ? AND ?
+	`
+
+	args := []interface{}{startDateStr, endDateStr}
+
+	if storeId > 0 {
+		query += " AND a.store_id = ?"
+		args = append(args, storeId)
+	}
+
+	query += `
 		GROUP BY t.id
 		ORDER BY ABS(net) DESC
-		LIMIT 10`
+		LIMIT 10
+	`
 
 	rows, err := DB.Query(query, args...)
 	if err != nil {
@@ -219,10 +216,6 @@ func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData,
 			return nil, fmt.Errorf("读取分类对比数据失败: %w", err)
 		}
 		compareData = append(compareData, item)
-	}
-
-	if err = rows.Err(); err != nil {
-		return nil, fmt.Errorf("处理分类对比数据失败: %w", err)
 	}
 
 	return compareData, nil
