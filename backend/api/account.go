@@ -122,6 +122,10 @@ func (h *AccountHandler) Create(w http.ResponseWriter, r *http.Request) {
 	SendResponse(w, http.StatusOK, 200, "创建账务记录成功", account)
 }
 
+func (h *AccountHandler) Test(w http.ResponseWriter, r *http.Request) {
+	SendResponse(w, http.StatusOK, 200, "测试成功", "")
+}
+
 // 获取账务记录列表
 func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {

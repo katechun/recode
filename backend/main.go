@@ -81,6 +81,7 @@ func main() {
 		api.SendResponse(w, http.StatusOK, 200, "成功", users)
 	}))
 
+	router.HandleFunc("/test", accountHandler.Test)
 	// 账务相关API
 	router.HandleFunc("/api/accounts", api.CORSMiddleware(accountHandler.List))
 	router.HandleFunc("/api/accounts/create", api.CORSMiddleware(accountHandler.Create))

@@ -4,13 +4,15 @@ const env = {
     apiBaseUrl: 'http://10.100.7.4:8080'
   },
   production: {
-    apiBaseUrl: 'http://8.152.197.192:8080' // 生产环境地址
+    // apiBaseUrl: 'http://8.152.197.192:8080' // 生产环境地址
+    apiBaseUrl: 'http://www.cjns.site' // 生产环境地址
+
   }
 };
 
 // 当前环境，可以通过编译时配置
-const currentEnv = 'development';
-// const currentEnv = 'production';
+// const currentEnv = 'development';
+const currentEnv = 'production';
 
 const config = {
   // API基础地址

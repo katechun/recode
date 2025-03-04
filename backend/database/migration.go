@@ -1,12 +1,35 @@
 package database
 
 import (
+	"fmt"
 	"log"
 )
 
 // CheckAndMigrateTables 检查并迁移缺少的表和列
 func CheckAndMigrateTables() error {
 	log.Println("检查数据库表结构...")
+	
+	// 先检查基本表是否存在
+	tables := []string{"users", "stores", "account_types", "accounts", "user_store_permissions"}
+	
+	for _, table := range tables {
+		var count int
+		err := DB.QueryRow(`
+			SELECT COUNT(*) FROM sqlite_master 
+			WHERE type='table' AND name=?
+		`, table).Scan(&count)
+		
+		if err != nil {
+			log.Printf("检查表 %s 失败: %v", table, err)
+			continue
+		}
+		
+		if count == 0 {
+			log.Printf("表 %s 不存在，需要先运行ResetDatabase", table)
+			// 跳过进一步的检查，因为基本表不存在
+			return fmt.Errorf("基本表 %s 不存在", table)
+		}
+	}
 	
 	// 检查是否存在user_store_permissions表
 	var count int
