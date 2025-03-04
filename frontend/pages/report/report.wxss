@@ -277,14 +277,66 @@
 }
 
 .chart-container {
-  height: 400rpx;
-  position: relative;
+  width: 100%;
+  height: auto;
+  background-color: #fff;
+  border-radius: 12rpx;
+  padding: 20rpx;
+  box-sizing: border-box;
+  margin-top: 20rpx;
 }
 
-.trend-chart,
-.compare-chart {
+.trend-data, .compare-data {
   width: 100%;
-  height: 100%;
+  max-height: 500rpx;
+  overflow-y: auto;
+}
+
+.trend-list, .compare-list {
+  width: 100%;
+  border-radius: 8rpx;
+  background-color: #fff;
+  overflow: hidden;
+}
+
+.trend-item, .compare-item {
+  display: flex;
+  padding: 20rpx 30rpx;
+  border-bottom: 1rpx solid #f0f0f0;
+  font-size: 24rpx;
+}
+
+.trend-item.header, .compare-item.header {
+  background-color: #f5f7fa;
+  font-weight: bold;
+  color: #333;
+}
+
+.trend-date, .compare-category {
+  flex: 1.5;
+  text-align: left;
+}
+
+.trend-income, .trend-expense, .trend-net,
+.compare-income, .compare-expense, .compare-net {
+  flex: 1;
+  text-align: right;
+}
+
+.trend-income, .compare-income {
+  color: #52c41a;
+}
+
+.trend-expense, .compare-expense {
+  color: #f5222d;
+}
+
+.trend-net.income, .compare-net.income {
+  color: #52c41a;
+}
+
+.trend-net.expense, .compare-net.expense {
+  color: #f5222d;
 }
 
 .hidden {

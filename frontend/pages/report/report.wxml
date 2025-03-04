@@ -38,9 +38,49 @@
       <view class="chart-tab {{chartType === 'trend' ? 'active' : ''}}" bindtap="changeChartType" data-type="trend">趋势图</view>
       <view class="chart-tab {{chartType === 'compare' ? 'active' : ''}}" bindtap="changeChartType" data-type="compare">对比图</view>
     </view>
+    
     <view class="chart-container">
-      <canvas canvas-id="trend-chart" class="trend-chart {{chartType === 'trend' ? '' : 'hidden'}}"></canvas>
-      <canvas canvas-id="compare-chart" class="compare-chart {{chartType === 'compare' ? '' : 'hidden'}}"></canvas>
+      <!-- 趋势图区域 -->
+      <view class="trend-data {{chartType === 'trend' ? '' : 'hidden'}}">
+        <block wx:if="{{formattedTrendData.length > 0}}">
+          <view class="trend-list">
+            <view class="trend-item header">
+              <text class="trend-date">日期</text>
+              <text class="trend-income">收入</text>
+              <text class="trend-expense">支出</text>
+              <text class="trend-net">净额</text>
+            </view>
+            <view class="trend-item" wx:for="{{formattedTrendData}}" wx:key="date">
+              <text class="trend-date">{{item.date}}</text>
+              <text class="trend-income">{{item.income}}</text>
+              <text class="trend-expense">{{item.expense}}</text>
+              <text class="trend-net {{item.isPositive ? 'income' : 'expense'}}">{{item.net}}</text>
+            </view>
+          </view>
+        </block>
+        <view wx:else class="empty-tip">暂无趋势数据</view>
+      </view>
+      
+      <!-- 对比图区域 -->
+      <view class="compare-data {{chartType === 'compare' ? '' : 'hidden'}}">
+        <block wx:if="{{formattedCompareData.length > 0}}">
+          <view class="compare-list">
+            <view class="compare-item header">
+              <text class="compare-category">分类</text>
+              <text class="compare-income">收入</text>
+              <text class="compare-expense">支出</text>
+              <text class="compare-net">净额</text>
+            </view>
+            <view class="compare-item" wx:for="{{formattedCompareData}}" wx:key="category">
+              <text class="compare-category">{{item.category}}</text>
+              <text class="compare-income">{{item.income}}</text>
+              <text class="compare-expense">{{item.expense}}</text>
+              <text class="compare-net {{item.isPositive ? 'income' : 'expense'}}">{{item.net}}</text>
+            </view>
+          </view>
+        </block>
+        <view wx:else class="empty-tip">暂无对比数据</view>
+      </view>
     </view>
   </view>
   
