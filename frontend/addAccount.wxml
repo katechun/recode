@@ -1,0 +1,1 @@
+<button class="submit-btn" bindtap="submitAccount">提交</button> 

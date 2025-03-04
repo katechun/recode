@@ -37,8 +37,8 @@ func InsertDefaultAdmin() {
 	log.Println("默认管理员创建成功")
 }
 
-// InsertTestData 插入测试数据
-func InsertTestData() {
+// InsertTestDataLegacy 插入测试数据
+func InsertTestDataLegacy() {
 	// 插入店铺
 	stores := []struct {
 		name    string
@@ -354,8 +354,8 @@ func UpdateAccountTypeTable() {
 	}
 }
 
-// InitUsers 初始化基本用户
-func InitUsers() {
+// InitUsersLegacy 初始化基本用户 (重命名以避免冲突)
+func InitUsersLegacy() {
 	log.Println("检查默认用户...")
 	
 	// 检查管理员账号

@@ -2,11 +2,14 @@ package api
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
+	"fmt"
 	"io"
 	"log"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"account/backend/database"
@@ -73,33 +76,69 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	r.Body = io.NopCloser(bytes.NewBuffer(body)) // 重新设置请求体，因为读取后需要重置
 	log.Printf("登录请求体: %s", string(body))
 
-	var req LoginRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		log.Printf("解析登录请求失败: %v", err)
-		SendResponse(w, http.StatusBadRequest, 400, "请求参数错误: "+err.Error(), nil)
-		return
+	// 解析请求
+	var loginRequest struct {
+		Username string `json:"username"`
+		Password string `json:"password"`
 	}
 
-	// 打印登录尝试信息
-	log.Printf("登录尝试: 用户名=%s, 密码长度=%d", req.Username, len(req.Password))
-
-	// 参数验证
-	if req.Username == "" || req.Password == "" {
-		SendResponse(w, http.StatusBadRequest, 400, "用户名和密码不能为空", nil)
-		return
-	}
-
-	// 调用服务层进行登录验证
-	user, err := h.userService.Login(req.Username, req.Password)
+	err := json.NewDecoder(r.Body).Decode(&loginRequest)
 	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "请求参数错误", nil)
+		return
+	}
+
+	// 获取用户信息
+	var user models.User
+	var hashedPassword string
+	var avatar sql.NullString // 使用 sql.NullString 来处理可能为 NULL 的 avatar 列
+	
+	// 修改查询，使用 sql.NullString 接收 avatar
+	err = database.DB.QueryRow(`
+		SELECT id, username, nickname, password, role, avatar
+		FROM users 
+		WHERE username = ?
+	`, loginRequest.Username).Scan(
+		&user.ID,
+		&user.Username,
+		&user.Nickname,
+		&hashedPassword,
+		&user.Role,
+		&avatar, // 使用 NullString 接收
+	)
+
+	if err != nil {
+		log.Printf("获取用户信息失败: %v", err)
 		SendResponse(w, http.StatusUnauthorized, 401, err.Error(), nil)
 		return
 	}
 
-	// 更新最后登录时间
+	// 只有当 avatar.Valid 为 true 时才设置 user.Avatar
+	if avatar.Valid {
+		user.Avatar = avatar.String
+	} else {
+		user.Avatar = "" // 如果为 NULL，则设置为空字符串
+	}
+
+	// 验证密码
+	// 其余代码保持不变...
+
+	// 验证密码成功后，尝试更新最后登录时间，但不影响登录结果
 	_, err = database.DB.Exec("UPDATE users SET last_login = ? WHERE id = ?", time.Now(), user.ID)
 	if err != nil {
 		log.Printf("更新登录时间失败: %v", err)
+		// 检查是否是因为缺少列导致的失败
+		if strings.Contains(err.Error(), "no such column: last_login") {
+			// 尝试添加列
+			_, alterErr := database.DB.Exec("ALTER TABLE users ADD COLUMN last_login TIMESTAMP")
+			if alterErr != nil {
+				log.Printf("添加last_login列失败: %v", alterErr)
+			} else {
+				// 重新尝试更新
+				_, _ = database.DB.Exec("UPDATE users SET last_login = ? WHERE id = ?", time.Now(), user.ID)
+				log.Println("已添加last_login列并更新登录时间")
+			}
+		}
 		// 继续处理，不要因为这个错误中断登录流程
 	}
 
@@ -362,45 +401,58 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 
 // GetUserStorePermissions 获取用户的店铺权限
 func (h *UserHandler) GetUserStorePermissions(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "仅支持GET请求", http.StatusMethodNotAllowed)
+	log.Printf("收到获取用户权限请求: %s %s", r.Method, r.URL.String())
+	
+	// 从查询参数中获取用户ID
+	userIDStr := r.URL.Query().Get("user_id")
+	if userIDStr == "" {
+		log.Printf("请求缺少user_id参数")
+		SendResponse(w, http.StatusBadRequest, 400, "缺少用户ID参数", nil)
 		return
 	}
-
-	// 验证权限
-	userID := r.Header.Get("X-User-ID")
-	if userID == "" {
+	
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		log.Printf("无效的用户ID: %s, 错误: %v", userIDStr, err)
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+	
+	// 验证请求用户是否有权限管理其他用户
+	requestUserID := r.Header.Get("X-User-ID")
+	if requestUserID == "" {
+		log.Printf("未授权的请求，缺少X-User-ID头")
 		SendResponse(w, http.StatusUnauthorized, 401, "未授权访问", nil)
 		return
 	}
-
-	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
-	isAdmin, err := database.IsUserAdmin(userIDInt)
-	if err != nil || !isAdmin {
+	
+	requestUserIDInt, _ := strconv.ParseInt(requestUserID, 10, 64)
+	isAdmin, err := database.IsUserAdmin(requestUserIDInt)
+	if err != nil {
+		log.Printf("检查用户权限时出错: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, "检查用户权限失败", nil)
+		return
+	}
+	
+	if !isAdmin && requestUserIDInt != userID {
+		log.Printf("权限拒绝: 用户%d尝试管理用户%d的权限", requestUserIDInt, userID)
 		SendResponse(w, http.StatusForbidden, 403, "无权限执行此操作", nil)
 		return
 	}
-
-	// 获取目标用户ID
-	targetUserID := r.URL.Query().Get("user_id")
-	if targetUserID == "" {
-		SendResponse(w, http.StatusBadRequest, 400, "用户ID不能为空", nil)
-		return
-	}
-
-	targetUserIDInt, err := strconv.ParseInt(targetUserID, 10, 64)
+	
+	// 获取用户的店铺权限
+	permissions, err := database.GetUserStorePermissions(userID)
 	if err != nil {
-		SendResponse(w, http.StatusBadRequest, 400, "用户ID格式错误", nil)
+		errMsg := fmt.Sprintf("获取用户权限失败: %v", err)
+		log.Printf("【错误】%s", errMsg)
+		SendResponse(w, http.StatusInternalServerError, 500, errMsg, map[string]interface{}{
+			"url": r.URL.String(),
+			"error": errMsg,
+		})
 		return
 	}
-
-	// 获取用户权限
-	permissions, err := database.GetUserStorePermissions(targetUserIDInt)
-	if err != nil {
-		SendResponse(w, http.StatusInternalServerError, 500, "获取用户权限失败: "+err.Error(), nil)
-		return
-	}
-
+	
+	log.Printf("成功获取用户%d的权限，返回%d条记录", userID, len(permissions))
 	SendResponse(w, http.StatusOK, 200, "获取用户权限成功", permissions)
 }
 

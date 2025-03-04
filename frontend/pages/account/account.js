@@ -94,7 +94,7 @@ Page({
   // 加载用户可访问的店铺
   loadStores() {
     wx.request({
-      url: 'http://localhost:/api/stores',
+      url: config.apiBaseUrl + '/api/stores',
       method: 'GET',
       header: {
         'X-User-ID': this.data.userInfo.id
@@ -123,7 +123,7 @@ Page({
   // 加载账务类型
   loadAccountTypes() {
     wx.request({
-      url: config.apiBaseUrl+'/api/account-types',
+      url: config.apiBaseUrl + '/api/account-types',
       method: 'GET',
       success: (res) => {
         console.log('账务类型数据:', res.data);
@@ -147,7 +147,7 @@ Page({
     const storeID = this.data.storeIndex >= 0 ? this.data.stores[this.data.storeIndex].id : '';
 
     wx.request({
-      url: config.apiBaseUrl+'/api/accounts',
+      url: config.apiBaseUrl + '/api/accounts',
       method: 'GET',
       data: {
         store_id: storeID,
@@ -240,7 +240,7 @@ Page({
 
     // 调用API创建账务记录
     wx.request({
-      url: config.apiBaseUrl+'/api/accounts/create',
+      url: config.apiBaseUrl + '/api/accounts/create',
       method: 'POST',
       data: accountData,
       header: {

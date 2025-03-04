@@ -18,7 +18,7 @@ type User struct {
 	Username   string    `json:"username" db:"username"`
 	Password   string    `json:"-" db:"password"` // 不在JSON响应中返回密码
 	Nickname   string    `json:"nickname" db:"nickname"`
-	Role       UserRole  `json:"role" db:"role"`
+	Role       UserRole    `json:"role" db:"role"`
 	Phone      string    `json:"phone" db:"phone"`
 	Email      string    `json:"email" db:"email"`
 	Avatar     string    `json:"avatar" db:"avatar"`

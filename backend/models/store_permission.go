@@ -1,8 +1,4 @@
 package models
 
-// StorePermission 用户对店铺的权限
-type StorePermission struct {
-	StoreID       int64  `json:"store_id"`
-	StoreName     string `json:"store_name"`
-	HasPermission int    `json:"has_permission"` // 0表示没有权限，1表示有权限
-} 
+// 此文件已不再使用，StorePermission 定义已移至 store.go
+// 保留此文件只是为了避免引用错误，将来应该删除此文件 

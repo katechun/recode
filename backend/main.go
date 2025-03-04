@@ -28,16 +28,37 @@ func main() {
 	// 初始化数据库
 	database.InitDB()
 
-	// 重置数据库（仅在开发环境使用）
+	// 检查并迁移表结构
+	if err := database.CheckAndMigrateTables(); err != nil {
+		log.Printf("检查表结构时出错: %v", err)
+	}
+
+	// 先重置数据库，创建正确的表结构
 	if err := database.ResetDatabase(); err != nil {
 		log.Printf("重置数据库失败: %v", err)
 	}
 
-	// 初始化用户数据
-	database.InitUsers()
+	// 创建测试数据 - 只需调用一次CreateTestData
+	err := database.InitializeTestData()
+	if err != nil {
+		log.Printf("创建测试数据时出错: %v", err)
+	}
 
-	// 插入测试数据
-	database.InsertTestData()
+	// 修复外键引用关系
+	err = database.FixForeignKeyReferences()
+	if err != nil {
+		log.Printf("修复外键关系时出错: %v", err)
+	}
+
+	// 添加测试账户数据
+	err = database.InsertTestAccount()
+	if err != nil {
+		log.Printf("插入测试账户数据时出错: %v", err)
+	}
+
+	// 注释掉重复的初始化函数调用
+	// database.InitUsers()
+	// database.InsertTestData()
 
 	// 实例化处理器
 	userHandler := &api.UserHandler{}
@@ -100,6 +121,9 @@ func main() {
 	// 在路由部分添加统计报表接口
 	// 统计相关接口
 	router.HandleFunc("/api/statistics/report", api.CORSMiddleware(api.GetReport)).Methods("GET", "OPTIONS")
+
+	// 添加调试API
+	router.HandleFunc("/api/debug/create-test-users", api.CORSMiddleware(api.CreateTestUsers)).Methods("POST", "OPTIONS")
 
 	log.Printf("服务器启动在 :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

@@ -63,6 +63,19 @@ const request = (url, options = {}) => {
 export default {
   get: (url, options = {}) => request(url, { ...options, method: 'GET' }),
   post: (url, data, options = {}) => {
+    if (!url) {
+      console.error('POST请求的路径为空');
+      return Promise.reject({errno: 600009, errMsg: "API路径为空"});
+    }
+    
+    // 确保path以/开头
+    if (!url.startsWith('/')) {
+      url = '/' + url;
+    }
+    
+    const fullUrl = config.apiBaseUrl + url;
+    console.log('发送POST请求:', url, data); // 记录路径而不是完整URL，便于调试
+    
     // 登录接口不需要验证登录状态
     if (url === config.apis.login) {
       return request(url, { ...options, method: 'POST', data });

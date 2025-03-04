@@ -4,26 +4,26 @@ import (
 	"account/backend/models"
 )
 
-// GetAllAccountTypes 获取所有账务类型
-func GetAllAccountTypes() ([]models.AccountType, error) {
-	rows, err := DB.Query("SELECT id, name, is_expense FROM account_types")
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+// // GetAllAccountTypes 获取所有账务类型
+// func GetAllAccountTypes() ([]models.AccountType, error) {
+// 	rows, err := DB.Query("SELECT id, name, is_expense FROM account_types")
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	defer rows.Close()
 
-	var accountTypes []models.AccountType
-	for rows.Next() {
-		var accountType models.AccountType
-		err := rows.Scan(&accountType.ID, &accountType.Name, &accountType.IsExpense)
-		if err != nil {
-			return nil, err
-		}
-		accountTypes = append(accountTypes, accountType)
-	}
+// 	var accountTypes []models.AccountType
+// 	for rows.Next() {
+// 		var accountType models.AccountType
+// 		err := rows.Scan(&accountType.ID, &accountType.Name, &accountType.IsExpense)
+// 		if err != nil {
+// 			return nil, err
+// 		}
+// 		accountTypes = append(accountTypes, accountType)
+// 	}
 
-	return accountTypes, nil
-}
+// 	return accountTypes, nil
+// }
 
 // CreateAccountType 创建新账务类型
 func CreateAccountType(accountType models.AccountType) (int64, error) {
@@ -60,4 +60,4 @@ func HasAccountTypeRecords(typeID int64) (bool, error) {
 		return false, err
 	}
 	return count > 0, nil
-} 
+}

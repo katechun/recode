@@ -4,7 +4,7 @@ const env = {
     apiBaseUrl: 'http://10.100.7.4:8080'
   },
   production: {
-    apiBaseUrl: 'http://8.152.197.192:' // 生产环境地址
+    apiBaseUrl: 'http://8.152.197.192:8080' // 生产环境地址
   }
 };
 
@@ -21,8 +21,8 @@ const config = {
     login: '/api/login',
     accounts: {
       list: '/api/accounts',
-      detail: '/api/account',
-      add: '/api/account',
+      create: '/api/accounts/create',
+      add: '/api/accounts/create',
       update: '/api/account',
       delete: '/api/accounts',
       statistics: '/api/accounts/statistics'
