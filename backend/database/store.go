@@ -6,41 +6,57 @@ import (
 	"account/backend/models"
 )
 
-// GetUserStores 获取用户有权限的店铺列表
-func GetUserStores(userID int64) ([]models.Store, error) {
-	// 检查用户角色
-	var role int
-	err := DB.QueryRow("SELECT role FROM users WHERE id = ?", userID).Scan(&role)
+// GetUserStores 获取用户可访问的店铺列表
+func GetUserStores(userID int64) ([]map[string]interface{}, error) {
+	// 检查用户是否是管理员
+	var isAdmin bool
+	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
 	if err != nil {
 		return nil, err
 	}
 
-	// 如果是管理员，返回所有店铺
-	var rows *sql.Rows
-	if role == 1 { // 管理员角色
-		rows, err = DB.Query("SELECT id, name, address, phone FROM stores")
+	var query string
+	var args []interface{}
+
+	if isAdmin {
+		// 管理员可以看到所有店铺
+		query = `
+			SELECT id, name, address, phone
+			FROM stores
+			ORDER BY name
+		`
 	} else {
-		// 非管理员只返回有权限的店铺
-		rows, err = DB.Query(`
+		// 普通店员只能看到有权限的店铺
+		query = `
 			SELECT s.id, s.name, s.address, s.phone
 			FROM stores s
-			JOIN user_store_permissions p ON s.id = p.store_id
-			WHERE p.user_id = ?
-		`, userID)
+			INNER JOIN user_store_permissions usp ON s.id = usp.store_id
+			WHERE usp.user_id = ?
+			ORDER BY s.name
+		`
+		args = append(args, userID)
 	}
 
+	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	stores := []models.Store{}
+	var stores []map[string]interface{}
 	for rows.Next() {
-		var store models.Store
-		err := rows.Scan(&store.ID, &store.Name, &store.Address, &store.Phone)
+		var id int64
+		var name, address, phone string
+		err := rows.Scan(&id, &name, &address, &phone)
 		if err != nil {
-			log.Printf("扫描店铺数据失败: %v", err)
-			continue
+			return nil, err
+		}
+
+		store := map[string]interface{}{
+			"id":      id,
+			"name":    name,
+			"address": address,
+			"phone":   phone,
 		}
 		stores = append(stores, store)
 	}

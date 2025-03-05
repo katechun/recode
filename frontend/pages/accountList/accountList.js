@@ -156,124 +156,76 @@ Page({
   },
   
   // 加载账目列表，添加分组显示
-  loadAccounts: function(reset = false) {
-    if (reset) {
+  loadAccounts: function(isRefresh = false) {
+    if (isRefresh) {
       this.setData({
         currentPage: 1,
-        accounts: [],
-        hasMore: true
+        accounts: []
       });
     }
     
-    if (!this.data.hasMore || this.data.isLoading) {
-      return Promise.resolve([]); // 如果没有更多数据或正在加载，返回空数组Promise
-    }
-    
+    // 设置加载状态
     this.setData({ isLoading: true });
     
-    // 构建请求参数
-    let url = `${config.apis.accounts.list}?page=${this.data.currentPage}&limit=${this.data.pageSize}&sort=${this.data.sortOrder}`;
+    // 构建API请求参数
+    const params = {
+      page: this.data.currentPage,
+      limit: this.data.pageSize,
+      start_date: this.data.startDate,
+      end_date: this.data.endDate
+    };
     
-    // 添加日期筛选
-    if (this.data.startDate) {
-      url += `&start_date=${this.data.startDate}`;
-    }
-    
-    if (this.data.endDate) {
-      url += `&end_date=${this.data.endDate}`;
-    }
-    
-    // 添加其他筛选参数
+    // 添加筛选条件
     if (this.data.storeId) {
-      url += `&store_id=${this.data.storeId}`;
+      params.store_id = this.data.storeId;
     }
     
     if (this.data.typeId) {
-      url += `&type_id=${this.data.typeId}`;
+      params.type_id = this.data.typeId;
     }
     
-    // 处理金额范围
+    if (this.data.searchKeyword) {
+      params.keyword = this.data.searchKeyword;
+    }
+    
     if (this.data.minAmount) {
-      url += `&min_amount=${this.data.minAmount}`;
+      params.min_amount = this.data.minAmount;
     }
     
     if (this.data.maxAmount) {
-      url += `&max_amount=${this.data.maxAmount}`;
+      params.max_amount = this.data.maxAmount;
     }
     
-    // 优化搜索关键词处理
-    if (this.data.searchKeyword) {
-      // 使用encodeURIComponent处理特殊字符
-      const keyword = this.data.searchKeyword.trim();
-      url += `&keyword=${encodeURIComponent(keyword)}`;
-      console.log('搜索关键词:', keyword);
-    }
-    
-    console.log('加载账目列表URL:', url);
-    
-    // 返回Promise
-    return new Promise((resolve, reject) => {
-      request.get(url)
-        .then(res => {
-          console.log('账目列表返回数据:', res);
-          this.setData({ isLoading: false, isRefreshing: false });
-          
-          if (res && res.code === 200 && Array.isArray(res.data)) {
-            const accounts = res.data;
-            const totalCount = accounts.length;
-            
-            console.log(`获取到 ${accounts.length} 条账目记录，格式:`, accounts[0]);
-            
-            // 处理账目数据，添加格式化的显示
-            const processedAccounts = accounts.map(account => {
-              return {
-                ...account,
-                formattedAmount: filter.formatAmount(Math.abs(account.amount)),
-                formattedDate: account.transaction_time ? account.transaction_time.substring(0, 16).replace('T', ' ') : '',
-                isIncome: parseFloat(account.amount) >= 0,
-                date: account.transaction_time ? account.transaction_time.substring(0, 10) : '',
-                // 确保有用户名，如果后端未返回则显示默认值
-                username: account.username || '未知用户'
-              };
-            });
-            
-            console.log('处理后的账目数据:', processedAccounts);
-            
-            // 更新数据
-            this.setData({
-              accounts: reset ? processedAccounts : [...this.data.accounts, ...processedAccounts],
-              currentPage: this.data.currentPage + 1,
-              hasMore: processedAccounts.length >= this.data.pageSize,
-              recordCount: totalCount,
-              shouldShowEmptyState: false
-            });
-            
-            resolve(processedAccounts);
-          } else {
-            console.error('API返回的数据格式不正确:', res);
-            
-            const shouldShowEmptyState = this.data.accounts.length === 0 && 
-                                       !this.data.isLoading && 
-                                       !this.data.isFirstLoad;
-            
-            this.setData({
-              hasMore: false,
-              shouldShowEmptyState: shouldShowEmptyState
-            });
-            
-            resolve([]);
-          }
-        })
-        .catch(err => {
-          console.error('加载账目列表失败:', err);
-          this.setData({ 
-            isLoading: false, 
-            isRefreshing: false,
-            hasMore: false
-          });
-          reject(err);
+    // 发起请求 - 后端已处理权限过滤
+    request.get(config.apis.accounts.list, params)
+      .then(res => {
+        // 处理返回的数据
+        const newAccounts = this.processAccounts(res.data);
+        
+        this.setData({
+          accounts: isRefresh ? newAccounts : [...this.data.accounts, ...newAccounts],
+          isLoading: false,
+          isRefreshing: false,
+          hasMore: newAccounts.length === this.data.pageSize
         });
-    });
+        
+        // 增加页码
+        this.setData({
+          currentPage: this.data.currentPage + 1
+        });
+      })
+      .catch(err => {
+        console.error('加载账目失败:', err);
+        this.setData({
+          isLoading: false,
+          isRefreshing: false
+        });
+        
+        wx.showToast({
+          title: '加载失败',
+          icon: 'none'
+        });
+      });
   },
   
   // 按日期对账目进行分组
@@ -968,6 +920,25 @@ Page({
           id: this.data.currentAccount.id
         }
       }
+    });
+  },
+
+  // 处理返回的数据
+  processAccounts: function(data) {
+    if (!data || !Array.isArray(data)) {
+      return [];
+    }
+    
+    return data.map(account => {
+      return {
+        ...account,
+        formattedAmount: filter.formatAmount(Math.abs(account.amount)),
+        formattedDate: account.transaction_time ? account.transaction_time.substring(0, 16).replace('T', ' ') : '',
+        isIncome: parseFloat(account.amount) >= 0,
+        date: account.transaction_time ? account.transaction_time.substring(0, 10) : '',
+        // 确保有用户名，如果后端未返回则显示默认值
+        username: account.username || '未知用户'
+      };
     });
   }
 }) 

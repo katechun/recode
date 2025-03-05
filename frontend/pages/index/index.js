@@ -168,6 +168,8 @@ Page({
 
     request.get(config.apis.stores.list)
       .then(res => {
+        // 后端已经过滤了权限，这里直接使用返回的结果
+        // 为店铺列表添加"全部店铺"选项
         const stores = [{ id: '', name: '全部店铺' }, ...res.data];
         this.setData({ stores });
       })

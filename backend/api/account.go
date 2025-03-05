@@ -115,6 +115,7 @@ func (h *AccountHandler) Create(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("创建账务记录失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "创建账务记录失败", nil)
+
 		return
 	}
 
@@ -143,13 +144,21 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	// 添加关键词参数
 	keyword := r.URL.Query().Get("keyword")
 
-	// 记录搜索请求
-	if keyword != "" {
-		log.Printf("搜索关键词: %s", keyword)
+	// 从Header中获取用户ID
+	userIDStr := r.Header.Get("X-User-ID")
+	if userIDStr == "" {
+		SendResponse(w, http.StatusUnauthorized, 401, "未经授权的请求", nil)
+		return
 	}
 
-	// 调用数据库获取账务记录，传入关键词
-	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit)
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+
+	// 调用修改后的GetAccounts函数，传入用户ID
+	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, userID)
 	if err != nil {
 		log.Printf("获取账务记录失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务记录失败", nil)

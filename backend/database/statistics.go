@@ -40,8 +40,52 @@ type CategoryData struct {
 }
 
 // 获取报表数据
-func GetReportData(startDate, endDate time.Time, storeId int64) (ReportData, error) {
+func GetReportData(startDate, endDate time.Time, storeId int64, userID int64) (ReportData, error) {
 	var reportData ReportData
+
+	// 检查用户是否是管理员
+	var isAdmin bool
+	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
+	if err != nil {
+		return reportData, err
+	}
+
+	// 获取用户可访问的店铺ID列表(如果不是管理员)
+	var storeFilter string
+	var args []interface{}
+	
+	if !isAdmin && storeId <= 0 {
+		// 非管理员且选择"全部店铺"时，只统计有权限的店铺
+		storeFilter = `
+			AND a.store_id IN (
+				SELECT store_id FROM user_store_permissions 
+				WHERE user_id = ?
+			)
+		`
+		args = append(args, userID)
+	} else if storeId > 0 {
+		// 指定了特定店铺ID，还需要验证权限
+		if !isAdmin {
+			var hasPermission bool
+			err := DB.QueryRow(`
+				SELECT EXISTS (
+					SELECT 1 FROM user_store_permissions
+					WHERE user_id = ? AND store_id = ?
+				)
+			`, userID, storeId).Scan(&hasPermission)
+			
+			if err != nil {
+				return reportData, err
+			}
+			
+			if !hasPermission {
+				return reportData, fmt.Errorf("用户无权访问此店铺")
+			}
+		}
+		
+		storeFilter = " AND a.store_id = ?"
+		args = append(args, storeId)
+	}
 
 	// 获取总计数据
 	var err error

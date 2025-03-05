@@ -80,10 +80,19 @@ func CreateAccount(account *models.Account) (int64, error) {
 }
 
 // GetAccounts 获取账务记录列表
-func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string) ([]map[string]interface{}, error) {
+func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, userID int64) ([]map[string]interface{}, error) {
+	// 检查用户是否是管理员
+	var isAdmin bool
+	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
-		SELECT a.id, a.store_id, s.name as store_name, a.user_id, u.username, 
-		a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time
+		SELECT 
+			a.id, a.store_id, s.name as store_name, a.user_id, u.username,
+			a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time,
+			a.create_time, a.update_time
 		FROM accounts a
 		LEFT JOIN stores s ON a.store_id = s.id
 		LEFT JOIN users u ON a.user_id = u.id
@@ -92,8 +101,21 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string) 
 	`
 	var args []interface{}
 
-	// 添加筛选条件
-	if storeID != "" {
+	// 普通店员需要添加权限过滤
+	if !isAdmin {
+		query += `
+			AND (
+				a.store_id IN (
+					SELECT store_id FROM user_store_permissions 
+					WHERE user_id = ?
+				)
+			)
+		`
+		args = append(args, userID)
+	}
+
+	// 添加其他筛选条件
+	if storeID != "" && storeID != "0" {
 		query += " AND a.store_id = ?"
 		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
 		args = append(args, storeIDInt)
@@ -169,8 +191,9 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string) 
 		var storeName, username, typeName, remark string
 		var amount float64
 		var transactionTime time.Time
+		var createTime, updateTime time.Time
 
-		err := rows.Scan(&id, &storeID, &storeName, &userID, &username, &typeID, &typeName, &amount, &remark, &transactionTime)
+		err := rows.Scan(&id, &storeID, &storeName, &userID, &username, &typeID, &typeName, &amount, &remark, &transactionTime, &createTime, &updateTime)
 		if err != nil {
 			log.Printf("扫描账务记录失败: %v", err)
 			continue
@@ -187,6 +210,8 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string) 
 			"amount":           amount,
 			"remark":           remark,
 			"transaction_time": transactionTime.Format("2006-01-02 15:04:05"),
+			"create_time":      createTime.Format("2006-01-02 15:04:05"),
+			"update_time":      updateTime.Format("2006-01-02 15:04:05"),
 		}
 		accounts = append(accounts, account)
 	}
