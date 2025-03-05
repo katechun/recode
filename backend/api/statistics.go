@@ -13,6 +13,7 @@ func GetReport(w http.ResponseWriter, r *http.Request) {
     // 获取查询参数
     timeRange := r.URL.Query().Get("timeRange")
     storeIdStr := r.URL.Query().Get("storeId")
+    userIDStr := r.URL.Query().Get("userId")
 
     // 转换店铺ID
     var storeId int64
@@ -25,11 +26,22 @@ func GetReport(w http.ResponseWriter, r *http.Request) {
         }
     }
 
+    // 转换用户ID
+    var userID int64
+    if userIDStr != "" {
+        var err error
+        userID, err = strconv.ParseInt(userIDStr, 10, 64)
+        if err != nil {
+            SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+            return
+        }
+    }
+
     // 计算时间范围
     startDate, endDate := calculateTimeRange(timeRange)
 
     // 获取报表数据
-    reportData, err := database.GetReportData(startDate, endDate, storeId)
+    reportData, err := database.GetReportData(startDate, endDate, storeId, userID)
     if err != nil {
         SendResponse(w, http.StatusInternalServerError, 500, "获取报表数据失败", nil)
         return

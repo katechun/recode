@@ -142,17 +142,13 @@ Page({
     
     const params = {
       timeRange: this.data.timeRange,
-      storeId: this.data.selectedStoreId
+      storeId: this.data.selectedStoreId || ''
     };
     
-    console.log('请求报表数据，参数:', params);
-    
-    // 获取收支统计数据
+    // 用户ID已经在request工具函数中添加了
     request.get(config.apis.statistics.report, params)
       .then(res => {
-        console.log('获取到报表数据:', res.data);
-        
-        if (res.data) {
+        if (res.code === 200 && res.data) {
           const reportData = res.data;
           
           this.setData({
@@ -188,16 +184,15 @@ Page({
           // 处理分类数据
           this.processCategoryData(reportData);
         }
+        this.setData({ isLoading: false });
       })
       .catch(err => {
         console.error('获取报表数据失败:', err);
+        this.setData({ isLoading: false });
         wx.showToast({
-          title: '获取报表数据失败',
+          title: '数据加载失败',
           icon: 'none'
         });
-      })
-      .finally(() => {
-        this.setData({ isLoading: false });
       });
   },
 

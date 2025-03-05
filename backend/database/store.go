@@ -2,7 +2,6 @@ package database
 
 import (
 	"database/sql"
-	"log"
 	"account/backend/models"
 )
 

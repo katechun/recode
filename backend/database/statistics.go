@@ -88,15 +88,13 @@ func GetReportData(startDate, endDate time.Time, storeId int64, userID int64) (R
 	}
 
 	// 获取总计数据
-	var err error
-	reportData.TotalIncome, reportData.TotalExpense, err = getTotalAmounts(startDate, endDate, storeId)
+	reportData.TotalIncome, reportData.TotalExpense, reportData.NetIncome, err = getTotalAmounts(startDate, endDate, storeId, storeFilter, args)
 	if err != nil {
 		return reportData, err
 	}
-	reportData.NetIncome = reportData.TotalIncome + reportData.TotalExpense
 
 	// 获取趋势数据
-	reportData.Trend, err = getTrendData(startDate, endDate, storeId)
+	reportData.Trend, err = getTrendData(startDate, endDate, storeId, storeFilter, args)
 	if err != nil {
 		return reportData, err
 	}
@@ -123,47 +121,31 @@ func GetReportData(startDate, endDate time.Time, storeId int64, userID int64) (R
 }
 
 // 获取总收入和总支出
-func getTotalAmounts(startDate, endDate time.Time, storeId int64) (float64, float64, error) {
-	var totalIncome, totalExpense float64
-
-	// SQL查询条件
-	storeCondition := ""
-	args := []interface{}{startDate, endDate}
-
-	if storeId > 0 {
-		storeCondition = " AND store_id = ?"
-		args = append(args, storeId)
-	}
-
-	// 查询总收入
-	incomeQuery := `
-		SELECT COALESCE(SUM(amount), 0) 
-		FROM accounts 
-		WHERE amount >= 0 
-		AND transaction_time BETWEEN ? AND ?` + storeCondition
-
-	err := DB.QueryRow(incomeQuery, args...).Scan(&totalIncome)
-	if err != nil {
-		return 0, 0, fmt.Errorf("查询总收入失败: %w", err)
-	}
-
-	// 查询总支出
-	expenseQuery := `
-		SELECT COALESCE(SUM(amount), 0) 
-		FROM accounts 
-		WHERE amount < 0 
-		AND transaction_time BETWEEN ? AND ?` + storeCondition
-
-	err = DB.QueryRow(expenseQuery, args...).Scan(&totalExpense)
-	if err != nil {
-		return 0, 0, fmt.Errorf("查询总支出失败: %w", err)
-	}
-
-	return totalIncome, totalExpense, nil
+func getTotalAmounts(startDate, endDate time.Time, storeId int64, storeFilter string, args []interface{}) (float64, float64, float64, error) {
+	// 复制args以避免修改原始切片
+	queryArgs := make([]interface{}, len(args))
+	copy(queryArgs, args)
+	
+	// 添加日期参数
+	query := `
+		SELECT 
+			COALESCE(SUM(CASE WHEN a.amount > 0 THEN a.amount ELSE 0 END), 0) as income,
+			COALESCE(SUM(CASE WHEN a.amount < 0 THEN ABS(a.amount) ELSE 0 END), 0) as expense,
+			COALESCE(SUM(a.amount), 0) as net
+		FROM accounts a
+		WHERE a.transaction_time BETWEEN ? AND ?
+	` + storeFilter
+	
+	queryArgs = append([]interface{}{startDate, endDate}, queryArgs...)
+	
+	var income, expense, net float64
+	err := DB.QueryRow(query, queryArgs...).Scan(&income, &expense, &net)
+	
+	return income, expense, net, err
 }
 
 // 获取趋势数据
-func getTrendData(startDate, endDate time.Time, storeId int64) ([]TrendData, error) {
+func getTrendData(startDate, endDate time.Time, storeId int64, storeFilter string, args []interface{}) ([]TrendData, error) {
 	var trendData []TrendData
 
 	// 将时间戳参数转换为字符串格式
@@ -181,17 +163,11 @@ func getTrendData(startDate, endDate time.Time, storeId int64) ([]TrendData, err
 		WHERE transaction_time BETWEEN ? AND ?
 	`
 
-	args := []interface{}{startDateStr, endDateStr}
-
-	if storeId > 0 {
-		query += " AND store_id = ?"
-		args = append(args, storeId)
-	}
-
-	query += " GROUP BY SUBSTR(transaction_time, 1, 10) ORDER BY date"
+	// 添加过滤条件
+	query += " AND " + storeFilter
 
 	// 执行查询
-	rows, err := DB.Query(query, args...)
+	rows, err := DB.Query(query, append(args, startDateStr, endDateStr)...)
 	if err != nil {
 		return nil, fmt.Errorf("查询趋势数据失败: %w", err)
 	}
@@ -234,20 +210,7 @@ func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData,
 		WHERE a.transaction_time BETWEEN ? AND ?
 	`
 
-	args := []interface{}{startDateStr, endDateStr}
-
-	if storeId > 0 {
-		query += " AND a.store_id = ?"
-		args = append(args, storeId)
-	}
-
-	query += `
-		GROUP BY t.id
-		ORDER BY ABS(net) DESC
-		LIMIT 10
-	`
-
-	rows, err := DB.Query(query, args...)
+	rows, err := DB.Query(query, startDateStr, endDateStr)
 	if err != nil {
 		return nil, fmt.Errorf("查询分类对比数据失败: %w", err)
 	}

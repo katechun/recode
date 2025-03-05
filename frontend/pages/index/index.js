@@ -312,37 +312,26 @@ Page({
   },
   // 加载统计数据
   loadStatistics() {
-    // 首先检查userInfo是否存在
-    if (!this.data.userInfo) {
-      console.log('用户信息不存在，无法加载统计数据');
-      return;
-    }
-
-    const { startDate, endDate } = this.getDateRange();
-    const storeId = this.data.currentStoreId; // 使用currentStoreId而不是selectedStoreId
-
-    console.log('加载统计数据，店铺ID:', storeId, '日期范围:', startDate, '至', endDate);
-
-    // 构建请求参数
+    const startDate = this.getStartDateByRange(this.data.dateRange);
+    
     const params = {
       start_date: startDate,
-      end_date: endDate
     };
-
-    // 只在有选择特定店铺时添加store_id
-    if (storeId) {
-      params.store_id = storeId;
+    
+    if (this.data.selectedStoreId) {
+      params.store_id = this.data.selectedStoreId;
     }
-
-    request.get(config.apis.accounts.statistics, { params })
+    
+    // 用户ID已经在request工具函数中添加了
+    request.get(config.apis.accounts.statistics, params)
       .then(res => {
-        const stats = res.data;
-        this.setData({
-          totalIncome: stats.total_income.toFixed(2),
-          totalExpense: stats.total_expense.toFixed(2),
-          netAmount: stats.net_amount.toFixed(2)
-        });
-        console.log('统计数据加载成功, 收入:', stats.total_income, '支出:', stats.total_expense);
+        if (res.code === 200 && res.data) {
+          this.setData({
+            totalIncome: this.formatAmount(res.data.total_income || 0),
+            totalExpense: this.formatAmount(res.data.total_expense || 0),
+            netAmount: this.formatAmount(res.data.net_amount || 0)
+          });
+        }
       })
       .catch(err => {
         console.error('获取统计数据失败:', err);
@@ -350,38 +339,28 @@ Page({
   },
   // 加载最近记账记录
   loadRecentRecords() {
-    // 首先检查userInfo是否存在
-    if (!this.data.userInfo) {
-      console.log('用户信息不存在，无法加载记录');
-      return;
+    const params = {
+      limit: 5, // 只获取最近5条记录
+      start_date: this.getStartDateByRange(this.data.dateRange),
+    };
+    
+    if (this.data.selectedStoreId) {
+      params.store_id = this.data.selectedStoreId;
     }
-
-    const { startDate, endDate } = this.getDateRange();
-
-    request.get(config.apis.accounts.list, {
-      params: {
-        store_id: this.data.selectedStoreId,
-        start_date: startDate,
-        end_date: endDate,
-        limit: 10
-      }
-    })
+    
+    // 用户ID已经在request工具函数中添加了
+    request.get(config.apis.accounts.list, params)
       .then(res => {
-        if (res.data) {
-          // 格式化数据用于显示
-          const formattedRecords = res.data.map(record => ({
-            ...record,
-            amount: record.amount.toFixed(2),
-            create_time: this.formatDateTime(new Date(record.transaction_time))
-          }));
-
-          this.setData({
-            recentAccounts: formattedRecords
-          });
+        if (!res.data || !Array.isArray(res.data)) {
+          this.setData({ recentRecords: [] });
+          return;
         }
+        
+        // 处理数据...
       })
       .catch(err => {
-        console.error('获取最近记录失败:', err);
+        console.error('获取最近账目失败:', err);
+        this.setData({ recentRecords: [] });
       });
   },
   // 添加日期时间格式化方法

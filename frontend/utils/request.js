@@ -14,6 +14,15 @@ const request = (url, options = {}) => {
     defaultOptions.header['X-User-ID'] = userInfo.id;
   }
 
+  // 在URL参数中也添加用户ID
+  if (url.indexOf('?') > -1) {
+    // URL已有参数，添加userId参数
+    url += `&userId=${userInfo?.id || ''}`;
+  } else {
+    // URL没有参数，添加第一个参数
+    url += `?userId=${userInfo?.id || ''}`;
+  }
+
   // 合并配置
   const newOptions = {
     ...defaultOptions,

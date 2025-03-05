@@ -134,23 +134,27 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 参数解析
+	// 获取查询参数
 	storeID := r.URL.Query().Get("store_id")
 	typeID := r.URL.Query().Get("type_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 	limit := r.URL.Query().Get("limit")
-
-	// 添加关键词参数
+	minAmount := r.URL.Query().Get("min_amount")
+	maxAmount := r.URL.Query().Get("max_amount")
 	keyword := r.URL.Query().Get("keyword")
-
-	// 从Header中获取用户ID
-	userIDStr := r.Header.Get("X-User-ID")
+	
+	// 从URL参数或Header中获取用户ID
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		userIDStr = r.Header.Get("X-User-ID")
+	}
+	
 	if userIDStr == "" {
 		SendResponse(w, http.StatusUnauthorized, 401, "未经授权的请求", nil)
 		return
 	}
-
+	
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
 		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
@@ -169,19 +173,36 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 }
 
 // 获取账务统计
-func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
+func (h *AccountHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "仅支持GET请求", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 参数解析
+	// 获取查询参数
 	storeID := r.URL.Query().Get("store_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
+	
+	// 从URL参数或Header中获取用户ID
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		userIDStr = r.Header.Get("X-User-ID")
+	}
+	
+	if userIDStr == "" {
+		SendResponse(w, http.StatusUnauthorized, 401, "未经授权的请求", nil)
+		return
+	}
+	
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
 
-	// 调用数据库获取统计数据
-	stats, err := database.GetAccountStatistics(storeID, startDate, endDate)
+	// 调用修改后的获取统计数据函数
+	stats, err := database.GetAccountStatistics(storeID, startDate, endDate, userID)
 	if err != nil {
 		log.Printf("获取账务统计失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务统计失败", nil)

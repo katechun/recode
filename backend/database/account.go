@@ -220,7 +220,14 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, 
 }
 
 // GetAccountStatistics 获取账务统计
-func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interface{}, error) {
+func GetAccountStatistics(storeID, startDate, endDate string, userID int64) (map[string]interface{}, error) {
+	// 检查用户是否是管理员
+	var isAdmin bool
+	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT 
 			COALESCE(SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), 0) as total_income,
@@ -231,7 +238,20 @@ func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interf
 	`
 	var args []interface{}
 
-	// 添加筛选条件
+	// 普通店员需要添加权限过滤
+	if !isAdmin {
+		query += `
+			AND (
+				store_id IN (
+					SELECT store_id FROM user_store_permissions 
+					WHERE user_id = ?
+				)
+			)
+		`
+		args = append(args, userID)
+	}
+
+	// 添加原有的筛选条件
 	if storeID != "" {
 		query += " AND store_id = ?"
 		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
@@ -251,7 +271,7 @@ func GetAccountStatistics(storeID, startDate, endDate string) (map[string]interf
 	// 执行查询
 	var totalIncome, totalExpense, netAmount float64
 	log.Printf("执行SQL: %s, 参数: %v", query, args)
-	err := DB.QueryRow(query, args...).Scan(&totalIncome, &totalExpense, &netAmount)
+	err = DB.QueryRow(query, args...).Scan(&totalIncome, &totalExpense, &netAmount)
 	if err != nil {
 		return nil, err
 	}
