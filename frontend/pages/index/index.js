@@ -1529,5 +1529,34 @@ Page({
           icon: 'none'
         });
       });
-  }
+  },
+
+  // 添加 getStartDateByRange 函数，根据日期范围返回开始日期
+  getStartDateByRange: function(range) {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const day = now.getDate();
+    
+    switch(range) {
+      case '今日':
+        // 返回今天的日期
+        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+      case '本周':
+        // 计算本周一的日期
+        const currentDay = now.getDay() || 7; // 将周日的0转为7
+        const mondayDate = new Date(now);
+        mondayDate.setDate(now.getDate() - currentDay + 1);
+        return `${mondayDate.getFullYear()}-${(mondayDate.getMonth() + 1).toString().padStart(2, '0')}-${mondayDate.getDate().toString().padStart(2, '0')}`;
+      case '本月':
+        // 返回本月1号
+        return `${year}-${month.toString().padStart(2, '0')}-01`;
+      case '本年':
+        // 返回本年1月1日
+        return `${year}-01-01`;
+      default:
+        // 默认返回今天
+        return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
+    }
+  },
 })

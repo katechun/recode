@@ -282,3 +282,43 @@ func DeleteAccountByQuery(w http.ResponseWriter, r *http.Request) {
 
 	SendResponse(w, http.StatusOK, 200, "账目删除成功", nil)
 }
+
+// Statistics 获取账务统计数据
+func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
+	// 检查是否是OPTIONS请求
+	if r.Method == http.MethodOptions {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	// 获取查询参数
+	storeID := r.URL.Query().Get("store_id")
+	startDate := r.URL.Query().Get("start_date")
+	endDate := r.URL.Query().Get("end_date")
+
+	// 从URL参数或Header中获取用户ID
+	userIDStr := r.URL.Query().Get("userId")
+	if userIDStr == "" {
+		userIDStr = r.Header.Get("X-User-ID")
+	}
+
+	if userIDStr == "" {
+		SendResponse(w, http.StatusUnauthorized, 401, "未经授权的请求", nil)
+		return
+	}
+
+	userID, err := strconv.ParseInt(userIDStr, 10, 64)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+
+	// 调用数据库函数获取统计数据
+	stats, err := database.GetAccountStatistics(storeID, startDate, endDate, userID)
+	if err != nil {
+		SendResponse(w, http.StatusInternalServerError, 500, "获取统计数据失败", nil)
+		return
+	}
+
+	SendResponse(w, http.StatusOK, 200, "成功", stats)
+}

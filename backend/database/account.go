@@ -26,33 +26,33 @@ func CreateAccount(account *models.Account) (int64, error) {
 		// 如果未提供日期时间，使用当前时间的完整格式
 		transactionTimeStr = time.Now().Format("2006-01-02 15:04:05")
 	} else {
-		// 尝试解析前端提供的日期时间
-		layout := "2006-01-02 15:04"
-		layoutWithSeconds := "2006-01-02 15:04:05"
-
-		// 先尝试完整格式（带秒）
-		_, err := time.Parse(layoutWithSeconds, account.TransactionTime)
-		if err == nil {
-			// 如果是完整格式，直接使用
-			transactionTimeStr = account.TransactionTime
-		} else {
-			// 尝试不带秒的格式
-			t, err := time.Parse(layout, account.TransactionTime)
+		// 尝试解析各种可能的日期时间格式
+		formats := []string{
+			"2006-01-02T15:04:05",  // ISO格式
+			"2006-01-02 15:04:05",  // 标准格式
+			"2006-01-02 15:04",     // 没有秒的格式
+			"2006-01-02",           // 仅日期
+			"2006/01/02 15:04:05",  // 斜杠分隔的日期时间
+			"2006/01/02",           // 斜杠分隔的日期
+		}
+		
+		var t time.Time
+		var err error
+		
+		// 尝试所有格式
+		for _, format := range formats {
+			t, err = time.Parse(format, account.TransactionTime)
 			if err == nil {
 				// 转换为标准格式
-				transactionTimeStr = t.Format(layoutWithSeconds)
-			} else {
-				// 尝试仅日期格式
-				layoutDate := "2006-01-02"
-				t, err = time.Parse(layoutDate, account.TransactionTime)
-				if err == nil {
-					// 添加默认时间 00:00:00
-					transactionTimeStr = t.Format(layoutWithSeconds)
-				} else {
-					// 格式无效，使用当前时间
-					transactionTimeStr = time.Now().Format(layoutWithSeconds)
-				}
+				transactionTimeStr = t.Format("2006-01-02 15:04:05")
+				break
 			}
+		}
+		
+		// 如果所有格式都解析失败，使用当前时间
+		if err != nil {
+			log.Printf("无法解析交易时间 '%s', 使用当前时间", account.TransactionTime)
+			transactionTimeStr = time.Now().Format("2006-01-02 15:04:05")
 		}
 	}
 

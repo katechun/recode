@@ -1,5 +1,6 @@
 import request from '../../utils/request';
 import config from '../../config/config';
+import dateUtil from '../../utils/date';
 
 Page({
   data: {
@@ -247,24 +248,12 @@ Page({
 
   // 提交记账
   submitAccount: function () {
-    // 表单验证
-    if (!this.data.storeId) {
-      wx.showToast({
-        title: '请选择店铺',
-        icon: 'none'
-      });
+    if (!this.validateForm()) {
       return;
     }
 
-    if (!this.data.typeId) {
-      wx.showToast({
-        title: '请选择账务类型',
-        icon: 'none'
-      });
-      return;
-    }
-
-    if (!this.data.amount || isNaN(this.data.amount) || parseFloat(this.data.amount) <= 0) {
+    const amount = parseFloat(this.data.amount);
+    if (isNaN(amount) || amount <= 0) {
       wx.showToast({
         title: '请输入有效金额',
         icon: 'none'
@@ -272,29 +261,24 @@ Page({
       return;
     }
 
-    const amount = this.data.accountType === 'expense' ?
-      -Math.abs(parseFloat(this.data.amount)) :
-      Math.abs(parseFloat(this.data.amount));
+    // 根据账目类型决定金额正负
+    const finalAmount = this.data.accountType === 'expense' ? -amount : amount;
 
-    // 合并日期和时间，使用完整格式
-    const dateTimeDisplay = `${this.data.currentDate} ${this.data.currentTime}`;
-    console.log('记账使用的完整日期时间:', dateTimeDisplay);
-
-    // 显示加载中提示
-    wx.showLoading({
-      title: '提交中...',
-      mask: true
-    });
+    // 格式化日期时间，确保iOS兼容性
+    const transactionTime = dateUtil.formatDateString(this.data.transactionTime);
 
     const accountData = {
       store_id: parseInt(this.data.storeId),
       type_id: parseInt(this.data.typeId),
-      amount: amount,
-      remark: this.data.remark || '',
-      transaction_time: dateTimeDisplay // 使用完整日期时间
+      amount: finalAmount,
+      remark: this.data.remark,
+      transaction_time: transactionTime
     };
 
-    console.log('提交的账务数据:', accountData);
+    wx.showLoading({
+      title: '提交中...',
+      mask: true
+    });
 
     request.post(config.apis.accounts.create, accountData)
       .then(() => {
@@ -347,5 +331,25 @@ Page({
     });
 
     console.log('设置交易时间为:', currentDateTime);
+  },
+
+  validateForm: function () {
+    if (!this.data.storeId) {
+      wx.showToast({
+        title: '请选择店铺',
+        icon: 'none'
+      });
+      return false;
+    }
+
+    if (!this.data.typeId) {
+      wx.showToast({
+        title: '请选择账务类型',
+        icon: 'none'
+      });
+      return false;
+    }
+
+    return true;
   }
 }) 
