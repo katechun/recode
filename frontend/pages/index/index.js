@@ -313,15 +313,15 @@ Page({
   // 加载统计数据
   loadStatistics() {
     const startDate = this.getStartDateByRange(this.data.dateRange);
-    
+
     const params = {
       start_date: startDate,
     };
-    
+
     if (this.data.selectedStoreId) {
       params.store_id = this.data.selectedStoreId;
     }
-    
+
     // 用户ID已经在request工具函数中添加了
     request.get(config.apis.accounts.statistics, params)
       .then(res => {
@@ -343,11 +343,11 @@ Page({
       limit: 5, // 只获取最近5条记录
       start_date: this.getStartDateByRange(this.data.dateRange),
     };
-    
+
     if (this.data.selectedStoreId) {
       params.store_id = this.data.selectedStoreId;
     }
-    
+
     // 用户ID已经在request工具函数中添加了
     request.get(config.apis.accounts.list, params)
       .then(res => {
@@ -355,7 +355,7 @@ Page({
           this.setData({ recentRecords: [] });
           return;
         }
-        
+
         // 处理数据...
       })
       .catch(err => {
@@ -625,13 +625,15 @@ Page({
     let typeId = '';
     if (type === 'income' && this.data.selectedIncomeType && this.data.selectedIncomeType.id) {
       typeId = this.data.selectedIncomeType.id;
+      console.log('使用默认收入类型:', this.data.selectedIncomeType.name, '(ID:', typeId, ')');
     } else if (type === 'expense' && this.data.selectedExpenseType && this.data.selectedExpenseType.id) {
       typeId = this.data.selectedExpenseType.id;
+      console.log('使用默认支出类型:', this.data.selectedExpenseType.name, '(ID:', typeId, ')');
     }
 
     // 跳转到添加账目页面
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${type}`,
+      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${type}&isDefault=true`,
       fail: function (err) {
         console.error('导航到记账页面失败:', err);
         wx.showToast({
@@ -991,7 +993,7 @@ Page({
           todayData: {
             income: stats.total_income.toFixed(2),
             expense: stats.total_expense.toFixed(2),
-            profit: stats.net_amount.toFixed(2)
+            net: stats.net_amount.toFixed(2)
           },
           totalIncome: stats.total_income.toFixed(2),
           totalExpense: stats.total_expense.toFixed(2),
@@ -1532,13 +1534,13 @@ Page({
   },
 
   // 添加 getStartDateByRange 函数，根据日期范围返回开始日期
-  getStartDateByRange: function(range) {
+  getStartDateByRange: function (range) {
     const now = new Date();
     const year = now.getFullYear();
     const month = now.getMonth() + 1;
     const day = now.getDate();
-    
-    switch(range) {
+
+    switch (range) {
       case '今日':
         // 返回今天的日期
         return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;

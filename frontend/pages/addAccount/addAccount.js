@@ -38,25 +38,29 @@ Page({
     const currentTime = `${hours}:${minutes}`;
     const fullDateTime = `${currentDate} ${currentTime}`;
 
+    // 提取类型ID并确保它是一个字符串
+    const typeId = options.typeId || '';
+    console.log('设置类型ID:', typeId, '类型:', options.type || 'expense');
+
     this.setData({
       currentDate,
       currentTime,
       transactionTime: fullDateTime,
       storeId: options.storeId || '',
-      typeId: options.typeId || '',
+      typeId: typeId,
       accountType: options.type || 'expense'
     });
 
     // 加载店铺列表
     this.loadStores().then(() => {
-      if (isDefault && options.storeId) {
+      if (this.data.storeId) {
         // 设置默认选中的店铺
-        const storeIndex = this.data.stores.findIndex(
-          store => store.id.toString() === options.storeId
+        const store = this.data.stores.find(store =>
+          store.id.toString() === this.data.storeId.toString()
         );
-        if (storeIndex >= 0) {
+        if (store) {
           this.setData({
-            selectedStoreName: this.data.stores[storeIndex].name
+            selectedStoreName: store.name
           });
         }
       }
@@ -64,16 +68,19 @@ Page({
 
     // 获取账务类型
     this.loadAccountTypes().then(() => {
-      if (isDefault && options.typeId) {
+      if (this.data.typeId) {
         // 设置默认选中的类型
         const accountTypes = this.data.accountTypes || [];
-        const typeIndex = accountTypes.findIndex(
-          type => type.id.toString() === options.typeId
+        const type = accountTypes.find(type =>
+          type.id.toString() === this.data.typeId.toString()
         );
-        if (typeIndex >= 0) {
+        if (type) {
           this.setData({
-            selectedTypeName: accountTypes[typeIndex].name
+            selectedTypeName: type.name
           });
+          console.log('已选中类型:', type.name);
+        } else {
+          console.log('未找到匹配类型, 当前类型列表:', accountTypes.map(t => ({ id: t.id, name: t.name })));
         }
       }
     });
@@ -126,9 +133,27 @@ Page({
             accountTypes: types
           });
 
-          if (!this.data.typeId && types.length > 0) {
+          // 检查是否有传入的typeId
+          if (this.data.typeId && types.length > 0) {
+            // 查找typeId对应的类型
+            const selectedType = types.find(type => type.id == this.data.typeId);
+            if (selectedType) {
+              // 如果找到了，设置选中的类型名称
+              this.setData({
+                selectedTypeName: selectedType.name
+              });
+            } else {
+              // 如果没有找到匹配的类型，使用第一个类型
+              this.setData({
+                typeId: types[0].id,
+                selectedTypeName: types[0].name
+              });
+            }
+          } else if (types.length > 0) {
+            // 如果没有传入typeId但有类型可选，使用第一个类型
             this.setData({
-              typeId: types[0].id
+              typeId: types[0].id,
+              selectedTypeName: types[0].name
             });
           }
           resolve();
