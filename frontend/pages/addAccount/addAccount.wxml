@@ -11,15 +11,15 @@
   </view>
   
   <view class="form-container">
-    <view class="form-item">
-      <text class="form-label">金额</text>
-      <input class="form-input amount-input" type="digit" placeholder="请输入金额" value="{{amount}}" bindinput="bindAmountInput" />
+    <view class="form-item amount-container">
+      <text class="currency-symbol">¥</text>
+      <input class="form-input amount-input" type="digit" placeholder="0.00" value="{{amount}}" bindinput="bindAmountInput" focus="{{true}}" />
     </view>
     
     <view class="form-item">
       <text class="form-label">店铺</text>
       <picker mode="selector" range="{{stores}}" range-key="name" bindchange="bindStoreChange">
-        <view class="form-picker">
+        <view class="form-picker {{storeId ? '' : 'placeholder'}}">
           <text>{{selectedStoreName}}</text>
           <text class="picker-arrow">▼</text>
         </view>
@@ -28,12 +28,15 @@
     
     <view class="form-item">
       <text class="form-label">类型</text>
-      <picker mode="selector" range="{{accountTypes}}" range-key="name" bindchange="bindTypeChange">
-        <view class="form-picker">
+      <picker mode="selector" range="{{accountTypes}}" range-key="name" bindchange="bindTypeChange" disabled="{{accountTypes.length === 0}}">
+        <view class="form-picker {{typeId ? '' : 'placeholder'}}">
           <text>{{selectedTypeName}}</text>
           <text class="picker-arrow">▼</text>
         </view>
       </picker>
+      <view wx:if="{{accountTypes.length === 0}}" class="missing-type-tip">
+        <text>没有{{accountType === 'income' ? '收入' : '支出'}}类型，请先添加</text>
+      </view>
     </view>
     
     <view class="form-item datetime-container">
@@ -41,11 +44,13 @@
       <view class="datetime-pickers">
         <picker mode="date" value="{{currentDate}}" bindchange="bindDateChange" class="date-picker">
           <view class="mini-picker">
+            <text class="datetime-icon">📅</text>
             <text>{{currentDate}}</text>
           </view>
         </picker>
         <picker mode="time" value="{{currentTime}}" bindchange="bindTimeChange" class="time-picker">
           <view class="mini-picker">
+            <text class="datetime-icon">🕒</text>
             <text>{{currentTime}}</text>
           </view>
         </picker>
@@ -60,6 +65,10 @@
   
   <view class="button-group">
     <button class="btn cancel-btn" bindtap="cancelAccount">取消</button>
-    <button class="btn submit-btn" bindtap="submitAccount">保存</button>
+    <button class="btn submit-btn" bindtap="submitAccount" disabled="{{!storeId || !typeId || !amount}}">保存</button>
+  </view>
+
+  <view class="tip-text" wx:if="{{defaultSettings}}">
+    <text>提示: 可在首页设置默认店铺和账务类型</text>
   </view>
 </view> 

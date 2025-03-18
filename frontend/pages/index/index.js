@@ -1387,9 +1387,12 @@ Page({
       typeId = this.data.selectedExpenseType.id;
     }
 
+    // 确保type参数是字符串
+    const accountType = type === 'income' ? 'income' : 'expense';
+
     // 跳转到添加账目页面而不是账目列表页
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${type}`
+      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${accountType}`
     });
   },
 
@@ -1560,5 +1563,80 @@ Page({
         // 默认返回今天
         return `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
     }
+  },
+
+  navigateToAddAccount: function (type) {
+    const storeId = this.data.selectedStore ? this.data.selectedStore.id : '';
+    let typeId = '';
+
+    // 确保type参数是有效的字符串
+    const accountType = (type === 'income') ? 'income' : 'expense';
+
+    // 根据类型获取对应的默认类型ID
+    if (accountType === 'income' && this.data.selectedIncomeType) {
+      typeId = this.data.selectedIncomeType.id;
+    } else if (accountType === 'expense' && this.data.selectedExpenseType) {
+      typeId = this.data.selectedExpenseType.id;
+    }
+
+    if (!storeId || !typeId) {
+      wx.showToast({
+        title: '请先选择店铺和账务类型',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // 跳转到记账页面并传递参数
+    wx.navigateTo({
+      url: `/pages/addAccount/addAccount?storeId=${storeId}&typeId=${typeId}&type=${accountType}`,
+      fail: function (err) {
+        console.error('导航失败:', err);
+        wx.showToast({
+          title: '页面跳转失败',
+          icon: 'none'
+        });
+      }
+    });
+  },
+
+  // 快速记账处理函数
+  handleQuickRecord: function (e) {
+    // 检查是否已选择店铺
+    if (!this.data.selectedStore || !this.data.selectedStore.id) {
+      wx.showToast({
+        title: '请先选择店铺',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // 获取类型：收入或支出
+    const type = e.currentTarget.dataset.type;
+
+    // 确保type参数是有效的字符串
+    const accountType = (type === 'income') ? 'income' : 'expense';
+
+    // 根据类型选择默认的类型ID
+    let typeId = '';
+    if (accountType === 'income' && this.data.selectedIncomeType && this.data.selectedIncomeType.id) {
+      typeId = this.data.selectedIncomeType.id;
+      console.log('使用默认收入类型:', this.data.selectedIncomeType.name, '(ID:', typeId, ')');
+    } else if (accountType === 'expense' && this.data.selectedExpenseType && this.data.selectedExpenseType.id) {
+      typeId = this.data.selectedExpenseType.id;
+      console.log('使用默认支出类型:', this.data.selectedExpenseType.name, '(ID:', typeId, ')');
+    }
+
+    // 跳转到添加账目页面
+    wx.navigateTo({
+      url: `/pages/addAccount/addAccount?storeId=${this.data.selectedStore.id}&typeId=${typeId}&type=${accountType}&isDefault=true`,
+      fail: function (err) {
+        console.error('导航到记账页面失败:', err);
+        wx.showToast({
+          title: '页面跳转失败: ' + err.errMsg,
+          icon: 'none'
+        });
+      }
+    });
   },
 })

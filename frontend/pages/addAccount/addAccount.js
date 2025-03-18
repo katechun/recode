@@ -6,7 +6,7 @@ Page({
   data: {
     storeId: '',
     typeId: '',
-    accountType: 'income', // 默认收入
+    accountType: 'expense', // 默认支出（与大多数记账软件习惯一致）
     amount: '',
     remark: '',
     transactionTime: '',
@@ -17,11 +17,32 @@ Page({
     selectedStoreName: '请选择店铺',
     selectedTypeName: '请选择类型',
     dateTimePickerVisible: false,
-    pickerStep: 'date' // 'date' 或 'time'
+    pickerStep: 'date', // 'date' 或 'time'
+    defaultSettings: null, // 存储用户默认设置
+    isTypeSwitchedByUser: false // 标记是否由用户手动切换了类型
   },
 
   onLoad: function (options) {
     console.log('接收到的参数:', options);
+
+    // 从options中获取类型参数，如果有指定则使用，否则使用默认值
+    // 修复type参数为对象的情况
+    let accountType = 'expense'; // 默认为支出
+
+    if (options.type) {
+      // 检查类型参数是否为对象或[object Object]字符串
+      if (typeof options.type === 'object') {
+        accountType = 'expense'; // 如果是对象，默认为支出
+        console.warn('警告: 接收到类型参数为对象，已设置为默认值"expense"');
+      } else if (options.type === '[object Object]') {
+        accountType = 'expense'; // 如果是[object Object]字符串，默认为支出
+        console.warn('警告: 接收到类型参数为[object Object]字符串，已设置为默认值"expense"');
+      } else if (options.type === 'income' || options.type === 'expense') {
+        accountType = options.type; // 如果是有效字符串，使用传入值
+      } else {
+        console.warn('警告: 接收到无效的类型参数:', options.type, '已设置为默认值"expense"');
+      }
+    }
 
     const isDefault = options.isDefault === 'true';
 
@@ -40,7 +61,7 @@ Page({
 
     // 提取类型ID并确保它是一个字符串
     const typeId = options.typeId || '';
-    console.log('设置类型ID:', typeId, '类型:', options.type || 'expense');
+    console.log('设置类型ID:', typeId, '类型:', accountType);
 
     this.setData({
       currentDate,
@@ -48,11 +69,21 @@ Page({
       transactionTime: fullDateTime,
       storeId: options.storeId || '',
       typeId: typeId,
-      accountType: options.type || 'expense'
+      accountType: accountType
     });
+
+    // 加载用户默认设置
+    this.loadDefaultSettings();
 
     // 加载店铺列表
     this.loadStores().then(() => {
+      // storeId优先级：1.URL参数 2.默认设置 3.列表第一个
+      if (!this.data.storeId && this.data.defaultSettings && this.data.defaultSettings.store_id) {
+        this.setData({
+          storeId: this.data.defaultSettings.store_id.toString()
+        });
+      }
+
       if (this.data.storeId) {
         // 设置默认选中的店铺
         const store = this.data.stores.find(store =>
@@ -67,23 +98,34 @@ Page({
     });
 
     // 获取账务类型
-    this.loadAccountTypes().then(() => {
-      if (this.data.typeId) {
-        // 设置默认选中的类型
-        const accountTypes = this.data.accountTypes || [];
-        const type = accountTypes.find(type =>
-          type.id.toString() === this.data.typeId.toString()
-        );
-        if (type) {
-          this.setData({
-            selectedTypeName: type.name
-          });
-          console.log('已选中类型:', type.name);
-        } else {
-          console.log('未找到匹配类型, 当前类型列表:', accountTypes.map(t => ({ id: t.id, name: t.name })));
+    this.loadAccountTypes();
+  },
+
+  // 加载用户默认设置
+  loadDefaultSettings: function () {
+    const userInfo = wx.getStorageSync('userInfo');
+    if (!userInfo) return;
+
+    // 尝试从本地缓存读取
+    const cachedSettings = wx.getStorageSync('defaultSettings');
+    if (cachedSettings) {
+      console.log('从缓存加载默认设置:', cachedSettings);
+      this.setData({ defaultSettings: cachedSettings });
+      return;
+    }
+
+    // 如果本地没有，则从服务器获取
+    request.get(config.apis.settings.get)
+      .then(res => {
+        if (res.data) {
+          console.log('从服务器加载默认设置:', res.data);
+          this.setData({ defaultSettings: res.data });
+          wx.setStorageSync('defaultSettings', res.data);
         }
-      }
-    });
+      })
+      .catch(err => {
+        console.error('获取默认设置失败:', err);
+      });
   },
 
   // 加载店铺列表
@@ -103,7 +145,19 @@ Page({
                 selectedStoreName: store.name
               });
             }
-          } else if (this.data.stores.length > 0) {
+          }
+          // 如果没有设置storeId，且有默认设置，应用默认店铺
+          else if (!this.data.storeId && this.data.defaultSettings && this.data.defaultSettings.store_id && this.data.stores.length > 0) {
+            const defaultStore = this.data.stores.find(s => s.id == this.data.defaultSettings.store_id);
+            if (defaultStore) {
+              this.setData({
+                storeId: defaultStore.id.toString(),
+                selectedStoreName: defaultStore.name
+              });
+            }
+          }
+          // 如果没有storeId也没有默认设置，使用第一个店铺
+          else if (this.data.stores.length > 0) {
             this.setData({
               storeId: this.data.stores[0].id,
               selectedStoreName: this.data.stores[0].name
@@ -133,29 +187,65 @@ Page({
             accountTypes: types
           });
 
-          // 检查是否有传入的typeId
-          if (this.data.typeId && types.length > 0) {
-            // 查找typeId对应的类型
-            const selectedType = types.find(type => type.id == this.data.typeId);
+          // 如果类型为空，显示提示并返回
+          if (types.length === 0) {
+            // 重置类型选择器的文本显示
+            this.setData({
+              selectedTypeName: '请选择类型',
+              typeId: ''  // 清空typeId以避免提交无效数据
+            });
+
+            wx.showToast({
+              title: `没有${this.data.accountType === 'income' ? '收入' : '支出'}类型，请先创建`,
+              icon: 'none',
+              duration: 2000
+            });
+            resolve();
+            return;
+          }
+
+          // 根据情况设置默认类型ID
+          let defaultTypeId = '';
+
+          // 1. 优先使用URL传递的typeId
+          if (this.data.typeId) {
+            defaultTypeId = this.data.typeId;
+          }
+          // 2. 其次使用默认设置中对应的类型ID
+          else if (this.data.defaultSettings) {
+            if (this.data.accountType === 'income' && this.data.defaultSettings.income_type_id) {
+              defaultTypeId = this.data.defaultSettings.income_type_id.toString();
+            } else if (this.data.accountType === 'expense' && this.data.defaultSettings.expense_type_id) {
+              defaultTypeId = this.data.defaultSettings.expense_type_id.toString();
+            }
+          }
+
+          // 根据typeId查找并设置类型名称
+          if (defaultTypeId && types.length > 0) {
+            const selectedType = types.find(type => type.id.toString() === defaultTypeId);
             if (selectedType) {
-              // 如果找到了，设置选中的类型名称
               this.setData({
+                typeId: selectedType.id.toString(),
                 selectedTypeName: selectedType.name
               });
+              console.log('已选中类型:', selectedType.name);
             } else {
-              // 如果没有找到匹配的类型，使用第一个类型
+              // 如果没找到匹配的类型（可能是切换了收入/支出），使用该类别下的第一个类型
               this.setData({
-                typeId: types[0].id,
+                typeId: types[0].id.toString(),
                 selectedTypeName: types[0].name
               });
+              console.log('未找到匹配类型，使用第一个类型:', types[0].name);
             }
           } else if (types.length > 0) {
-            // 如果没有传入typeId但有类型可选，使用第一个类型
+            // 如果没有默认类型，使用第一个类型
             this.setData({
-              typeId: types[0].id,
+              typeId: types[0].id.toString(),
               selectedTypeName: types[0].name
             });
+            console.log('使用第一个类型:', types[0].name);
           }
+
           resolve();
         })
         .catch(err => {
@@ -168,12 +258,43 @@ Page({
   // 切换账务类型
   switchAccountType: function (e) {
     const type = e.currentTarget.dataset.type;
+
+    // 如果当前已经是选中的类型，不做任何处理
+    if (type === this.data.accountType) {
+      return;
+    }
+
     this.setData({
-      accountType: type
+      accountType: type,
+      isTypeSwitchedByUser: true,  // 标记为用户手动切换
+      // 切换类型时先重置类型选择器状态，避免显示之前的类型
+      selectedTypeName: '请选择类型',
+      typeId: ''
     });
 
     // 重新加载账务类型列表
-    this.loadAccountTypes();
+    this.loadAccountTypes().then(() => {
+      // 切换类型后，应用对应的默认类型ID（如果有设置的话）
+      if (this.data.defaultSettings) {
+        const defaultTypeId = type === 'income'
+          ? this.data.defaultSettings.income_type_id
+          : this.data.defaultSettings.expense_type_id;
+
+        if (defaultTypeId) {
+          const matchingType = this.data.accountTypes.find(t =>
+            t.id.toString() === defaultTypeId.toString()
+          );
+
+          if (matchingType) {
+            this.setData({
+              typeId: matchingType.id.toString(),
+              selectedTypeName: matchingType.name
+            });
+            console.log(`已应用${type === 'income' ? '收入' : '支出'}默认类型:`, matchingType.name);
+          }
+        }
+      }
+    });
   },
 
   // 店铺选择
@@ -273,19 +394,8 @@ Page({
 
   // 提交记账
   submitAccount: function () {
-    if (!this.data.storeId) {
-      wx.showToast({
-        title: '请选择店铺',
-        icon: 'none'
-      });
-      return;
-    }
-
-    if (!this.data.typeId) {
-      wx.showToast({
-        title: '请选择类型',
-        icon: 'none'
-      });
+    // 表单验证
+    if (!this.validateForm()) {
       return;
     }
 
@@ -301,7 +411,7 @@ Page({
     // 根据账目类型决定金额正负
     const finalAmount = this.data.accountType === 'expense' ? -amount : amount;
 
-    // 先尝试使用 dateUtil 格式化日期
+    // 格式化交易时间
     let transactionTime = dateUtil.formatDateString(this.data.transactionTime);
 
     // 如果是 ISO 格式 (包含 T)，转换为标准格式（空格分隔）
@@ -359,7 +469,7 @@ Page({
     wx.navigateBack();
   },
 
-  // 恢复日期选择函数
+  // 日期选择
   bindDateChange: function (e) {
     const selectedDate = e.detail.value;
     const currentDateTime = `${selectedDate} ${this.data.currentTime}`;
@@ -372,7 +482,7 @@ Page({
     console.log('设置交易日期为:', currentDateTime);
   },
 
-  // 恢复时间选择函数
+  // 时间选择
   bindTimeChange: function (e) {
     const selectedTime = e.detail.value;
     const currentDateTime = `${this.data.currentDate} ${selectedTime}`;
@@ -397,6 +507,14 @@ Page({
     if (!this.data.typeId) {
       wx.showToast({
         title: '请选择账务类型',
+        icon: 'none'
+      });
+      return false;
+    }
+
+    if (!this.data.amount || isNaN(parseFloat(this.data.amount)) || parseFloat(this.data.amount) <= 0) {
+      wx.showToast({
+        title: '请输入有效金额',
         icon: 'none'
       });
       return false;
