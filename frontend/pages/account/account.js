@@ -288,7 +288,12 @@ Page({
       }
     }).then(res => {
       this.setData({
-        accounts: res.data || []
+        accounts: (res.data && res.data.data) ? res.data.data : []
+      });
+    }).catch(err => {
+      console.error('加载账务记录失败:', err);
+      this.setData({
+        accounts: []
       });
     });
   }

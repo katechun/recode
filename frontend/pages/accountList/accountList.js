@@ -37,7 +37,11 @@ Page({
     recordCount: 0,     // 记录总数
     shouldShowEmptyState: false,  // 控制空状态显示的标志
     showDetailModal: false,  // 控制详情弹窗显示
-    currentAccount: {}       // 当前查看的账目详情
+    currentAccount: {},       // 当前查看的账目详情
+    // 新增筛选相关状态
+    hasActiveFilters: false, // 是否有活跃的筛选条件
+    activeFilterCount: 0,    // 活跃的筛选条件数量
+    timeRange: '',           // 当前选择的时间范围
   },
 
   onLoad: function (options) {
@@ -78,7 +82,8 @@ Page({
     } else if (savedFilter.startDate && savedFilter.endDate) {
       this.setData({
         startDate: savedFilter.startDate,
-        endDate: savedFilter.endDate
+        endDate: savedFilter.endDate,
+        timeRange: savedFilter.timeRange || ''
       });
     } else {
       // 否则初始化为最近一个月
@@ -120,6 +125,9 @@ Page({
     this.loadAccountTypes();
     this.loadAccounts(true);
     this.loadStatistics();
+
+    // 更新筛选状态
+    this.updateFilterStatus();
   },
 
   onShow: function () {
@@ -132,7 +140,7 @@ Page({
     }
   },
 
-  // 初始化日期范围为最近一个月
+  // 初始化日期范围，默认展示最近一个月的数据
   initDateRange: function () {
     const today = new Date();
     const endDate = this.formatDate(today);
@@ -147,11 +155,11 @@ Page({
     });
   },
 
-  // 格式化日期为YYYY-MM-DD
+  // 日期格式化
   formatDate: function (date) {
     const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
     return `${year}-${month}-${day}`;
   },
 
@@ -175,57 +183,134 @@ Page({
       end_date: this.data.endDate
     };
 
-    // 添加筛选条件
+    // 添加筛选条件，确保类型转换正确
     if (this.data.storeId) {
-      params.store_id = this.data.storeId;
+      // 确保storeId是字符串
+      params.store_id = String(this.data.storeId);
     }
 
     if (this.data.typeId) {
-      params.type_id = this.data.typeId;
+      // 确保typeId是字符串
+      params.type_id = String(this.data.typeId);
     }
 
-    if (this.data.searchKeyword) {
-      params.keyword = this.data.searchKeyword;
+    if (this.data.searchKeyword && this.data.searchKeyword.trim()) {
+      // 去除前后空白字符
+      params.keyword = this.data.searchKeyword.trim();
     }
 
     if (this.data.minAmount) {
-      params.min_amount = this.data.minAmount;
+      // 确保数值类型正确
+      const minAmount = parseFloat(this.data.minAmount);
+      if (!isNaN(minAmount)) {
+        params.min_amount = minAmount;
+      }
     }
 
     if (this.data.maxAmount) {
-      params.max_amount = this.data.maxAmount;
+      // 确保数值类型正确
+      const maxAmount = parseFloat(this.data.maxAmount);
+      if (!isNaN(maxAmount)) {
+        params.max_amount = maxAmount;
+      }
+    }
+
+    // 调试输出
+    console.log('筛选参数:', JSON.stringify(params));
+
+    // 添加加载提示
+    if (isRefresh) {
+      wx.showLoading({
+        title: '加载中...',
+        mask: true
+      });
     }
 
     // 发起请求 - 后端已处理权限过滤
-    request.get(config.apis.accounts.list, params)
-      .then(res => {
-        // 处理返回的数据
-        const newAccounts = this.processAccounts(res.data);
+    return new Promise((resolve, reject) => {
+      request.get(config.apis.accounts.list, params)
+        .then(res => {
+          // 隐藏加载提示
+          if (isRefresh) {
+            wx.hideLoading();
+          }
 
-        this.setData({
-          accounts: isRefresh ? newAccounts : [...this.data.accounts, ...newAccounts],
-          isLoading: false,
-          isRefreshing: false,
-          hasMore: newAccounts.length === this.data.pageSize
-        });
+          if (!res.data || !res.data.data || !Array.isArray(res.data.data)) {
+            console.error('返回数据格式错误:', res);
+            this.setData({
+              isLoading: false,
+              isRefreshing: false,
+              shouldShowEmptyState: isRefresh
+            });
 
-        // 增加页码
-        this.setData({
-          currentPage: this.data.currentPage + 1
-        });
-      })
-      .catch(err => {
-        console.error('加载账目失败:', err);
-        this.setData({
-          isLoading: false,
-          isRefreshing: false
-        });
+            wx.showToast({
+              title: '数据格式错误',
+              icon: 'none'
+            });
 
-        wx.showToast({
-          title: '加载失败',
-          icon: 'none'
+            return reject(new Error('数据格式错误'));
+          }
+
+          // 处理返回的数据，处理后端返回的新格式
+          const data = res.data.data || [];
+          const total = res.data.total || data.length || 0;
+          const newAccounts = this.processAccounts(data);
+
+          // 更新空状态标志
+          const isEmpty = isRefresh && newAccounts.length === 0;
+
+          this.setData({
+            accounts: isRefresh ? newAccounts : [...this.data.accounts, ...newAccounts],
+            isLoading: false,
+            isRefreshing: false,
+            hasMore: newAccounts.length === this.data.pageSize,
+            shouldShowEmptyState: isEmpty,
+            recordCount: total
+          });
+
+          // 增加页码
+          this.setData({
+            currentPage: this.data.currentPage + 1
+          });
+
+          // 如果是刷新操作，显示结果提示
+          if (isRefresh) {
+            if (isEmpty) {
+              wx.showToast({
+                title: '暂无符合条件的记录',
+                icon: 'none',
+                duration: 2000
+              });
+            } else {
+              wx.showToast({
+                title: `已加载 ${newAccounts.length} 条记录`,
+                icon: 'success',
+                duration: 1500
+              });
+            }
+          }
+
+          resolve(newAccounts);
+        })
+        .catch(err => {
+          console.error('加载账目失败:', err);
+          if (isRefresh) {
+            wx.hideLoading();
+          }
+
+          this.setData({
+            isLoading: false,
+            isRefreshing: false
+          });
+
+          wx.showToast({
+            title: '加载失败，请重试',
+            icon: 'none'
+          });
+
+          reject(err);
         });
-      });
+    });
   },
 
   // 按日期对账目进行分组
@@ -303,6 +388,11 @@ Page({
   loadStores: function () {
     request.get(config.apis.stores.list)
       .then(res => {
+        if (!res.data || !Array.isArray(res.data)) {
+          console.error('返回店铺数据格式错误:', res);
+          return;
+        }
+
         const storesList = res.data || [];
         // 添加"全部店铺"选项
         const stores = [
@@ -314,7 +404,7 @@ Page({
 
         // 如果有店铺ID，设置对应的店铺名称
         if (this.data.storeId) {
-          const selectedStore = stores.find(store => store.id == this.data.storeId);
+          const selectedStore = stores.find(store => String(store.id) === String(this.data.storeId));
           if (selectedStore) {
             this.setData({
               selectedStoreName: selectedStore.name
@@ -331,6 +421,11 @@ Page({
   loadAccountTypes: function () {
     request.get(config.apis.accountTypes.list)
       .then(res => {
+        if (!res.data || !Array.isArray(res.data)) {
+          console.error('返回账务类型数据格式错误:', res);
+          return;
+        }
+
         const typesList = res.data || [];
 
         // 添加"全部类型"选项
@@ -343,7 +438,7 @@ Page({
 
         // 如果有类型ID，设置对应的类型名称
         if (this.data.typeId) {
-          const selectedType = accountTypes.find(type => type.id == this.data.typeId);
+          const selectedType = accountTypes.find(type => String(type.id) === String(this.data.typeId));
           if (selectedType) {
             this.setData({
               selectedTypeName: selectedType.name
@@ -545,15 +640,19 @@ Page({
 
   // 显示筛选弹窗
   showFilter: function () {
-    this.setData({ showFilterModal: true });
+    this.setData({
+      showFilterModal: true
+    });
   },
 
   // 隐藏筛选弹窗
   hideFilter: function () {
-    this.setData({ showFilterModal: false });
+    this.setData({
+      showFilterModal: false
+    });
   },
 
-  // 阻止弹窗内容上的点击事件穿透到遮罩
+  // 防止穿透滑动
   preventTouchMove: function () {
     return false;
   },
@@ -561,14 +660,10 @@ Page({
   // 应用筛选
   applyFilter: function () {
     // 保存筛选设置
-    wx.setStorageSync('accountListFilter', {
-      storeId: this.data.storeId,
-      typeId: this.data.typeId,
-      startDate: this.data.startDate,
-      endDate: this.data.endDate,
-      minAmount: this.data.minAmount,
-      maxAmount: this.data.maxAmount
-    });
+    this.saveFilterSettings();
+
+    // 更新筛选状态
+    this.updateFilterStatus();
 
     this.hideFilter();
     this.loadAccounts(true);
@@ -594,59 +689,120 @@ Page({
       startDate: this.formatDate(startDate),
       endDate: endDate,
       selectedStoreName: '全部店铺',
-      selectedTypeName: '全部类型'
+      selectedTypeName: '全部类型',
+      timeRange: ''
     });
+
+    // 更新筛选状态
+    this.updateFilterStatus();
 
     // 隐藏筛选面板
     this.hideFilter();
+
+    // 清除本地存储的筛选设置
+    wx.removeStorageSync('accountListFilter');
 
     // 重新加载数据
     this.loadAccounts(true);
     this.loadStatistics();
   },
 
-  // 日期选择器
+  // 开始日期变更
   bindStartDateChange: function (e) {
-    this.setData({ startDate: e.detail.value });
+    const newStartDate = e.detail.value;
+
+    // 检查日期有效性
+    if (!this.isValidDate(newStartDate)) {
+      wx.showToast({
+        title: '日期格式无效',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.setData({
+      startDate: newStartDate,
+      timeRange: '' // 清除快速日期选择状态
+    });
   },
 
+  // 结束日期变更
   bindEndDateChange: function (e) {
-    this.setData({ endDate: e.detail.value });
+    const newEndDate = e.detail.value;
+
+    // 检查日期有效性
+    if (!this.isValidDate(newEndDate)) {
+      wx.showToast({
+        title: '日期格式无效',
+        icon: 'none'
+      });
+      return;
+    }
+
+    this.setData({
+      endDate: newEndDate,
+      timeRange: '' // 清除快速日期选择状态
+    });
+  },
+
+  // 检查日期是否有效
+  isValidDate: function (dateStr) {
+    // 简单验证日期格式 YYYY-MM-DD
+    if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return false;
+    }
+
+    const [year, month, day] = dateStr.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+
+    return date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day;
   },
 
   // 店铺选择
   bindStoreChange: function (e) {
     const index = e.detail.value;
-    const selectedStore = this.data.stores[index];
+    const storeId = this.data.stores[index].id;
+    const storeName = this.data.stores[index].name;
 
     this.setData({
-      storeId: selectedStore.id,
-      selectedStoreName: selectedStore.name
+      storeId: storeId,
+      selectedStoreName: storeName
     });
   },
 
   // 类型选择
   bindTypeChange: function (e) {
     const index = e.detail.value;
-    const selectedType = this.data.accountTypes[index];
+    const typeId = this.data.accountTypes[index].id;
+    const typeName = this.data.accountTypes[index].name;
 
     this.setData({
-      typeId: selectedType.id,
-      selectedTypeName: selectedType.name
+      typeId: typeId,
+      selectedTypeName: typeName
     });
   },
 
   // 金额输入
   onMinAmountInput: function (e) {
-    this.setData({
-      minAmount: e.detail.value
-    });
+    const value = e.detail.value;
+    // 只允许输入数字和小数点
+    if (value === '' || /^(0|[1-9]\d*)(\.\d{0,2})?$/.test(value)) {
+      this.setData({
+        minAmount: value
+      });
+    }
   },
 
   onMaxAmountInput: function (e) {
-    this.setData({
-      maxAmount: e.detail.value
-    });
+    const value = e.detail.value;
+    // 只允许输入数字和小数点
+    if (value === '' || /^(0|[1-9]\d*)(\.\d{0,2})?$/.test(value)) {
+      this.setData({
+        maxAmount: value
+      });
+    }
   },
 
   // 搜索关键词输入
@@ -660,55 +816,28 @@ Page({
   doSearch: function () {
     // 去除空格并保存关键词
     const keyword = this.data.searchKeyword.trim();
-    if (!keyword) {
-      wx.showToast({
-        title: '请输入搜索关键词',
-        icon: 'none'
-      });
-      return;
-    }
+
+    // 不再在此处验证关键词是否为空，让后端处理
+    // if (!keyword) {
+    //   wx.showToast({
+    //     title: '请输入搜索关键词',
+    //     icon: 'none'
+    //   });
+    //   return;
+    // }
 
     // 记录搜索历史
     this.saveSearchHistory(keyword);
 
+    // 更新筛选状态
+    this.updateFilterStatus();
+
+    // 保存筛选设置
+    this.saveFilterSettings();
+
     // 重置并加载数据
-    this.setData({
-      currentPage: 1,
-      accounts: [],
-      hasMore: true
-    });
-
-    // 显示加载提示
-    wx.showLoading({
-      title: '搜索中...'
-    });
-
-    // 调用加载数据方法，并传入搜索参数
-    this.loadAccounts(true)
-      .then(accounts => {
-        wx.hideLoading();
-
-        if (accounts.length === 0) {
-          wx.showToast({
-            title: '未找到相关记录',
-            icon: 'none'
-          });
-        } else {
-          wx.showToast({
-            title: `找到 ${accounts.length} 条记录`,
-            icon: 'success'
-          });
-        }
-      })
-      .catch(err => {
-        wx.hideLoading();
-        console.error('搜索失败:', err);
-
-        wx.showToast({
-          title: '搜索失败，请重试',
-          icon: 'none'
-        });
-      });
+    this.loadAccounts(true);
+    this.loadStatistics();
   },
 
   // 保存搜索历史
@@ -736,16 +865,27 @@ Page({
 
   // 应用日期筛选
   applyDateFilter: function () {
-    // 验证日期
-    if (new Date(this.data.startDate) > new Date(this.data.endDate)) {
-      wx.showToast({
-        title: '开始日期不能大于结束日期',
-        icon: 'none'
-      });
-      return;
+    // 日期验证
+    if (this.data.startDate && this.data.endDate) {
+      const start = new Date(this.data.startDate);
+      const end = new Date(this.data.endDate);
+
+      if (start > end) {
+        wx.showToast({
+          title: '开始日期不能大于结束日期',
+          icon: 'none'
+        });
+        return;
+      }
     }
 
-    // 重置页码并重新加载数据
+    // 更新筛选状态
+    this.updateFilterStatus();
+
+    // 保存筛选设置
+    this.saveFilterSettings();
+
+    // 重新加载数据
     this.loadAccounts(true);
     this.loadStatistics();
   },
@@ -928,21 +1068,208 @@ Page({
   },
 
   // 处理返回的数据
-  processAccounts: function (data) {
-    if (!data || !Array.isArray(data)) {
+  processAccounts: function (accounts) {
+    if (!accounts || !Array.isArray(accounts)) {
+      console.error('处理账目数据时收到无效数据:', accounts);
       return [];
     }
 
-    return data.map(account => {
+    return accounts.map(account => {
+      // 确保各项数据有效性
+      const id = account.id || 0;
+      const storeId = account.store_id || 0;
+      const storeName = account.store_name || '未知店铺';
+      const typeId = account.type_id || 0;
+      const typeName = account.type_name || '未知类型';
+      const amount = parseFloat(account.amount) || 0;
+      const remark = account.remark || '';
+      const transactionTime = account.transaction_time || '';
+
+      // 格式化日期
+      let formattedDate = '';
+      let date = '';
+
+      if (transactionTime) {
+        try {
+          const dateObj = new Date(transactionTime.replace(/-/g, '/'));
+          if (!isNaN(dateObj.getTime())) {
+            formattedDate = dateObj.toLocaleString('zh-CN', {
+              year: 'numeric',
+              month: '2-digit',
+              day: '2-digit',
+              hour: '2-digit',
+              minute: '2-digit'
+            });
+            date = dateObj.toISOString().split('T')[0];
+          }
+        } catch (err) {
+          console.error('日期格式化错误:', err, transactionTime);
+          formattedDate = transactionTime;
+          date = transactionTime.split(' ')[0];
+        }
+      }
+
+      // 格式化金额
+      const formattedAmount = Math.abs(amount).toFixed(2);
+      const isIncome = amount >= 0;
+
       return {
-        ...account,
-        formattedAmount: filter.formatAmount(Math.abs(account.amount)),
-        formattedDate: account.transaction_time ? account.transaction_time.substring(0, 16).replace('T', ' ') : '',
-        isIncome: parseFloat(account.amount) >= 0,
-        date: account.transaction_time ? account.transaction_time.substring(0, 10) : '',
-        // 确保有用户名，如果后端未返回则显示默认值
-        username: account.username || '未知用户'
+        id,
+        store_id: storeId,
+        store_name: storeName,
+        type_id: typeId,
+        type_name: typeName,
+        amount,
+        remark,
+        transaction_time: transactionTime,
+        formattedDate,
+        formattedAmount,
+        isIncome,
+        date
       };
     });
-  }
+  },
+
+  // 在onLoad或loadAccounts执行完后添加计算活跃筛选条件
+  updateFilterStatus: function () {
+    let activeCount = 0;
+    if (this.data.selectedStoreName !== '全部店铺') activeCount++;
+    if (this.data.selectedTypeName !== '全部类型') activeCount++;
+    if (this.data.startDate || this.data.endDate) activeCount++;
+    if (this.data.minAmount || this.data.maxAmount) activeCount++;
+    if (this.data.searchKeyword) activeCount++;
+
+    this.setData({
+      hasActiveFilters: activeCount > 0,
+      activeFilterCount: activeCount
+    });
+  },
+
+  // 清除单个筛选条件
+  clearSingleFilter: function (e) {
+    const filterType = e.currentTarget.dataset.filter;
+
+    switch (filterType) {
+      case 'store':
+        this.setData({
+          storeId: '',
+          selectedStoreName: '全部店铺'
+        });
+        break;
+      case 'type':
+        this.setData({
+          typeId: '',
+          selectedTypeName: '全部类型'
+        });
+        break;
+      case 'date':
+        // 设置为默认日期范围（最近一个月）
+        this.initDateRange();
+        this.setData({
+          timeRange: ''  // 清除快速日期选择的活跃状态
+        });
+        break;
+      case 'amount':
+        this.setData({
+          minAmount: '',
+          maxAmount: ''
+        });
+        break;
+      case 'keyword':
+        this.setData({
+          searchKeyword: ''
+        });
+        break;
+    }
+
+    // 更新筛选状态
+    this.updateFilterStatus();
+
+    // 重新加载数据
+    this.loadAccounts(true);
+    this.loadStatistics();
+
+    // 保存筛选设置
+    this.saveFilterSettings();
+  },
+
+  // 清除搜索关键词
+  clearSearch: function () {
+    this.setData({
+      searchKeyword: ''
+    });
+    this.updateFilterStatus();
+
+    // 如果之前有搜索内容，重新加载数据
+    if (this.data.hasActiveFilters) {
+      this.loadAccounts(true);
+      this.loadStatistics();
+    }
+  },
+
+  // 快速选择日期范围
+  selectQuickDate: function (e) {
+    const range = e.currentTarget.dataset.range;
+    const today = new Date();
+    let startDate;
+
+    switch (range) {
+      case 'day':
+        // 今天
+        startDate = this.formatDate(today);
+        break;
+      case 'week':
+        // 本周一
+        const dayOfWeek = today.getDay() || 7; // 将周日的0转为7
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - dayOfWeek + 1);
+        startDate = this.formatDate(monday);
+        break;
+      case 'month':
+        // 本月1日
+        const firstDayOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        startDate = this.formatDate(firstDayOfMonth);
+        break;
+      case 'quarter':
+        // 本季度第一天
+        const quarter = Math.floor(today.getMonth() / 3);
+        const firstDayOfQuarter = new Date(today.getFullYear(), quarter * 3, 1);
+        startDate = this.formatDate(firstDayOfQuarter);
+        break;
+      case 'year':
+        // 本年1月1日
+        const firstDayOfYear = new Date(today.getFullYear(), 0, 1);
+        startDate = this.formatDate(firstDayOfYear);
+        break;
+    }
+
+    const endDate = this.formatDate(today);
+
+    this.setData({
+      startDate: startDate,
+      endDate: endDate,
+      timeRange: range
+    });
+
+    // 更新筛选状态并重新加载数据
+    this.updateFilterStatus();
+    this.loadAccounts(true);
+    this.loadStatistics();
+
+    // 保存筛选设置
+    this.saveFilterSettings();
+  },
+
+  // 保存筛选设置
+  saveFilterSettings: function () {
+    wx.setStorageSync('accountListFilter', {
+      storeId: this.data.storeId,
+      typeId: this.data.typeId,
+      startDate: this.data.startDate,
+      endDate: this.data.endDate,
+      minAmount: this.data.minAmount,
+      maxAmount: this.data.maxAmount,
+      timeRange: this.data.timeRange
+    });
+  },
 }) 

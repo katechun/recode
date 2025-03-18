@@ -4,11 +4,37 @@
     <view class="search-box">
       <input type="text" placeholder="搜索备注关键词" bindinput="onSearchInput" value="{{searchKeyword}}" confirm-type="search"/>
       <view class="search-icon" bindtap="doSearch">🔍</view>
+      <view class="search-clear" bindtap="clearSearch" wx:if="{{searchKeyword}}">×</view>
     </view>
-    <view class="filter-btn" bindtap="showFilter">
+    <view class="filter-btn {{hasActiveFilters ? 'active' : ''}}" bindtap="showFilter">
       <text>筛选</text>
       <text class="filter-icon">▼</text>
+      <view class="filter-badge" wx:if="{{activeFilterCount > 0}}">{{activeFilterCount}}</view>
     </view>
+  </view>
+  
+  <!-- 活跃筛选条件显示区域 -->
+  <view class="active-filters" wx:if="{{hasActiveFilters}}">
+    <scroll-view scroll-x="true" class="filter-tags-container">
+      <view class="filter-tags">
+        <view class="filter-tag" wx:if="{{selectedStoreName !== '全部店铺'}}">
+          店铺: {{selectedStoreName}} <text class="tag-close" data-filter="store" bindtap="clearSingleFilter">×</text>
+        </view>
+        <view class="filter-tag" wx:if="{{selectedTypeName !== '全部类型'}}">
+          类型: {{selectedTypeName}} <text class="tag-close" data-filter="type" bindtap="clearSingleFilter">×</text>
+        </view>
+        <view class="filter-tag" wx:if="{{startDate || endDate}}">
+          日期: {{startDate}} 至 {{endDate}} <text class="tag-close" data-filter="date" bindtap="clearSingleFilter">×</text>
+        </view>
+        <view class="filter-tag" wx:if="{{minAmount || maxAmount}}">
+          金额: {{minAmount || '0'}} - {{maxAmount || '不限'}} <text class="tag-close" data-filter="amount" bindtap="clearSingleFilter">×</text>
+        </view>
+        <view class="filter-tag" wx:if="{{searchKeyword}}">
+          关键词: {{searchKeyword}} <text class="tag-close" data-filter="keyword" bindtap="clearSingleFilter">×</text>
+        </view>
+      </view>
+    </scroll-view>
+    <view class="clear-all-filters" bindtap="resetFilter">清除所有</view>
   </view>
   
   <!-- 日期范围选择 -->
@@ -21,6 +47,15 @@
       <view class="date-picker">{{endDate}}</view>
     </picker>
     <button class="date-search-btn" bindtap="applyDateFilter">查询</button>
+  </view>
+
+  <!-- 快速日期选择器 -->
+  <view class="quick-date-selector">
+    <view class="quick-date-btn {{timeRange === 'day' ? 'active' : ''}}" bindtap="selectQuickDate" data-range="day">今日</view>
+    <view class="quick-date-btn {{timeRange === 'week' ? 'active' : ''}}" bindtap="selectQuickDate" data-range="week">本周</view>
+    <view class="quick-date-btn {{timeRange === 'month' ? 'active' : ''}}" bindtap="selectQuickDate" data-range="month">本月</view>
+    <view class="quick-date-btn {{timeRange === 'quarter' ? 'active' : ''}}" bindtap="selectQuickDate" data-range="quarter">本季度</view>
+    <view class="quick-date-btn {{timeRange === 'year' ? 'active' : ''}}" bindtap="selectQuickDate" data-range="year">本年</view>
   </view>
 
   <!-- 统计信息 -->

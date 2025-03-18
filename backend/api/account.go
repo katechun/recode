@@ -140,8 +140,9 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
 	limit := r.URL.Query().Get("limit")
-	// minAmount := r.URL.Query().Get("min_amount")
-	// maxAmount := r.URL.Query().Get("max_amount")
+	page := r.URL.Query().Get("page")
+	minAmount := r.URL.Query().Get("min_amount")
+	maxAmount := r.URL.Query().Get("max_amount")
 	keyword := r.URL.Query().Get("keyword")
 
 	// 从URL参数或Header中获取用户ID
@@ -161,15 +162,25 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用修改后的GetAccounts函数，传入用户ID
-	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, userID)
+	// 记录请求参数
+	log.Printf("账务查询请求 - 用户ID: %d, 店铺ID: %s, 类型ID: %s, 开始日期: %s, 结束日期: %s, 关键词: %s, 最小金额: %s, 最大金额: %s",
+		userID, storeID, typeID, startDate, endDate, keyword, minAmount, maxAmount)
+
+	// 调用修改后的GetAccounts函数，传入所有参数
+	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minAmount, maxAmount, userID)
 	if err != nil {
 		log.Printf("获取账务记录失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务记录失败", nil)
 		return
 	}
 
-	SendResponse(w, http.StatusOK, 200, "获取账务记录成功", accounts)
+	// 封装响应，包括总数信息
+	response := map[string]interface{}{
+		"data":  accounts,
+		"total": len(accounts),
+	}
+
+	SendResponse(w, http.StatusOK, 200, "获取账务记录成功", response)
 }
 
 // 获取账务统计

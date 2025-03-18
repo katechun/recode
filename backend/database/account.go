@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"strconv"
+	"strings"
 	"time"
 
 	"account/backend/models"
@@ -28,17 +29,17 @@ func CreateAccount(account *models.Account) (int64, error) {
 	} else {
 		// 尝试解析各种可能的日期时间格式
 		formats := []string{
-			"2006-01-02T15:04:05",  // ISO格式
-			"2006-01-02 15:04:05",  // 标准格式
-			"2006-01-02 15:04",     // 没有秒的格式
-			"2006-01-02",           // 仅日期
-			"2006/01/02 15:04:05",  // 斜杠分隔的日期时间
-			"2006/01/02",           // 斜杠分隔的日期
+			"2006-01-02T15:04:05", // ISO格式
+			"2006-01-02 15:04:05", // 标准格式
+			"2006-01-02 15:04",    // 没有秒的格式
+			"2006-01-02",          // 仅日期
+			"2006/01/02 15:04:05", // 斜杠分隔的日期时间
+			"2006/01/02",          // 斜杠分隔的日期
 		}
-		
+
 		var t time.Time
 		var err error
-		
+
 		// 尝试所有格式
 		for _, format := range formats {
 			t, err = time.Parse(format, account.TransactionTime)
@@ -48,7 +49,7 @@ func CreateAccount(account *models.Account) (int64, error) {
 				break
 			}
 		}
-		
+
 		// 如果所有格式都解析失败，使用当前时间
 		if err != nil {
 			log.Printf("无法解析交易时间 '%s', 使用当前时间", account.TransactionTime)
@@ -79,8 +80,8 @@ func CreateAccount(account *models.Account) (int64, error) {
 	return id, nil
 }
 
-// GetAccounts 获取账务记录列表
-func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, userID int64) ([]map[string]interface{}, error) {
+// GetAccounts 获取账务记录列表 - 修改函数签名，直接传入所有筛选参数
+func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minAmount, maxAmount string, userID int64) ([]map[string]interface{}, error) {
 	// 检查用户是否是管理员
 	var isAdmin bool
 	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
@@ -117,14 +118,22 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, 
 	// 添加其他筛选条件
 	if storeID != "" && storeID != "0" {
 		query += " AND a.store_id = ?"
-		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
-		args = append(args, storeIDInt)
+		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
+		if err != nil {
+			log.Printf("无效的店铺ID: %s, 错误: %v", storeID, err)
+		} else {
+			args = append(args, storeIDInt)
+		}
 	}
 
-	if typeID != "" {
+	if typeID != "" && typeID != "0" {
 		query += " AND a.type_id = ?"
-		typeIDInt, _ := strconv.ParseInt(typeID, 10, 64)
-		args = append(args, typeIDInt)
+		typeIDInt, err := strconv.ParseInt(typeID, 10, 64)
+		if err != nil {
+			log.Printf("无效的类型ID: %s, 错误: %v", typeID, err)
+		} else {
+			args = append(args, typeIDInt)
+		}
 	}
 
 	if startDate != "" {
@@ -135,6 +144,27 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, 
 	if endDate != "" {
 		query += " AND a.transaction_time <= ?"
 		args = append(args, endDate+" 23:59:59")
+	}
+
+	// 处理金额范围筛选 - 直接使用传入的参数
+	if minAmount != "" {
+		minAmountFloat, err := strconv.ParseFloat(minAmount, 64)
+		if err == nil {
+			query += " AND a.amount >= ?"
+			args = append(args, minAmountFloat)
+		} else {
+			log.Printf("无效的最小金额: %s, 错误: %v", minAmount, err)
+		}
+	}
+
+	if maxAmount != "" {
+		maxAmountFloat, err := strconv.ParseFloat(maxAmount, 64)
+		if err == nil {
+			query += " AND a.amount <= ?"
+			args = append(args, maxAmountFloat)
+		} else {
+			log.Printf("无效的最大金额: %s, 错误: %v", maxAmount, err)
+		}
 	}
 
 	// 优化关键词搜索逻辑，尤其是金额搜索
@@ -167,16 +197,42 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limitStr string, 
 		}
 	}
 
+	// 计算偏移量
+	var offset int
+
+	// 默认分页
+	limitInt := 50 // 默认每页50条
+	if limit != "" {
+		parsedLimit, err := strconv.Atoi(limit)
+		if err == nil && parsedLimit > 0 {
+			limitInt = parsedLimit
+		}
+	}
+
+	if page != "" {
+		pageInt, err := strconv.Atoi(page)
+		if err == nil && pageInt > 0 {
+			offset = (pageInt - 1) * limitInt
+		}
+	}
+
 	// 排序
 	query += " ORDER BY a.transaction_time DESC"
 
-	// 限制条数
-	if limitStr != "" {
-		limit, err := strconv.Atoi(limitStr)
-		if err == nil && limit > 0 {
-			query += fmt.Sprintf(" LIMIT %d", limit)
+	// 应用分页
+	if limitInt > 0 {
+		query += fmt.Sprintf(" LIMIT %d", limitInt)
+		if offset > 0 {
+			query += fmt.Sprintf(" OFFSET %d", offset)
 		}
 	}
+
+	// 打印完整SQL语句用于调试
+	logSql := query
+	for _, arg := range args {
+		logSql = strings.Replace(logSql, "?", fmt.Sprintf("'%v'", arg), 1)
+	}
+	log.Printf("执行SQL: %s", logSql)
 
 	// 执行查询
 	rows, err := DB.Query(query, args...)

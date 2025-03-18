@@ -54,7 +54,7 @@ Page({
     const startDate = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
     const endDate = this.formatDate(now);
 
-    this.setData({ 
+    this.setData({
       userInfo,
       startDate,
       endDate
@@ -139,25 +139,35 @@ Page({
   // 加载报表数据
   loadReportData() {
     this.setData({ isLoading: true });
-    
-    const params = {
-      timeRange: this.data.timeRange,
-      storeId: this.data.selectedStoreId || ''
-    };
-    
+
+    // 构建参数对象
+    const params = {};
+
+    // 添加时间范围参数
+    params.timeRange = this.data.timeRange;
+
+    // 如果选择了特定店铺，添加店铺ID
+    if (this.data.selectedStoreId) {
+      params.storeId = this.data.selectedStoreId;
+    }
+
+    console.log('加载报表数据，参数:', params);
+
     // 用户ID已经在request工具函数中添加了
     request.get(config.apis.statistics.report, params)
       .then(res => {
+        console.log('报表数据返回:', res);
+
         if (res.code === 200 && res.data) {
           const reportData = res.data;
-          
+
           this.setData({
             totalIncome: this.formatAmount(reportData.totalIncome || 0),
             totalExpense: this.formatAmount(Math.abs(reportData.totalExpense) || 0),
             netIncome: this.formatAmount(reportData.netIncome || 0),
             chartData: reportData
           });
-          
+
           // 处理趋势数据 - 预先格式化
           const formattedTrendData = (reportData.trend || []).map(item => ({
             date: item.date,
@@ -166,7 +176,7 @@ Page({
             net: this.formatAmount(item.net || 0),
             isPositive: parseFloat(item.net) >= 0
           }));
-          
+
           // 处理对比数据 - 预先格式化
           const formattedCompareData = (reportData.compare || []).map(item => ({
             category: item.category,
@@ -175,23 +185,42 @@ Page({
             net: this.formatAmount(item.net || 0),
             isPositive: parseFloat(item.net) >= 0
           }));
-          
+
           this.setData({
             formattedTrendData,
             formattedCompareData
           });
-          
+
           // 处理分类数据
           this.processCategoryData(reportData);
+        } else {
+          wx.showToast({
+            title: res.message || '数据加载失败',
+            icon: 'none'
+          });
         }
         this.setData({ isLoading: false });
       })
       .catch(err => {
         console.error('获取报表数据失败:', err);
-        this.setData({ isLoading: false });
+        this.setData({
+          isLoading: false,
+          // 清空数据以避免显示旧数据
+          formattedTrendData: [],
+          formattedCompareData: [],
+          categoryData: [],
+          totalIncome: '0.00',
+          totalExpense: '0.00',
+          netIncome: '0.00'
+        });
+
+        wx.hideLoading(); // 确保隐藏所有加载提示
+
+        // 显示更详细的错误信息
         wx.showToast({
-          title: '数据加载失败',
-          icon: 'none'
+          title: err.message || '数据加载失败，请稍后重试',
+          icon: 'none',
+          duration: 3000
         });
       });
   },
@@ -200,7 +229,7 @@ Page({
   processCategoryData(reportData) {
     let categoryData = [];
     let totalAmount = 0;
-    
+
     if (this.data.categoryType === 'income') {
       categoryData = reportData.incomeCategories || [];
       totalAmount = parseFloat(reportData.totalIncome) || 0;
@@ -208,18 +237,18 @@ Page({
       categoryData = reportData.expenseCategories || [];
       totalAmount = Math.abs(parseFloat(reportData.totalExpense)) || 0;
     }
-    
+
     // 计算百分比
     categoryData = categoryData.map(item => {
       const itemAmount = Math.abs(parseFloat(item.amount) || 0);
       return {
         ...item,
         amount: this.formatAmount(itemAmount),
-        percentage: totalAmount > 0 ? 
+        percentage: totalAmount > 0 ?
           ((itemAmount / totalAmount) * 100).toFixed(2) : 0
       };
     });
-    
+
     this.setData({ categoryData });
   },
 
@@ -263,13 +292,13 @@ Page({
   selectStore(e) {
     const storeId = e.currentTarget.dataset.id;
     const storeName = e.currentTarget.dataset.name;
-    
+
     this.setData({
       selectedStoreId: storeId,
       selectedStore: { id: storeId, name: storeName },
       storePickerVisible: false
     });
-    
+
     this.loadReportData();
   },
 

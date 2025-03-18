@@ -148,11 +148,15 @@ func getTotalAmounts(startDate, endDate time.Time, storeId int64, storeFilter st
 func getTrendData(startDate, endDate time.Time, storeId int64, storeFilter string, args []interface{}) ([]TrendData, error) {
 	var trendData []TrendData
 
+	// 复制args以避免修改原始切片
+	queryArgs := make([]interface{}, len(args))
+	copy(queryArgs, args)
+
 	// 将时间戳参数转换为字符串格式
 	startDateStr := startDate.Format("2006-01-02 15:04:05")
 	endDateStr := endDate.Format("2006-01-02 15:04:05")
 
-	// 修改SQL查询，避免使用SQLite特有的日期函数
+	// 修改SQL查询，先添加日期条件，然后再添加其他条件
 	query := `
 		SELECT 
 			SUBSTR(transaction_time, 1, 10) as date,
@@ -163,11 +167,19 @@ func getTrendData(startDate, endDate time.Time, storeId int64, storeFilter strin
 		WHERE transaction_time BETWEEN ? AND ?
 	`
 
-	// 添加过滤条件
-	query += " AND " + storeFilter
+	// 先准备日期参数
+	queryArgs = append([]interface{}{startDateStr, endDateStr}, queryArgs...)
+
+	// 如果有存储过滤条件，则添加
+	if storeFilter != "" {
+		query += storeFilter
+	}
+
+	// 按日期分组
+	query += " GROUP BY SUBSTR(transaction_time, 1, 10) ORDER BY date"
 
 	// 执行查询
-	rows, err := DB.Query(query, append(args, startDateStr, endDateStr)...)
+	rows, err := DB.Query(query, queryArgs...)
 	if err != nil {
 		return nil, fmt.Errorf("查询趋势数据失败: %w", err)
 	}
@@ -210,7 +222,19 @@ func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData,
 		WHERE a.transaction_time BETWEEN ? AND ?
 	`
 
-	rows, err := DB.Query(query, startDateStr, endDateStr)
+	// 准备参数
+	args := []interface{}{startDateStr, endDateStr}
+	
+	// 添加店铺过滤条件
+	if storeId > 0 {
+		query += " AND a.store_id = ?"
+		args = append(args, storeId)
+	}
+
+	// 按类别分组
+	query += " GROUP BY t.name"
+
+	rows, err := DB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("查询分类对比数据失败: %w", err)
 	}

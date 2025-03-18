@@ -351,7 +351,7 @@ Page({
     // 用户ID已经在request工具函数中添加了
     request.get(config.apis.accounts.list, params)
       .then(res => {
-        if (!res.data || !Array.isArray(res.data)) {
+        if (!res.data || !res.data.data || !Array.isArray(res.data.data)) {
           this.setData({ recentRecords: [] });
           return;
         }
@@ -1023,9 +1023,9 @@ Page({
 
     request.get(config.apis.accounts.list, { params })
       .then(res => {
-        if (res.data) {
+        if (res.data && res.data.data) {
           // 格式化数据用于显示
-          let formattedRecords = res.data.map(record => ({
+          let formattedRecords = res.data.data.map(record => ({
             ...record,
             amount: record.amount.toFixed(2),
             create_time: this.formatDateTime(new Date(record.transaction_time))
@@ -1042,10 +1042,17 @@ Page({
             recentAccounts: formattedRecords
           });
           console.log('最近账目加载成功，共', formattedRecords.length, '条记录');
+        } else {
+          this.setData({
+            recentAccounts: []
+          });
         }
       })
       .catch(err => {
         console.error('获取最近账目失败:', err);
+        this.setData({
+          recentAccounts: []
+        });
       });
   },
 
@@ -1189,9 +1196,9 @@ Page({
         .then(res => {
           console.log('最近账目API响应:', JSON.stringify(res.data));
 
-          if (res.data) {
+          if (res.data && res.data.data && Array.isArray(res.data.data)) {
             // 格式化数据
-            let formattedRecords = res.data.map(record => ({
+            let formattedRecords = res.data.data.map(record => ({
               ...record,
               amount: record.amount.toFixed(2),
               create_time: this.formatDateTime(new Date(record.transaction_time))
