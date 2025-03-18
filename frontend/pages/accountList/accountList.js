@@ -57,57 +57,72 @@ Page({
     // 获取存储的筛选设置
     const savedFilter = wx.getStorageSync('accountListFilter') || {};
 
-    // 如果从首页传递了storeId，优先使用
-    if (options.storeId) {
-      this.setData({
-        storeId: options.storeId
-      });
+    // 首先加载基础数据
+    Promise.all([
+      this.loadStores(),
+      this.loadAccountTypes()
+    ]).then(() => {
+      // 基础数据加载完成后，设置筛选条件
 
-      // 获取并设置店铺名称
-      this.loadStoreInfo(options.storeId);
-    } else if (savedFilter.storeId) {
-      // 使用保存的筛选条件
-      this.setData({
-        storeId: savedFilter.storeId
-      });
-      this.loadStoreInfo(savedFilter.storeId);
-    }
+      // 如果从首页传递了storeId，优先使用
+      if (options.storeId) {
+        this.setData({
+          storeId: options.storeId
+        });
 
-    // 处理日期参数
-    if (options.startDate && options.endDate) {
-      this.setData({
-        startDate: options.startDate,
-        endDate: options.endDate
-      });
-    } else if (savedFilter.startDate && savedFilter.endDate) {
-      this.setData({
-        startDate: savedFilter.startDate,
-        endDate: savedFilter.endDate,
-        timeRange: savedFilter.timeRange || ''
-      });
-    } else {
-      // 否则初始化为最近一个月
-      this.initDateRange();
-    }
+        // 获取并设置店铺名称
+        this.loadStoreInfo(options.storeId);
+      } else if (savedFilter.storeId) {
+        // 使用保存的筛选条件
+        this.setData({
+          storeId: savedFilter.storeId
+        });
+        this.loadStoreInfo(savedFilter.storeId);
+      }
 
-    // 恢复保存的其他筛选条件
-    if (savedFilter.typeId) {
-      this.setData({
-        typeId: savedFilter.typeId
-      });
-    }
+      // 处理日期参数
+      if (options.startDate && options.endDate) {
+        this.setData({
+          startDate: options.startDate,
+          endDate: options.endDate
+        });
+      } else if (savedFilter.startDate && savedFilter.endDate) {
+        this.setData({
+          startDate: savedFilter.startDate,
+          endDate: savedFilter.endDate,
+          timeRange: savedFilter.timeRange || ''
+        });
+      } else {
+        // 否则初始化为最近一个月
+        this.initDateRange();
+      }
 
-    if (savedFilter.minAmount !== undefined) {
-      this.setData({
-        minAmount: savedFilter.minAmount
-      });
-    }
+      // 恢复保存的其他筛选条件
+      if (savedFilter.typeId) {
+        this.setData({
+          typeId: savedFilter.typeId
+        });
+      }
 
-    if (savedFilter.maxAmount !== undefined) {
-      this.setData({
-        maxAmount: savedFilter.maxAmount
-      });
-    }
+      if (savedFilter.minAmount !== undefined) {
+        this.setData({
+          minAmount: savedFilter.minAmount
+        });
+      }
+
+      if (savedFilter.maxAmount !== undefined) {
+        this.setData({
+          maxAmount: savedFilter.maxAmount
+        });
+      }
+
+      // 更新筛选状态
+      this.updateFilterStatus();
+
+      // 加载账目数据和统计
+      this.loadAccounts(true);
+      this.loadStatistics();
+    });
 
     // 检查是否需要直接显示添加界面
     if (options.showAdd === 'true') {
@@ -119,15 +134,6 @@ Page({
     setTimeout(() => {
       this.setData({ isFirstLoad: false });
     }, 2000);
-
-    // 加载数据
-    this.loadStores();
-    this.loadAccountTypes();
-    this.loadAccounts(true);
-    this.loadStatistics();
-
-    // 更新筛选状态
-    this.updateFilterStatus();
   },
 
   onShow: function () {
@@ -184,22 +190,38 @@ Page({
     };
 
     // 添加筛选条件，确保类型转换正确
-    if (this.data.storeId) {
-      // 确保storeId是字符串
-      console.log('处理筛选店铺ID:', {
-        original: this.data.storeId,
-        type: typeof this.data.storeId
-      });
-      params.store_id = String(this.data.storeId);
-      console.log('转换后的店铺ID:', {
-        converted: params.store_id,
-        type: typeof params.store_id
-      });
+    if (this.data.storeId !== undefined && this.data.storeId !== null && this.data.storeId !== '') {
+      // 确保storeId是字符串且不为0
+      const storeIdStr = String(this.data.storeId);
+      if (storeIdStr !== '0') {
+        console.log('处理筛选店铺ID:', {
+          original: this.data.storeId,
+          converted: storeIdStr,
+          type: typeof storeIdStr
+        });
+        params.store_id = storeIdStr;
+      } else {
+        console.log('店铺ID是0，不添加筛选条件');
+      }
+    } else {
+      console.log('未设置店铺ID或为空值');
     }
 
-    if (this.data.typeId) {
-      // 确保typeId是字符串
-      params.type_id = String(this.data.typeId);
+    if (this.data.typeId !== undefined && this.data.typeId !== null && this.data.typeId !== '') {
+      // 确保typeId是字符串且不为0
+      const typeIdStr = String(this.data.typeId);
+      if (typeIdStr !== '0') {
+        console.log('处理筛选类型ID:', {
+          original: this.data.typeId,
+          converted: typeIdStr,
+          type: typeof typeIdStr
+        });
+        params.type_id = typeIdStr;
+      } else {
+        console.log('类型ID是0，不添加筛选条件');
+      }
+    } else {
+      console.log('未设置类型ID或为空值');
     }
 
     if (this.data.searchKeyword && this.data.searchKeyword.trim()) {
@@ -406,69 +428,97 @@ Page({
 
   // 加载店铺列表
   loadStores: function () {
-    request.get(config.apis.stores.list)
-      .then(res => {
-        if (!res.data || !Array.isArray(res.data)) {
-          console.error('返回店铺数据格式错误:', res);
-          return;
-        }
-
-        const storesList = res.data || [];
-        // 添加"全部店铺"选项
-        const stores = [
-          { id: '', name: '全部店铺' },
-          ...storesList
-        ];
-
-        this.setData({ stores });
-
-        // 如果有店铺ID，设置对应的店铺名称
-        if (this.data.storeId) {
-          const selectedStore = stores.find(store => String(store.id) === String(this.data.storeId));
-          if (selectedStore) {
-            this.setData({
-              selectedStoreName: selectedStore.name
-            });
+    console.log('开始加载店铺列表');
+    return new Promise((resolve, reject) => {
+      request.get(config.apis.stores.list)
+        .then(res => {
+          if (!res.data || !Array.isArray(res.data)) {
+            console.error('返回店铺数据格式错误:', res);
+            reject(new Error('店铺数据格式错误'));
+            return;
           }
-        }
-      })
-      .catch(err => {
-        console.error('加载店铺列表失败:', err);
-      });
+
+          console.log('返回的店铺数据:', JSON.stringify(res.data));
+
+          // 确保所有店铺ID是字符串类型
+          const storesList = res.data.map(store => ({
+            ...store,
+            id: String(store.id) // 确保ID是字符串
+          }));
+
+          // 添加"全部店铺"选项
+          const stores = [
+            { id: '', name: '全部店铺' },
+            ...storesList
+          ];
+
+          console.log('处理后的店铺列表:', JSON.stringify(stores));
+          this.setData({ stores });
+
+          // 如果有店铺ID，设置对应的店铺名称
+          if (this.data.storeId) {
+            console.log('尝试匹配店铺ID:', this.data.storeId);
+            const selectedStore = stores.find(store => String(store.id) === String(this.data.storeId));
+            if (selectedStore) {
+              console.log('找到匹配的店铺:', selectedStore);
+              this.setData({
+                selectedStoreName: selectedStore.name
+              });
+            } else {
+              console.error('未找到匹配的店铺:', {
+                storeId: this.data.storeId,
+                availableStores: stores.map(s => ({ id: s.id, name: s.name }))
+              });
+            }
+          }
+
+          resolve(stores);
+        })
+        .catch(err => {
+          console.error('加载店铺列表失败:', err);
+          reject(err);
+        });
+    });
   },
 
   // 加载账务类型
   loadAccountTypes: function () {
-    request.get(config.apis.accountTypes.list)
-      .then(res => {
-        if (!res.data || !Array.isArray(res.data)) {
-          console.error('返回账务类型数据格式错误:', res);
-          return;
-        }
-
-        const typesList = res.data || [];
-
-        // 添加"全部类型"选项
-        const accountTypes = [
-          { id: '', name: '全部类型' },
-          ...typesList
-        ];
-
-        this.setData({ accountTypes });
-
-        // 如果有类型ID，设置对应的类型名称
-        if (this.data.typeId) {
-          const selectedType = accountTypes.find(type => String(type.id) === String(this.data.typeId));
-          if (selectedType) {
-            this.setData({
-              selectedTypeName: selectedType.name
-            });
+    return new Promise((resolve, reject) => {
+      request.get(config.apis.accountTypes.list)
+        .then(res => {
+          if (!res.data || !Array.isArray(res.data)) {
+            console.error('返回账务类型数据格式错误:', res);
+            reject(new Error('账务类型数据格式错误'));
+            return;
           }
-        }
-      })
-      .catch(err => {
-        console.error('加载账务类型失败:', err);
-      });
+
+          const typesList = res.data || [];
+
+          // 添加"全部类型"选项
+          const accountTypes = [
+            { id: '', name: '全部类型' },
+            ...typesList
+          ];
+
+          this.setData({ accountTypes });
+
+          // 如果有类型ID，设置对应的类型名称
+          if (this.data.typeId) {
+            const selectedType = accountTypes.find(type => String(type.id) === String(this.data.typeId));
+            if (selectedType) {
+              this.setData({
+                selectedTypeName: selectedType.name
+              });
+            }
+          }
+
+          resolve(accountTypes);
+        })
+        .catch(err => {
+          console.error('加载账务类型失败:', err);
+          reject(err);
+        });
+    });
   },
 
   // 切换排序顺序
@@ -679,6 +729,45 @@ Page({
 
   // 应用筛选
   applyFilter: function () {
+    console.log('应用筛选 - 当前筛选条件:', {
+      storeId: this.data.storeId,
+      typeId: this.data.typeId,
+      startDate: this.data.startDate,
+      endDate: this.data.endDate,
+      minAmount: this.data.minAmount,
+      maxAmount: this.data.maxAmount,
+      searchKeyword: this.data.searchKeyword
+    });
+
+    // 处理店铺ID，确保它是字符串类型，特殊值处理为空字符串
+    let storeId = this.data.storeId;
+    if (storeId === undefined || storeId === null || storeId === 0) {
+      storeId = '';
+    } else {
+      storeId = String(storeId);
+    }
+
+    // 处理类型ID，确保它是字符串类型，特殊值处理为空字符串
+    let typeId = this.data.typeId;
+    if (typeId === undefined || typeId === null || typeId === 0) {
+      typeId = '';
+    } else {
+      typeId = String(typeId);
+    }
+
+    console.log('筛选处理后的ID值：', {
+      storeId: storeId,
+      typeId: typeId,
+      storeIdType: typeof storeId,
+      typeIdType: typeof typeId
+    });
+
+    // 更新处理后的值
+    this.setData({
+      storeId: storeId,
+      typeId: typeId
+    });
+
     // 保存筛选设置
     this.saveFilterSettings();
 
@@ -686,6 +775,13 @@ Page({
     this.updateFilterStatus();
 
     this.hideFilter();
+
+    // 添加日志
+    console.log('即将加载数据 - 最终筛选条件:', {
+      storeId: this.data.storeId,
+      typeId: this.data.typeId
+    });
+
     this.loadAccounts(true);
     this.loadStatistics();
   },
@@ -783,6 +879,14 @@ Page({
   // 店铺选择
   bindStoreChange: function (e) {
     const index = e.detail.value;
+    if (index === undefined || !this.data.stores || index >= this.data.stores.length) {
+      console.error('店铺选择错误: 无效的索引或店铺列表', {
+        index: index,
+        storesLength: this.data.stores ? this.data.stores.length : 0
+      });
+      return;
+    }
+
     const storeId = this.data.stores[index].id;
     const storeName = this.data.stores[index].name;
 
@@ -794,9 +898,15 @@ Page({
       allStores: JSON.stringify(this.data.stores)
     });
 
+    // 确保storeId是字符串类型并且不为undefined
     this.setData({
-      storeId: storeId,
-      selectedStoreName: storeName
+      storeId: String(storeId || ''),
+      selectedStoreName: storeName || '未知店铺'
+    });
+
+    console.log('更新后的店铺ID:', {
+      storeId: this.data.storeId,
+      type: typeof this.data.storeId
     });
   },
 
@@ -932,12 +1042,32 @@ Page({
       params.end_date = this.data.endDate;
     }
 
-    if (this.data.storeId) {
-      params.store_id = String(this.data.storeId);
+    // 处理店铺ID，使用与loadAccounts相同的逻辑
+    if (this.data.storeId !== undefined && this.data.storeId !== null && this.data.storeId !== '') {
+      const storeIdStr = String(this.data.storeId);
+      if (storeIdStr !== '0') {
+        console.log('统计 - 处理店铺ID:', {
+          original: this.data.storeId,
+          converted: storeIdStr
+        });
+        params.store_id = storeIdStr;
+      } else {
+        console.log('统计 - 店铺ID是0，不添加筛选条件');
+      }
     }
 
-    if (this.data.typeId) {
-      params.type_id = String(this.data.typeId);
+    // 处理类型ID，使用与loadAccounts相同的逻辑
+    if (this.data.typeId !== undefined && this.data.typeId !== null && this.data.typeId !== '') {
+      const typeIdStr = String(this.data.typeId);
+      if (typeIdStr !== '0') {
+        console.log('统计 - 处理类型ID:', {
+          original: this.data.typeId,
+          converted: typeIdStr
+        });
+        params.type_id = typeIdStr;
+      } else {
+        console.log('统计 - 类型ID是0，不添加筛选条件');
+      }
     }
 
     if (this.data.minAmount) {
@@ -1000,12 +1130,44 @@ Page({
 
   // 加载店铺详情
   loadStoreInfo: function (storeId) {
-    request.get(`${config.apis.stores.detail}?id=${storeId}`)
+    console.log('尝试加载店铺详情, ID:', storeId);
+
+    // 尝试首先从已经加载的店铺列表中查找
+    if (this.data.stores && this.data.stores.length > 0) {
+      const storeFromCache = this.data.stores.find(store => String(store.id) === String(storeId));
+      if (storeFromCache) {
+        console.log('从已加载的店铺列表中找到店铺:', storeFromCache);
+        this.setData({
+          selectedStoreName: storeFromCache.name
+        });
+        return; // 找到店铺，直接返回
+      }
+    }
+
+    // 如果本地没有，再发起请求获取
+    console.log('本地未找到店铺，发起API请求:', `${config.apis.stores.detail}?id=${storeId}`);
+    request.get(`${config.apis.stores.detail}`)
       .then(res => {
-        if (res.data && res.data.name) {
+        if (!res.data || !Array.isArray(res.data)) {
+          console.error('返回店铺数据格式错误:', res);
+          return;
+        }
+
+        // 从返回的店铺列表中查找指定ID的店铺
+        const store = res.data.find(item => String(item.id) === String(storeId));
+        if (store) {
+          console.log('API返回中找到店铺:', store);
           this.setData({
-            selectedStoreName: res.data.name
+            selectedStoreName: store.name
           });
+
+          // 更新本地店铺列表缓存
+          if (!this.data.stores || this.data.stores.length === 0) {
+            const stores = [{ id: '', name: '全部店铺' }, ...res.data];
+            this.setData({ stores });
+          }
+        } else {
+          console.warn('在API返回中未找到店铺ID:', storeId);
         }
       })
       .catch(err => {

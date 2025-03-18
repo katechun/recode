@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"account/backend/database"
@@ -160,6 +162,31 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
 		return
+	}
+
+	// 增强店铺ID处理
+	if storeID != "" {
+		log.Printf("【API筛选调试】原始店铺ID: '%s', 类型: %T", storeID, storeID)
+
+		// 尝试进一步清理店铺ID
+		storeID = strings.TrimSpace(storeID)
+
+		if storeID == "undefined" || storeID == "null" || storeID == "0" {
+			log.Printf("【API筛选调试】店铺ID是特殊值(%s)，设为空", storeID)
+			storeID = ""
+		}
+
+		// 检查是否只包含数字，如果是且值为0，也设为空
+		if matched, _ := regexp.MatchString("^[0-9]+$", storeID); matched {
+			if val, err := strconv.ParseInt(storeID, 10, 64); err == nil && val == 0 {
+				log.Printf("【API筛选调试】店铺ID是数值0，设为空")
+				storeID = ""
+			}
+		}
+
+		log.Printf("【API筛选调试】处理后的店铺ID: '%s'", storeID)
+	} else {
+		log.Printf("【API筛选调试】店铺ID为空")
 	}
 
 	// 记录请求参数
@@ -320,6 +347,31 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	// 记录请求参数以便调试
 	log.Printf("统计请求参数: storeID=%s, typeID=%s, startDate=%s, endDate=%s, minAmount=%s, maxAmount=%s",
 		storeID, typeID, startDate, endDate, minAmount, maxAmount)
+
+	// 增强店铺ID处理 - 与List函数保持一致
+	if storeID != "" {
+		log.Printf("【统计API调试】原始店铺ID: '%s', 类型: %T", storeID, storeID)
+
+		// 尝试进一步清理店铺ID
+		storeID = strings.TrimSpace(storeID)
+
+		if storeID == "undefined" || storeID == "null" || storeID == "0" {
+			log.Printf("【统计API调试】店铺ID是特殊值(%s)，设为空", storeID)
+			storeID = ""
+		}
+
+		// 检查是否只包含数字，如果是且值为0，也设为空
+		if matched, _ := regexp.MatchString("^[0-9]+$", storeID); matched {
+			if val, err := strconv.ParseInt(storeID, 10, 64); err == nil && val == 0 {
+				log.Printf("【统计API调试】店铺ID是数值0，设为空")
+				storeID = ""
+			}
+		}
+
+		log.Printf("【统计API调试】处理后的店铺ID: '%s'", storeID)
+	} else {
+		log.Printf("【统计API调试】店铺ID为空")
+	}
 
 	// 从URL参数或Header中获取用户ID
 	userIDStr := r.URL.Query().Get("userId")

@@ -118,21 +118,27 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 	// 添加其他筛选条件
 	if storeID != "" && storeID != "0" {
 		// 记录原始storeID值和类型
-		log.Printf("筛选店铺ID: '%s', 类型: %T", storeID, storeID)
-		
+		log.Printf("【店铺筛选调试】筛选店铺ID: '%s', 类型: %T", storeID, storeID)
+
+		// 尝试转换为数字，验证是否为有效ID
 		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
 		if err != nil {
-			log.Printf("无效的店铺ID: %s, 错误: %v", storeID, err)
-			// 如果解析失败，尝试直接使用字符串比较
-			query += " AND a.store_id = ?"
-			args = append(args, storeID)
-			log.Printf("使用字符串比较店铺ID: %s", storeID)
+			log.Printf("【店铺筛选调试】店铺ID不是有效数字: %v", err)
+		} else if storeIDInt > 0 {
+			log.Printf("【店铺筛选调试】店铺ID是有效数字: %d", storeIDInt)
 		} else {
-			// 如果解析成功，使用整数比较
-			query += " AND a.store_id = ?"
-			args = append(args, storeIDInt)
-			log.Printf("使用整数比较店铺ID: %d", storeIDInt)
+			log.Printf("【店铺筛选调试】店铺ID是0或负数，将视为无效ID")
+			storeID = "" // 无效ID按空处理
 		}
+
+		// 如果ID有效，添加筛选条件
+		if storeID != "" {
+			query += " AND a.store_id = ?"
+			args = append(args, storeID) // 使用原始字符串进行比较
+			log.Printf("【店铺筛选调试】添加店铺筛选条件，ID: %s", storeID)
+		}
+	} else {
+		log.Printf("【店铺筛选调试】未提供店铺ID筛选或ID为0，将返回所有店铺数据")
 	}
 
 	if typeID != "" && typeID != "0" {
@@ -283,6 +289,17 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 		accounts = append(accounts, account)
 	}
 
+	// 打印查询结果中的店铺信息，用于调试
+	if storeID != "" && storeID != "0" {
+		log.Printf("【店铺筛选调试】筛选结果数量: %d", len(accounts))
+		for i, account := range accounts {
+			storeIDInResult := account["store_id"]
+			storeNameInResult := account["store_name"]
+			log.Printf("【店铺筛选调试】结果[%d]: 店铺ID=%v, 店铺名=%v",
+				i, storeIDInResult, storeNameInResult)
+		}
+	}
+
 	return accounts, nil
 }
 
@@ -323,39 +340,34 @@ func GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmo
 		// 记录原始storeID值和类型
 		log.Printf("统计查询 - 筛选店铺ID: '%s', 类型: %T", storeID, storeID)
 		
+		// 尝试转换为数字，验证是否为有效ID
 		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
 		if err != nil {
-			log.Printf("统计查询 - 无效的店铺ID: %s, 错误: %v", storeID, err)
-			// 如果解析失败，尝试直接使用字符串比较
-			query += " AND store_id = ?"
-			args = append(args, storeID)
-			log.Printf("统计查询 - 使用字符串比较店铺ID: %s", storeID)
+			log.Printf("统计查询 - 店铺ID不是有效数字: %v", err)
+		} else if storeIDInt > 0 {
+			log.Printf("统计查询 - 店铺ID是有效数字: %d", storeIDInt)
 		} else {
-			// 如果解析成功，使用整数比较
+			log.Printf("统计查询 - 店铺ID是0或负数，将视为无效ID")
+			storeID = "" // 无效ID按空处理
+		}
+
+		// 如果ID有效，添加筛选条件
+		if storeID != "" {
 			query += " AND store_id = ?"
-			args = append(args, storeIDInt)
-			log.Printf("统计查询 - 使用整数比较店铺ID: %d", storeIDInt)
+			args = append(args, storeID) // 使用原始字符串进行比较
+			log.Printf("统计查询 - 添加店铺筛选条件，ID: %s", storeID)
 		}
 	}
 
 	// 添加账务类型筛选
 	if typeID != "" && typeID != "0" {
-		// 记录原始typeID值和类型
-		log.Printf("统计查询 - 筛选类型ID: '%s', 类型: %T", typeID, typeID)
+		// 记录原始typeID值
+		log.Printf("统计查询 - 筛选类型ID: '%s'", typeID)
 		
-		typeIDInt, err := strconv.ParseInt(typeID, 10, 64)
-		if err != nil {
-			log.Printf("统计查询 - 无效的类型ID: %s, 错误: %v", typeID, err)
-			// 如果解析失败，尝试直接使用字符串比较
-			query += " AND type_id = ?"
-			args = append(args, typeID)
-			log.Printf("统计查询 - 使用字符串比较类型ID: %s", typeID)
-		} else {
-			// 如果解析成功，使用整数比较
-			query += " AND type_id = ?"
-			args = append(args, typeIDInt)
-			log.Printf("统计查询 - 使用整数比较类型ID: %d", typeIDInt)
-		}
+		// 直接使用字符串比较，保持与店铺ID筛选一致
+		query += " AND type_id = ?"
+		args = append(args, typeID)
+		log.Printf("统计查询 - 使用字符串比较类型ID: %s", typeID)
 	}
 
 	if startDate != "" {

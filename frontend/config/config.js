@@ -33,7 +33,8 @@ const config = {
       list: '/api/stores',
       create: '/api/stores/create',
       update: '/api/stores/update',
-      delete: '/api/stores/delete'
+      delete: '/api/stores/delete',
+      detail: '/api/stores'
     },
     accountTypes: {
       list: '/api/account-types',

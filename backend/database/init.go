@@ -170,11 +170,11 @@ func CreateTables() error {
 		last_login TIMESTAMP
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建用户表失败: %w", err)
 	}
-
+	
 	// 创建店铺表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS stores (
@@ -186,11 +186,11 @@ func CreateTables() error {
 		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建店铺表失败: %w", err)
 	}
-
+	
 	// 创建账务类型表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS account_types (
@@ -204,11 +204,11 @@ func CreateTables() error {
 		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建账务类型表失败: %w", err)
 	}
-
+	
 	// 创建账务记录表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS accounts (
@@ -224,11 +224,11 @@ func CreateTables() error {
 		FOREIGN KEY (type_id) REFERENCES account_types(id)
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建账务记录表失败: %w", err)
 	}
-
+	
 	// 创建用户店铺权限表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS user_store_permissions (
@@ -241,11 +241,11 @@ func CreateTables() error {
 		UNIQUE(user_id, store_id)
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建用户店铺权限表失败: %w", err)
 	}
-
+	
 	// 创建用户默认设置表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS user_default_settings (
@@ -258,11 +258,11 @@ func CreateTables() error {
 		FOREIGN KEY (default_store_id) REFERENCES stores(id) ON DELETE SET NULL
 	)
 	`)
-
+	
 	if err != nil {
 		return fmt.Errorf("创建用户默认设置表失败: %w", err)
 	}
-
+	
 	return nil
 }
 
