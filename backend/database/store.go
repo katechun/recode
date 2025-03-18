@@ -147,10 +147,22 @@ func DeleteStore(storeID int64) error {
 		return err
 	}
 
-	// 如果有用户默认设置使用该店铺，更新为其他店铺或清空
+	// 如果有用户默认设置使用该店铺，更新为其他店铺或设置为NULL
 	_, err = tx.Exec(`
 		UPDATE user_default_settings 
-		SET store_id = (SELECT id FROM stores LIMIT 1) 
+		SET store_id = (
+			SELECT id FROM stores WHERE id != ? LIMIT 1
+		)
+		WHERE store_id = ?`, storeID, storeID)
+	if err != nil {
+		tx.Rollback()
+		return err
+	}
+
+	// 如果没有找到其他店铺，则设置为NULL
+	_, err = tx.Exec(`
+		UPDATE user_default_settings 
+		SET store_id = NULL 
 		WHERE store_id = ?`, storeID)
 	if err != nil {
 		tx.Rollback()

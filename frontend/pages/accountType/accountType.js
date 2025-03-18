@@ -15,7 +15,8 @@ Page({
     currentType: {
       id: 0,
       name: '',
-      is_expense: true
+      is_expense: true,
+      category: 2  // 默认为支出类型，对应category=2
     },
     categoryOptions: [
       { id: true, name: '支出' },
@@ -136,7 +137,8 @@ Page({
       currentType: {
         id: 0,
         name: '',
-        is_expense: true
+        is_expense: true,
+        category: 2  // 默认为支出类型，对应category=2
       },
       categoryIndex: 0,
       errorMsg: ''
@@ -176,9 +178,11 @@ Page({
   // 选择类型分类
   bindCategoryChange: function (e) {
     const index = e.detail.value;
+    const isExpense = this.data.categoryOptions[index].id;
     this.setData({
       categoryIndex: index,
-      'currentType.is_expense': this.data.categoryOptions[index].id
+      'currentType.is_expense': isExpense,
+      'currentType.category': isExpense ? 2 : 1  // 根据是否为支出设置category值
     });
   },
 
@@ -226,13 +230,20 @@ Page({
   },
 
   // 提交表单
-  submitType: function () {
+  submitForm: function () {
     const { currentType, isEditing } = this.data;
 
     // 表单验证
     if (!currentType.name.trim()) {
       this.setData({ errorMsg: '类型名称不能为空' });
       return;
+    }
+
+    // 确保category字段已设置
+    if (!currentType.category) {
+      this.setData({
+        'currentType.category': currentType.is_expense ? 2 : 1  // 根据is_expense设置category
+      });
     }
 
     wx.showLoading({
@@ -245,6 +256,9 @@ Page({
 
     const requestMethod = isEditing ? request.put : request.post;
 
+    // 添加日志以检查请求数据
+    console.log('提交账务类型数据:', currentType);
+
     requestMethod(url, currentType)
       .then(res => {
         wx.hideLoading();
@@ -255,10 +269,11 @@ Page({
         this.setData({ showDialog: false });
         this.loadAccountTypes();
       })
-      .catch(() => {
+      .catch((err) => {
         wx.hideLoading();
+        console.error('请求失败:', err);
         this.setData({
-          errorMsg: '网络请求失败'
+          errorMsg: '网络请求失败：' + (err.message || '未知错误')
         });
       });
   }
