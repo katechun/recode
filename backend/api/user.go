@@ -52,14 +52,14 @@ func SendResponse(w http.ResponseWriter, httpStatus, code int, message string, d
 // Login 处理用户登录请求
 func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	// 添加详细的请求日志
-	log.Printf("收到登录请求: Method=%s, RemoteAddr=%s, ContentType=%s, ContentLength=%d", 
+	log.Printf("收到登录请求: Method=%s, RemoteAddr=%s, ContentType=%s, ContentLength=%d",
 		r.Method, r.RemoteAddr, r.Header.Get("Content-Type"), r.ContentLength)
-	
+
 	// 设置CORS头
-	w.Header().Set("Access-Control-Allow-Origin", "*") 
+	w.Header().Set("Access-Control-Allow-Origin", "*")
 	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID")
-	
+
 	// 处理OPTIONS预检请求
 	if r.Method == "OPTIONS" {
 		w.WriteHeader(http.StatusOK)
@@ -92,7 +92,7 @@ func (h *UserHandler) Login(w http.ResponseWriter, r *http.Request) {
 	var user models.User
 	var hashedPassword string
 	var avatar sql.NullString // 使用 sql.NullString 来处理可能为 NULL 的 avatar 列
-	
+
 	// 修改查询，使用 sql.NullString 接收 avatar
 	err = database.DB.QueryRow(`
 		SELECT id, username, nickname, password, role, avatar
@@ -402,7 +402,7 @@ func (h *UserHandler) ResetPassword(w http.ResponseWriter, r *http.Request) {
 // GetUserStorePermissions 获取用户的店铺权限
 func (h *UserHandler) GetUserStorePermissions(w http.ResponseWriter, r *http.Request) {
 	log.Printf("收到获取用户权限请求: %s %s", r.Method, r.URL.String())
-	
+
 	// 从查询参数中获取用户ID
 	userIDStr := r.URL.Query().Get("user_id")
 	if userIDStr == "" {
@@ -410,14 +410,14 @@ func (h *UserHandler) GetUserStorePermissions(w http.ResponseWriter, r *http.Req
 		SendResponse(w, http.StatusBadRequest, 400, "缺少用户ID参数", nil)
 		return
 	}
-	
+
 	userID, err := strconv.ParseInt(userIDStr, 10, 64)
 	if err != nil {
 		log.Printf("无效的用户ID: %s, 错误: %v", userIDStr, err)
 		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
 		return
 	}
-	
+
 	// 验证请求用户是否有权限管理其他用户
 	requestUserID := r.Header.Get("X-User-ID")
 	if requestUserID == "" {
@@ -425,7 +425,7 @@ func (h *UserHandler) GetUserStorePermissions(w http.ResponseWriter, r *http.Req
 		SendResponse(w, http.StatusUnauthorized, 401, "未授权访问", nil)
 		return
 	}
-	
+
 	requestUserIDInt, _ := strconv.ParseInt(requestUserID, 10, 64)
 	isAdmin, err := database.IsUserAdmin(requestUserIDInt)
 	if err != nil {
@@ -433,25 +433,25 @@ func (h *UserHandler) GetUserStorePermissions(w http.ResponseWriter, r *http.Req
 		SendResponse(w, http.StatusInternalServerError, 500, "检查用户权限失败", nil)
 		return
 	}
-	
+
 	if !isAdmin && requestUserIDInt != userID {
 		log.Printf("权限拒绝: 用户%d尝试管理用户%d的权限", requestUserIDInt, userID)
 		SendResponse(w, http.StatusForbidden, 403, "无权限执行此操作", nil)
 		return
 	}
-	
+
 	// 获取用户的店铺权限
 	permissions, err := database.GetUserStorePermissions(userID)
 	if err != nil {
 		errMsg := fmt.Sprintf("获取用户权限失败: %v", err)
 		log.Printf("【错误】%s", errMsg)
 		SendResponse(w, http.StatusInternalServerError, 500, errMsg, map[string]interface{}{
-			"url": r.URL.String(),
+			"url":   r.URL.String(),
 			"error": errMsg,
 		})
 		return
 	}
-	
+
 	log.Printf("成功获取用户%d的权限，返回%d条记录", userID, len(permissions))
 	SendResponse(w, http.StatusOK, 200, "获取用户权限成功", permissions)
 }
@@ -465,8 +465,8 @@ func (h *UserHandler) UpdateUserStorePermissions(w http.ResponseWriter, r *http.
 
 	// 解析请求体
 	var req struct {
-		UserId    int64   `json:"user_id"`
-		StoreIds  []int64 `json:"store_ids"`
+		UserId   int64   `json:"user_id"`
+		StoreIds []int64 `json:"store_ids"`
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -483,4 +483,129 @@ func (h *UserHandler) UpdateUserStorePermissions(w http.ResponseWriter, r *http.
 
 	// 成功时返回
 	SendResponse(w, http.StatusOK, 200, "权限更新成功", nil)
+}
+
+// CreateUserAlt 使用自定义请求结构创建新用户
+func (h *UserHandler) CreateUserAlt(w http.ResponseWriter, r *http.Request) {
+	// 启用CORS
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-User-ID")
+
+	// 处理OPTIONS预检请求
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
+
+	if r.Method != http.MethodPost {
+		http.Error(w, "仅支持POST请求", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 验证权限
+	userID := r.Header.Get("X-User-ID")
+	if userID == "" {
+		SendResponse(w, http.StatusUnauthorized, 401, "未授权访问", nil)
+		return
+	}
+
+	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	isAdmin, err := database.IsUserAdmin(userIDInt)
+	if err != nil || !isAdmin {
+		SendResponse(w, http.StatusForbidden, 403, "无权限执行此操作", nil)
+		return
+	}
+
+	// 打印请求体内容以便调试
+	body, _ := io.ReadAll(r.Body)
+	r.Body = io.NopCloser(bytes.NewBuffer(body)) // 重新设置请求体，因为读取后需要重置
+	log.Printf("创建用户请求体: %s", string(body))
+
+	// 使用自定义结构体解析请求
+	var createUserRequest struct {
+		Username      string          `json:"username"`
+		Password      string          `json:"password"`
+		UserPassword  string          `json:"user_password"`
+		PasswordField string          `json:"password_field"`
+		Pwd           string          `json:"pwd"`
+		Pass          string          `json:"pass"`
+		Passwd        string          `json:"passwd"`
+		P             string          `json:"p"`
+		Nickname      string          `json:"nickname"`
+		Role          models.UserRole `json:"role"`
+	}
+
+	err = json.NewDecoder(r.Body).Decode(&createUserRequest)
+	if err != nil {
+		SendResponse(w, http.StatusBadRequest, 400, "请求数据格式错误: "+err.Error(), nil)
+		return
+	}
+
+	// 确定要使用的密码
+	password := createUserRequest.Password
+	if password == "" {
+		password = createUserRequest.UserPassword
+	}
+	if password == "" {
+		password = createUserRequest.PasswordField
+	}
+	if password == "" {
+		password = createUserRequest.Pwd
+	}
+	if password == "" {
+		password = createUserRequest.Pass
+	}
+	if password == "" {
+		password = createUserRequest.Passwd
+	}
+	if password == "" {
+		password = createUserRequest.P
+	}
+
+	// 验证数据
+	if createUserRequest.Username == "" {
+		SendResponse(w, http.StatusBadRequest, 400, "用户名不能为空", nil)
+		return
+	}
+	if password == "" {
+		SendResponse(w, http.StatusBadRequest, 400, "密码不能为空", nil)
+		return
+	}
+	if createUserRequest.Role < 1 || createUserRequest.Role > 2 {
+		SendResponse(w, http.StatusBadRequest, 400, "用户角色无效", nil)
+		return
+	}
+
+	// 检查用户名是否已存在
+	exists, err := database.CheckUserExists(createUserRequest.Username)
+	if err != nil {
+		SendResponse(w, http.StatusInternalServerError, 500, "检查用户名失败: "+err.Error(), nil)
+		return
+	}
+	if exists {
+		SendResponse(w, http.StatusBadRequest, 400, "用户名已存在", nil)
+		return
+	}
+
+	// 创建User对象
+	user := models.User{
+		Username: createUserRequest.Username,
+		Password: password,
+		Nickname: createUserRequest.Nickname,
+		Role:     createUserRequest.Role,
+	}
+
+	// 创建用户
+	id, err := database.CreateUser(user)
+	if err != nil {
+		SendResponse(w, http.StatusInternalServerError, 500, "创建用户失败: "+err.Error(), nil)
+		return
+	}
+
+	// 隐藏密码
+	user.ID = id
+	user.Password = ""
+
+	SendResponse(w, http.StatusOK, 200, "创建用户成功", user)
 }

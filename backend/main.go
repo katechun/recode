@@ -102,8 +102,9 @@ func main() {
 	// 用户管理相关API
 	router.HandleFunc("/api/users", api.CORSMiddleware(userHandler.GetAllUsers))
 	router.HandleFunc("/api/users/create", api.CORSMiddleware(userHandler.CreateUser))
+	router.HandleFunc("/api/users/create-alt", api.CORSMiddleware(userHandler.CreateUserAlt))
 	router.HandleFunc("/api/users/update", api.CORSMiddleware(userHandler.UpdateUser))
-	router.HandleFunc("/api/users/delete", api.CORSMiddleware(userHandler.DeleteUser))
+	router.HandleFunc("/api/users/delete", api.CORSMiddleware(userHandler.DeleteUser)).Methods("DELETE", "OPTIONS")
 	router.HandleFunc("/api/users/reset-password", api.CORSMiddleware(userHandler.ResetPassword))
 	// 用户权限API - 使用Methods指定允许的HTTP方法
 	router.HandleFunc("/api/users/permissions", api.CORSMiddleware(userHandler.GetUserStorePermissions)).Methods("GET")

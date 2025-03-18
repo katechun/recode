@@ -380,24 +380,37 @@ Page({
 
   // 删除用户
   deleteUser: function (userId) {
+    if (!userId) {
+      wx.showToast({
+        title: '用户ID无效',
+        icon: 'none'
+      });
+      return;
+    }
+
     wx.showLoading({
       title: '删除中...',
+      mask: true
     });
 
-    request.delete(config.apis.users.delete, {
-      params: { id: userId }  // 添加查询参数
-    })
+    // 根据后端API要求，userId应作为查询参数传递
+    // 查看后端代码: targetUserID := r.URL.Query().Get("id")
+    const deleteUrl = `${config.apis.users.delete}?id=${userId}`;
+    console.log('删除用户请求URL:', deleteUrl);
+
+    request.delete(deleteUrl)
       .then(res => {
         wx.hideLoading();
-        if (res.data) {
+        if (res && res.code === 200) {
           wx.showToast({
             title: '删除成功',
             icon: 'success'
           });
           this.loadUsers();
         } else {
+          console.warn('删除用户返回异常:', res);
           wx.showToast({
-            title: '删除失败',
+            title: (res && res.message) ? res.message : '删除失败',
             icon: 'none'
           });
         }
@@ -405,9 +418,23 @@ Page({
       .catch(err => {
         wx.hideLoading();
         console.error('删除用户失败:', err);
+
+        let errorMsg = '网络请求失败';
+        if (err) {
+          if (err.response && err.response.message) {
+            // 使用后端返回的具体错误消息
+            errorMsg = err.response.message;
+          } else if (err.message) {
+            errorMsg = err.message;
+          } else if (err.errMsg) {
+            errorMsg = err.errMsg;
+          }
+        }
+
         wx.showToast({
-          title: '网络请求失败',
-          icon: 'none'
+          title: errorMsg,
+          icon: 'none',
+          duration: 3000  // 显示时间更长，以便用户看清错误信息
         });
       });
   },
@@ -439,7 +466,7 @@ Page({
   // 输入用户名
   inputUsername: function (e) {
     this.setData({
-      'currentUser.username': e.detail.value,
+      'currentUser.username': e.detail.value || '',
       errorMsg: ''
     });
   },
@@ -447,24 +474,27 @@ Page({
   // 输入密码
   inputPassword: function (e) {
     this.setData({
-      'currentUser.password': e.detail.value
+      'currentUser.password': e.detail.value || ''
     });
   },
 
   // 输入昵称
   inputNickname: function (e) {
     this.setData({
-      'currentUser.nickname': e.detail.value
+      'currentUser.nickname': e.detail.value || ''
     });
   },
 
   // 角色选择
   bindRoleChange: function (e) {
     const index = parseInt(e.detail.value);
+    // 确保角色值是数字类型 (1:管理员, 2:店员)
+    const roleValue = this.data.roleOptions[index].id;
     this.setData({
       roleIndex: index,
-      'currentUser.role': this.data.roleOptions[index].id
+      'currentUser.role': roleValue
     });
+    console.log('已选择角色:', roleValue, typeof roleValue);
   },
 
   // 输入新密码
@@ -485,58 +515,166 @@ Page({
 
   // 提交用户表单
   submitUser: function () {
-    const { currentUser, isEditing } = this.data;
+    // 处理编辑模式和新增模式的数据不同
+    const userData = {
+      id: this.data.isEditing ? this.data.currentUser.id : 0,
+      username: this.data.currentUser.username ? this.data.currentUser.username.trim() : '',
+      nickname: this.data.currentUser.nickname ? this.data.currentUser.nickname.trim() : '',
+      role: Number(this.data.currentUser.role)
+    };
 
-    // 表单验证
-    if (!currentUser.username.trim()) {
+    // 只在新增模式或密码字段存在时才添加密码
+    if (!this.data.isEditing && this.data.currentUser.password) {
+      userData.password = this.data.currentUser.password.trim();
+    } else if (this.data.currentUser.password) {
+      // 如果是编辑模式且用户输入了新密码，也添加
+      userData.password = this.data.currentUser.password.trim();
+    }
+
+    // 验证数据
+    if (!userData.username) {
       this.setData({ errorMsg: '用户名不能为空' });
       return;
     }
 
-    if (!isEditing && !currentUser.password.trim()) {
+    // 添加新用户时，密码是必须的
+    if (!this.data.isEditing && !userData.password) {
       this.setData({ errorMsg: '密码不能为空' });
       return;
     }
 
+    // 验证角色
+    if (!userData.role || (userData.role !== 1 && userData.role !== 2)) {
+      this.setData({ errorMsg: '请选择有效的用户角色' });
+      return;
+    }
+
+    // 显示加载提示
     wx.showLoading({
-      title: isEditing ? '更新中...' : '添加中...',
+      title: this.data.isEditing ? '更新中...' : '添加中...',
+      mask: true
     });
 
-    const url = isEditing
-      ? config.apis.users.update
-      : config.apis.users.create;
+    if (this.data.isEditing) {
+      // 编辑现有用户 - 不要重复添加apiBaseUrl
+      const url = config.apis.users.update;
 
-    const method = isEditing ? 'PUT' : 'POST';
+      // 在编辑模式下，如果没有设置新密码，从请求数据中移除密码字段
+      if (!userData.password) {
+        delete userData.password;
+      }
 
-    request.post(url, currentUser)
+      console.log('更新用户请求数据:', userData);
+
+      request.put({
+        url: url,
+        data: userData,
+        success: (res) => {
+          wx.hideLoading();
+          if (res && res.code === 200) {
+            wx.showToast({
+              title: '更新成功',
+              icon: 'success'
+            });
+            this.setData({ showDialog: false });
+            this.loadUsers();
+          } else {
+            this.setData({
+              errorMsg: res && res.message ? res.message : '更新失败'
+            });
+          }
+        },
+        fail: (error) => {
+          wx.hideLoading();
+          this.setData({
+            errorMsg: '请求失败: ' + (error.message || error)
+          });
+        }
+      });
+    } else {
+      // 添加新用户，使用新的createUser方法
+      this.createUser(userData);
+    }
+  },
+
+  // 创建用户的专用函数 - 尝试一种新的方法，用专门的字段名称
+  createUser: function (userData) {
+    // 确保密码字段存在且不为空
+    if (!userData.password) {
+      wx.hideLoading();
+      this.setData({
+        errorMsg: '密码不能为空'
+      });
+      return;
+    }
+
+    // 构建请求的URL - 使用新的替代API端点
+    const url = '/api/users/create-alt'; // 移除重复的apiBaseUrl
+
+    // 获取用户ID用于请求头
+    const userInfo = wx.getStorageSync('userInfo');
+    const userId = userInfo ? userInfo.id : '';
+
+    // 尝试使用特殊的自定义请求结构
+    console.log('尝试使用替代API创建用户');
+
+    // 创建请求数据 - 确保处理空值
+    const customData = {
+      username: userData.username || '',
+      password: userData.password || '',
+      nickname: userData.nickname || '',
+      role: Number(userData.role) || 2
+    };
+
+    // 记录详细的请求信息
+    console.log('发送创建用户请求:', {
+      url: url,
+      method: 'POST',
+      data: customData
+    });
+
+    // 发送请求
+    request.post(url, customData)
       .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
+        console.log('创建用户响应:', res);
+
+        if (res && res.code === 200) {
           wx.showToast({
-            title: isEditing ? '更新成功' : '添加成功',
+            title: '添加成功',
             icon: 'success'
           });
           this.setData({ showDialog: false });
           this.loadUsers();
         } else {
+          let errorMsg = '添加失败';
+
+          console.error('创建用户失败详情:', {
+            response: res
+          });
+
+          if (res && res.message) {
+            errorMsg = res.message;
+          }
+
           this.setData({
-            errorMsg: res.data.message || (isEditing ? '更新失败' : '添加失败')
+            errorMsg: errorMsg
           });
         }
       })
       .catch(err => {
         wx.hideLoading();
-        console.error('提交用户表单失败:', err);
+        console.error('创建用户请求失败:', err);
+
         this.setData({
-          errorMsg: '网络请求失败'
+          errorMsg: err.message || err.errMsg || '网络请求失败'
         });
       });
   },
 
   // 提交重置密码
   submitResetPassword: function () {
-    // 表单验证
-    if (!this.data.newPassword.trim()) {
+    if (!this.data.newPassword) {
       this.setData({ resetErrorMsg: '新密码不能为空' });
       return;
     }
@@ -548,31 +686,55 @@ Page({
 
     wx.showLoading({
       title: '重置中...',
+      mask: true
     });
 
-    request.post(config.apis.users.resetPassword, {
+    const resetData = {
       user_id: this.data.targetUserId,
       new_password: this.data.newPassword
-    })
+    };
+
+    console.log('重置密码请求数据:', resetData);
+
+    request.post(config.apis.users.resetPassword, resetData)
       .then(res => {
         wx.hideLoading();
-        if (res.data.code === 200) {
+        // 确保res不为null或undefined，并且有data属性
+        if (res && res.code === 200) {
           wx.showToast({
             title: '密码重置成功',
             icon: 'success'
           });
-          this.setData({ showResetPwdDialog: false });
+          this.setData({
+            showResetPwdDialog: false,
+            newPassword: '',
+            confirmPassword: '',
+            resetErrorMsg: ''
+          });
         } else {
           this.setData({
-            resetErrorMsg: res.data.message || '密码重置失败'
+            resetErrorMsg: (res && res.message) ? res.message : '密码重置失败'
           });
         }
       })
       .catch(err => {
         wx.hideLoading();
         console.error('提交重置密码失败:', err);
+
+        // 根据错误类型给用户不同的反馈
+        let errorMsg = '网络请求失败';
+        if (err) {
+          if (err.message) {
+            errorMsg = err.message;
+          } else if (err.errMsg) {
+            errorMsg = err.errMsg;
+          } else if (typeof err === 'string') {
+            errorMsg = err;
+          }
+        }
+
         this.setData({
-          resetErrorMsg: '网络请求失败'
+          resetErrorMsg: errorMsg
         });
       });
   }

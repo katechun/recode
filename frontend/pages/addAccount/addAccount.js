@@ -273,7 +273,19 @@ Page({
 
   // 提交记账
   submitAccount: function () {
-    if (!this.validateForm()) {
+    if (!this.data.storeId) {
+      wx.showToast({
+        title: '请选择店铺',
+        icon: 'none'
+      });
+      return;
+    }
+
+    if (!this.data.typeId) {
+      wx.showToast({
+        title: '请选择类型',
+        icon: 'none'
+      });
       return;
     }
 
@@ -289,8 +301,23 @@ Page({
     // 根据账目类型决定金额正负
     const finalAmount = this.data.accountType === 'expense' ? -amount : amount;
 
-    // 格式化日期时间，确保iOS兼容性
-    const transactionTime = dateUtil.formatDateString(this.data.transactionTime);
+    // 先尝试使用 dateUtil 格式化日期
+    let transactionTime = dateUtil.formatDateString(this.data.transactionTime);
+
+    // 如果是 ISO 格式 (包含 T)，转换为标准格式（空格分隔）
+    if (transactionTime.includes('T')) {
+      transactionTime = transactionTime.replace('T', ' ');
+    }
+
+    // 确保使用标准格式 YYYY-MM-DD HH:MM:SS
+    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(transactionTime)) {
+      // 如果缺少秒，添加秒
+      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(transactionTime)) {
+        transactionTime += ':00';
+      }
+    }
+
+    console.log('格式化后的交易时间:', transactionTime);
 
     const accountData = {
       store_id: parseInt(this.data.storeId),
@@ -321,8 +348,8 @@ Page({
         wx.hideLoading();
         console.error('记账提交失败:', err);
         wx.showToast({
-          title: '提交失败',
-          icon: 'error'
+          title: err.message || '提交失败',
+          icon: 'none'
         });
       });
   },
