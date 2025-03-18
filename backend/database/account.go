@@ -117,12 +117,21 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 
 	// 添加其他筛选条件
 	if storeID != "" && storeID != "0" {
-		query += " AND a.store_id = ?"
+		// 记录原始storeID值和类型
+		log.Printf("筛选店铺ID: '%s', 类型: %T", storeID, storeID)
+		
 		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
 		if err != nil {
 			log.Printf("无效的店铺ID: %s, 错误: %v", storeID, err)
+			// 如果解析失败，尝试直接使用字符串比较
+			query += " AND a.store_id = ?"
+			args = append(args, storeID)
+			log.Printf("使用字符串比较店铺ID: %s", storeID)
 		} else {
+			// 如果解析成功，使用整数比较
+			query += " AND a.store_id = ?"
 			args = append(args, storeIDInt)
+			log.Printf("使用整数比较店铺ID: %d", storeIDInt)
 		}
 	}
 
@@ -146,11 +155,12 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 		args = append(args, endDate+" 23:59:59")
 	}
 
-	// 处理金额范围筛选 - 直接使用传入的参数
+	// 处理金额范围筛选 - 使用绝对值比较
 	if minAmount != "" {
 		minAmountFloat, err := strconv.ParseFloat(minAmount, 64)
 		if err == nil {
-			query += " AND a.amount >= ?"
+			// 使用绝对值比较：筛选绝对值大于等于minAmount的金额
+			query += " AND ABS(a.amount) >= ?"
 			args = append(args, minAmountFloat)
 		} else {
 			log.Printf("无效的最小金额: %s, 错误: %v", minAmount, err)
@@ -160,7 +170,8 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 	if maxAmount != "" {
 		maxAmountFloat, err := strconv.ParseFloat(maxAmount, 64)
 		if err == nil {
-			query += " AND a.amount <= ?"
+			// 使用绝对值比较：筛选绝对值小于等于maxAmount的金额
+			query += " AND ABS(a.amount) <= ?"
 			args = append(args, maxAmountFloat)
 		} else {
 			log.Printf("无效的最大金额: %s, 错误: %v", maxAmount, err)
@@ -276,7 +287,7 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 }
 
 // GetAccountStatistics 获取账务统计
-func GetAccountStatistics(storeID, startDate, endDate string, userID int64) (map[string]interface{}, error) {
+func GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmount string, userID int64) (map[string]interface{}, error) {
 	// 检查用户是否是管理员
 	var isAdmin bool
 	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
@@ -308,10 +319,43 @@ func GetAccountStatistics(storeID, startDate, endDate string, userID int64) (map
 	}
 
 	// 添加原有的筛选条件
-	if storeID != "" {
-		query += " AND store_id = ?"
-		storeIDInt, _ := strconv.ParseInt(storeID, 10, 64)
-		args = append(args, storeIDInt)
+	if storeID != "" && storeID != "0" {
+		// 记录原始storeID值和类型
+		log.Printf("统计查询 - 筛选店铺ID: '%s', 类型: %T", storeID, storeID)
+		
+		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
+		if err != nil {
+			log.Printf("统计查询 - 无效的店铺ID: %s, 错误: %v", storeID, err)
+			// 如果解析失败，尝试直接使用字符串比较
+			query += " AND store_id = ?"
+			args = append(args, storeID)
+			log.Printf("统计查询 - 使用字符串比较店铺ID: %s", storeID)
+		} else {
+			// 如果解析成功，使用整数比较
+			query += " AND store_id = ?"
+			args = append(args, storeIDInt)
+			log.Printf("统计查询 - 使用整数比较店铺ID: %d", storeIDInt)
+		}
+	}
+
+	// 添加账务类型筛选
+	if typeID != "" && typeID != "0" {
+		// 记录原始typeID值和类型
+		log.Printf("统计查询 - 筛选类型ID: '%s', 类型: %T", typeID, typeID)
+		
+		typeIDInt, err := strconv.ParseInt(typeID, 10, 64)
+		if err != nil {
+			log.Printf("统计查询 - 无效的类型ID: %s, 错误: %v", typeID, err)
+			// 如果解析失败，尝试直接使用字符串比较
+			query += " AND type_id = ?"
+			args = append(args, typeID)
+			log.Printf("统计查询 - 使用字符串比较类型ID: %s", typeID)
+		} else {
+			// 如果解析成功，使用整数比较
+			query += " AND type_id = ?"
+			args = append(args, typeIDInt)
+			log.Printf("统计查询 - 使用整数比较类型ID: %d", typeIDInt)
+		}
 	}
 
 	if startDate != "" {
@@ -324,9 +368,35 @@ func GetAccountStatistics(storeID, startDate, endDate string, userID int64) (map
 		args = append(args, endDate+" 23:59:59")
 	}
 
+	// 添加金额范围筛选 - 使用绝对值比较
+	if minAmount != "" {
+		minAmountFloat, err := strconv.ParseFloat(minAmount, 64)
+		if err == nil {
+			query += " AND ABS(amount) >= ?"
+			args = append(args, minAmountFloat)
+		} else {
+			log.Printf("统计查询 - 无效的最小金额: %s, 错误: %v", minAmount, err)
+		}
+	}
+
+	if maxAmount != "" {
+		maxAmountFloat, err := strconv.ParseFloat(maxAmount, 64)
+		if err == nil {
+			query += " AND ABS(amount) <= ?"
+			args = append(args, maxAmountFloat)
+		} else {
+			log.Printf("统计查询 - 无效的最大金额: %s, 错误: %v", maxAmount, err)
+		}
+	}
+
 	// 执行查询
 	var totalIncome, totalExpense, netAmount float64
-	log.Printf("执行SQL: %s, 参数: %v", query, args)
+	logSql := query
+	for _, arg := range args {
+		logSql = strings.Replace(logSql, "?", fmt.Sprintf("'%v'", arg), 1)
+	}
+	log.Printf("执行统计SQL: %s", logSql)
+
 	err = DB.QueryRow(query, args...).Scan(&totalIncome, &totalExpense, &netAmount)
 	if err != nil {
 		return nil, err

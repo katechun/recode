@@ -28,32 +28,39 @@ func main() {
 	// 初始化数据库
 	database.InitDB()
 
-	// 检查并迁移表结构
+	// 检查并迁移表结构 - 这只会创建不存在的表或添加新列，不会删除数据
 	if err := database.CheckAndMigrateTables(); err != nil {
 		log.Printf("检查表结构时出错: %v", err)
 	}
 
-	// 先重置数据库，创建正确的表结构
-	if err := database.ResetDatabase(); err != nil {
-		log.Printf("重置数据库失败: %v", err)
-	}
+	// 仅在指定环境变量时初始化测试数据
+	initTestData := os.Getenv("INIT_TEST_DATA")
+	if initTestData == "true" {
+		log.Println("检测到INIT_TEST_DATA=true，将初始化测试数据")
+		
+		// 重置数据库，创建正确的表结构
+		if err := database.ResetDatabase(); err != nil {
+			log.Printf("重置数据库失败: %v", err)
+		}
 
-	// 创建测试数据 - 只需调用一次CreateTestData
-	err := database.InitializeTestData()
-	if err != nil {
-		log.Printf("创建测试数据时出错: %v", err)
-	}
+		// 创建测试数据
+		if err := database.InitializeTestData(); err != nil {
+			log.Printf("创建测试数据时出错: %v", err)
+		}
 
-	// 修复外键引用关系
-	err = database.FixForeignKeyReferences()
-	if err != nil {
-		log.Printf("修复外键关系时出错: %v", err)
-	}
+		// 修复外键引用关系
+		if err := database.FixForeignKeyReferences(); err != nil {
+			log.Printf("修复外键关系时出错: %v", err)
+		}
 
-	// 添加测试账户数据
-	err = database.InsertTestAccount()
-	if err != nil {
-		log.Printf("插入测试账户数据时出错: %v", err)
+		// 添加测试账户数据
+		if err := database.InsertTestAccount(); err != nil {
+			log.Printf("插入测试账户数据时出错: %v", err)
+		}
+		
+		log.Println("测试数据初始化完成")
+	} else {
+		log.Println("跳过测试数据初始化，保留现有数据")
 	}
 
 	// 注释掉重复的初始化函数调用

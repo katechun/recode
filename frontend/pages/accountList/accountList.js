@@ -186,7 +186,15 @@ Page({
     // 添加筛选条件，确保类型转换正确
     if (this.data.storeId) {
       // 确保storeId是字符串
+      console.log('处理筛选店铺ID:', {
+        original: this.data.storeId,
+        type: typeof this.data.storeId
+      });
       params.store_id = String(this.data.storeId);
+      console.log('转换后的店铺ID:', {
+        converted: params.store_id,
+        type: typeof params.store_id
+      });
     }
 
     if (this.data.typeId) {
@@ -235,6 +243,8 @@ Page({
             wx.hideLoading();
           }
 
+          console.log('API返回数据:', JSON.stringify(res.data));
+
           if (!res.data || !res.data.data || !Array.isArray(res.data.data)) {
             console.error('返回数据格式错误:', res);
             this.setData({
@@ -253,6 +263,16 @@ Page({
 
           // 处理返回的数据，处理后端返回的新格式
           const data = res.data.data || [];
+
+          // 分析返回数据中的店铺信息
+          if (this.data.storeId) {
+            const storeIds = data.map(item => item.store_id);
+            const storeNames = data.map(item => item.store_name);
+            console.log('筛选店铺ID:', this.data.storeId);
+            console.log('返回数据中的店铺IDs:', storeIds);
+            console.log('返回数据中的店铺Names:', storeNames);
+          }
+
           const total = res.data.total || data.length || 0;
           const newAccounts = this.processAccounts(data);
 
@@ -766,6 +786,14 @@ Page({
     const storeId = this.data.stores[index].id;
     const storeName = this.data.stores[index].name;
 
+    console.log('选择店铺:', {
+      index: index,
+      id: storeId,
+      name: storeName,
+      idType: typeof storeId,
+      allStores: JSON.stringify(this.data.stores)
+    });
+
     this.setData({
       storeId: storeId,
       selectedStoreName: storeName
@@ -893,28 +921,45 @@ Page({
   // 加载统计功能
   loadStatistics: function () {
     // 构建请求参数
-    let url = `${config.apis.accounts.statistics}?`;
+    const params = {};
 
     // 添加筛选条件
     if (this.data.startDate) {
-      url += `&start_date=${this.data.startDate}`;
+      params.start_date = this.data.startDate;
     }
 
     if (this.data.endDate) {
-      url += `&end_date=${this.data.endDate}`;
+      params.end_date = this.data.endDate;
     }
 
     if (this.data.storeId) {
-      url += `&store_id=${this.data.storeId}`;
+      params.store_id = String(this.data.storeId);
     }
 
     if (this.data.typeId) {
-      url += `&type_id=${this.data.typeId}`;
+      params.type_id = String(this.data.typeId);
     }
+
+    if (this.data.minAmount) {
+      const minAmount = parseFloat(this.data.minAmount);
+      if (!isNaN(minAmount)) {
+        params.min_amount = minAmount;
+      }
+    }
+
+    if (this.data.maxAmount) {
+      const maxAmount = parseFloat(this.data.maxAmount);
+      if (!isNaN(maxAmount)) {
+        params.max_amount = maxAmount;
+      }
+    }
+
+    // 调试输出
+    console.log('统计参数:', JSON.stringify(params));
 
     return new Promise((resolve, reject) => {
       // 获取统计数据
-      request.get(url)
+      request.get(config.apis.accounts.statistics, params)
         .then(res => {
           console.log('统计数据:', res);
 

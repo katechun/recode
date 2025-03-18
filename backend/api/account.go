@@ -192,8 +192,11 @@ func (h *AccountHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 
 	// 获取查询参数
 	storeID := r.URL.Query().Get("store_id")
+	typeID := r.URL.Query().Get("type_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
+	minAmount := r.URL.Query().Get("min_amount")
+	maxAmount := r.URL.Query().Get("max_amount")
 
 	// 从URL参数或Header中获取用户ID
 	userIDStr := r.URL.Query().Get("userId")
@@ -212,15 +215,19 @@ func (h *AccountHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 调用修改后的获取统计数据函数
-	stats, err := database.GetAccountStatistics(storeID, startDate, endDate, userID)
+	// 记录请求参数
+	log.Printf("统计查询请求 - 用户ID: %d, 店铺ID: %s, 类型ID: %s, 开始日期: %s, 结束日期: %s, 最小金额: %s, 最大金额: %s",
+		userID, storeID, typeID, startDate, endDate, minAmount, maxAmount)
+
+	// 调用GetAccountStatistics函数，传入所有筛选参数
+	statistics, err := database.GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmount, userID)
 	if err != nil {
 		log.Printf("获取账务统计失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务统计失败", nil)
 		return
 	}
 
-	SendResponse(w, http.StatusOK, 200, "获取账务统计成功", stats)
+	SendResponse(w, http.StatusOK, 200, "获取账务统计成功", statistics)
 }
 
 // DeleteAccount 删除指定ID的账目记录
@@ -304,8 +311,15 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 
 	// 获取查询参数
 	storeID := r.URL.Query().Get("store_id")
+	typeID := r.URL.Query().Get("type_id")
 	startDate := r.URL.Query().Get("start_date")
 	endDate := r.URL.Query().Get("end_date")
+	minAmount := r.URL.Query().Get("min_amount")
+	maxAmount := r.URL.Query().Get("max_amount")
+
+	// 记录请求参数以便调试
+	log.Printf("统计请求参数: storeID=%s, typeID=%s, startDate=%s, endDate=%s, minAmount=%s, maxAmount=%s",
+		storeID, typeID, startDate, endDate, minAmount, maxAmount)
 
 	// 从URL参数或Header中获取用户ID
 	userIDStr := r.URL.Query().Get("userId")
@@ -325,9 +339,9 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// 调用数据库函数获取统计数据
-	stats, err := database.GetAccountStatistics(storeID, startDate, endDate, userID)
+	stats, err := database.GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmount, userID)
 	if err != nil {
-		SendResponse(w, http.StatusInternalServerError, 500, "获取统计数据失败", nil)
+		SendResponse(w, http.StatusInternalServerError, 500, "获取统计数据失败: "+err.Error(), nil)
 		return
 	}
 
