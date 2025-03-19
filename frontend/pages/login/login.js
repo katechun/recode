@@ -5,7 +5,8 @@ Page({
   data: {
     username: '',
     password: '',
-    errorMsg: ''
+    errorMsg: '',
+    isLoading: false
   },
 
   onLoad(options) {
@@ -19,7 +20,7 @@ Page({
   },
 
   // 输入用户名
-  inputUsername(e) {
+  usernameInput(e) {
     this.setData({
       username: e.detail.value,
       errorMsg: ''
@@ -27,52 +28,59 @@ Page({
   },
 
   // 输入密码
-  inputPassword(e) {
+  passwordInput(e) {
     this.setData({
       password: e.detail.value,
       errorMsg: ''
     });
   },
 
+  // 登录处理
+  handleLogin(e) {
+    this.login();
+  },
+
   // 登录
   login() {
     const { username, password } = this.data;
-    
+
     // 表单验证
     if (!username.trim()) {
       this.setData({ errorMsg: '请输入用户名' });
       return;
     }
-    
+
     if (!password.trim()) {
       this.setData({ errorMsg: '请输入密码' });
       return;
     }
-    
-    // 显示加载提示
-    wx.showLoading({
-      title: '登录中...',
+
+    // 显示加载状态
+    this.setData({
+      isLoading: true
     });
-    
+
     // 使用微信小程序的环境判断
     const envVersion = __wxConfig.envVersion;
     if (envVersion === 'develop') {
       console.log('开发环境登录');
     }
-    
+
     // 调用登录接口
     request.post(config.apis.login, {
       username: username,
       password: password
     }).then(res => {
-      wx.hideLoading();
-      
+      this.setData({
+        isLoading: false
+      });
+
       const userInfo = res.data;
-      
+
       if (userInfo) {
         // 登录成功，保存用户信息
         wx.setStorageSync('userInfo', userInfo);
-        
+
         // 跳转到首页
         wx.switchTab({
           url: '/pages/index/index',
@@ -84,17 +92,19 @@ Page({
         });
       }
     }).catch(err => {
-      wx.hideLoading();
+      this.setData({
+        isLoading: false
+      });
+
       console.error('登录请求失败', err);
       console.log('错误详情:', err.code, err.message);
       console.log('请求URL:', config.apis.login);
-      console.log('请求数据:', {username: this.data.username});
-      
-      wx.showToast({
-        title: '登录失败',
-        icon: 'none'
+      console.log('请求数据:', { username: this.data.username });
+
+      this.setData({
+        errorMsg: '登录失败，请检查网络连接'
       });
-      
+
       // 如果是开发环境，添加一个测试跳过登录的选项
       if (envVersion === 'develop') {
         wx.showModal({
@@ -120,7 +130,7 @@ Page({
     });
   },
 
-  testConnection: function() {
+  testConnection: function () {
     request.get('/api/debug/users', { hideLoading: true })
       .then(res => {
         console.log('服务器连接成功，用户数据:', res.data);

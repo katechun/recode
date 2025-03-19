@@ -1,11 +1,27 @@
 /**app.wxss**/
+/* 全局变量 */
 page {
+  --primary-color: #07c160;
+  --primary-light: #e7f7e9;
+  --danger-color: #ff4d4f;
+  --warning-color: #faad14;
+  --text-color: #333333;
+  --text-color-secondary: #666666;
+  --text-color-light: #999999;
+  --background-color: #f8f8f8;
+  --card-background: #ffffff;
+  --border-color: #eeeeee;
+  --border-radius: 10rpx;
+  --box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  --transition-duration: 0.3s;
+  
   font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', Helvetica,
     Segoe UI, Arial, Roboto, 'PingFang SC', 'miui', 'Hiragino Sans GB', 'Microsoft Yahei',
     sans-serif;
   font-size: 28rpx;
-  color: #333;
-  background-color: #f8f8f8;
+  color: var(--text-color);
+  background-color: var(--background-color);
+  line-height: 1.6;
 }
 
 .container {
@@ -14,30 +30,50 @@ page {
 }
 
 .card {
-  background-color: #fff;
-  border-radius: 10rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
+  box-shadow: var(--box-shadow);
   padding: 30rpx;
   margin-bottom: 30rpx;
+  transition: transform var(--transition-duration);
+}
+
+.card:active {
+  transform: scale(0.98);
 }
 
 .card-title {
   font-size: 32rpx;
   font-weight: 500;
   margin-bottom: 20rpx;
-  border-bottom: 1rpx solid #eee;
+  border-bottom: 1rpx solid var(--border-color);
   padding-bottom: 15rpx;
 }
 
 .button-primary {
-  background-color: #1aad19;
+  background-color: var(--primary-color);
   color: #fff;
+  border-radius: 45rpx;
+  font-size: 30rpx;
+  border: none;
+  transition: opacity var(--transition-duration);
+}
+
+.button-primary:active {
+  opacity: 0.8;
 }
 
 .button-default {
   background-color: #f7f7f7;
-  color: #333;
+  color: var(--text-color);
   border: 1rpx solid #ddd;
+  border-radius: 45rpx;
+  font-size: 30rpx;
+  transition: background-color var(--transition-duration);
+}
+
+.button-default:active {
+  background-color: #eaeaea;
 }
 
 .flex-row {
@@ -54,6 +90,89 @@ page {
   justify-content: space-between;
 }
 
+.justify-center {
+  justify-content: center;
+}
+
 .align-center {
   align-items: center;
+} 
+
+.text-center {
+  text-align: center;
+}
+
+.text-primary {
+  color: var(--primary-color);
+}
+
+.text-danger {
+  color: var(--danger-color);
+}
+
+.text-warning {
+  color: var(--warning-color);
+}
+
+.income {
+  color: var(--primary-color);
+}
+
+.expense {
+  color: var(--danger-color);
+}
+
+/* 加载动画 */
+.loading-spinner {
+  width: 60rpx;
+  height: 60rpx;
+  border: 6rpx solid #f3f3f3;
+  border-top: 6rpx solid var(--primary-color);
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* 表单通用样式 */
+.form-group {
+  margin-bottom: 30rpx;
+}
+
+.form-label {
+  margin-bottom: 10rpx;
+  font-size: 28rpx;
+  color: var(--text-color-secondary);
+}
+
+.form-input {
+  background-color: #f5f7fa;
+  padding: 20rpx;
+  border-radius: var(--border-radius);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* 标签样式 */
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6rpx 16rpx;
+  background: #f0f0f0;
+  border-radius: 30rpx;
+  font-size: 24rpx;
+  margin-right: 10rpx;
+}
+
+.tag-primary {
+  background-color: var(--primary-light);
+  color: var(--primary-color);
+}
+
+.tag-danger {
+  background-color: rgba(255, 77, 79, 0.1);
+  color: var(--danger-color);
 } 

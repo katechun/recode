@@ -1,27 +1,48 @@
 <view class="container">
-  <view class="login-container">
-    <view class="form-container">
-      <form bindsubmit="login">
-        <view class="form-item">
-          <text class="label">用户名</text>
-          <input class="input" type="text" placeholder="请输入用户名" bindinput="inputUsername" value="{{username}}"/>
-        </view>
-        
-        <view class="form-item">
-          <text class="label">密码</text>
-          <input class="input" type="password" placeholder="请输入密码" bindinput="inputPassword" value="{{password}}"/>
-        </view>
-        
-        <view class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</view>
-        
-        <button formType="submit" class="login-btn">登录</button>
-      </form>
+  <view class="header">
+    <view class="logo">
+      <text class="logo-text">记</text>
     </view>
-
-    <view class="test-accounts">
-      <text class="test-accounts-title">测试账号：</text>
-      <text class="test-account">管理员：admin / admin123</text>
-      <text class="test-account">店员：staff1 / staff123</text>
-    </view>
+    <text class="title">小店记账</text>
+    <text class="subtitle">轻松记账，智能管理您的店铺财务</text>
+  </view>
+  
+  <view class="login-form">
+    <form bindsubmit="handleLogin">
+      <view class="input-group">
+        <text class="input-label">账号</text>
+        <view class="input-wrapper">
+          <text class="input-icon">👤</text>
+          <input type="text" name="username" placeholder="请输入账号" bindinput="usernameInput" value="{{username}}" />
+        </view>
+      </view>
+      
+      <view class="input-group">
+        <text class="input-label">密码</text>
+        <view class="input-wrapper">
+          <text class="input-icon">🔒</text>
+          <input type="password" name="password" placeholder="请输入密码" bindinput="passwordInput" value="{{password}}" />
+        </view>
+      </view>
+      
+      <text class="error-msg" wx:if="{{errorMsg}}">{{errorMsg}}</text>
+      
+      <button class="login-button" form-type="submit">登录</button>
+      
+      <view class="login-options">
+        <text>忘记密码？</text>
+        <text class="option-text">联系管理员</text>
+      </view>
+    </form>
+  </view>
+  
+  <view class="footer">
+    <text class="footer-text">测试账号：admin / 123456</text>
+  </view>
+  
+  <!-- 加载状态蒙层 -->
+  <view class="loading-overlay" wx:if="{{isLoading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">登录中...</text>
   </view>
 </view> 

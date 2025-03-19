@@ -4,6 +4,7 @@ import dateUtil from '../../utils/date';
 
 Page({
   data: {
+    id: null, // 添加账单ID，用于判断是新增还是编辑
     storeId: '',
     typeId: '',
     accountType: 'expense', // 默认支出（与大多数记账软件习惯一致）
@@ -20,11 +21,15 @@ Page({
     pickerStep: 'date', // 'date' 或 'time'
     defaultSettings: null, // 存储用户默认设置
     isTypeSwitchedByUser: false, // 标记是否由用户手动切换了类型
-    username: '' // 当前用户名
+    username: '', // 当前用户名
+    isEditMode: false // 标记是否为编辑模式
   },
 
   onLoad: function (options) {
     console.log('接收到的参数:', options);
+
+    // 检查是否为编辑模式
+    const isEditMode = !!options.id;
 
     // 从options中获取类型参数，如果有指定则使用，否则使用默认值
     // 修复type参数为对象的情况
@@ -48,21 +53,48 @@ Page({
     const isDefault = options.isDefault === 'true';
 
     // 设置当前日期和时间
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = String(now.getMonth() + 1).padStart(2, '0');
-    const day = String(now.getDate()).padStart(2, '0');
-    const hours = String(now.getHours()).padStart(2, '0');
-    const minutes = String(now.getMinutes()).padStart(2, '0');
+    let currentDate, currentTime, fullDateTime;
 
-    // 设置日期和时间
-    const currentDate = `${year}-${month}-${day}`;
-    const currentTime = `${hours}:${minutes}`;
-    const fullDateTime = `${currentDate} ${currentTime}`;
+    if (options.date && isEditMode) {
+      // 处理编辑模式下的日期时间
+      try {
+        const dateObj = new Date(decodeURIComponent(options.date));
+        const year = dateObj.getFullYear();
+        const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObj.getDate()).padStart(2, '0');
+        const hours = String(dateObj.getHours()).padStart(2, '0');
+        const minutes = String(dateObj.getMinutes()).padStart(2, '0');
 
-    // 提取类型ID并确保它是一个字符串
-    const typeId = options.typeId || '';
-    console.log('设置类型ID:', typeId, '类型:', accountType);
+        currentDate = `${year}-${month}-${day}`;
+        currentTime = `${hours}:${minutes}`;
+        fullDateTime = `${currentDate} ${currentTime}`;
+      } catch (e) {
+        console.error('解析日期出错:', e);
+        // 使用当前时间作为默认值
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const hours = String(now.getHours()).padStart(2, '0');
+        const minutes = String(now.getMinutes()).padStart(2, '0');
+
+        currentDate = `${year}-${month}-${day}`;
+        currentTime = `${hours}:${minutes}`;
+        fullDateTime = `${currentDate} ${currentTime}`;
+      }
+    } else {
+      // 新增模式使用当前时间
+      const now = new Date();
+      const year = now.getFullYear();
+      const month = String(now.getMonth() + 1).padStart(2, '0');
+      const day = String(now.getDate()).padStart(2, '0');
+      const hours = String(now.getHours()).padStart(2, '0');
+      const minutes = String(now.getMinutes()).padStart(2, '0');
+
+      currentDate = `${year}-${month}-${day}`;
+      currentTime = `${hours}:${minutes}`;
+      fullDateTime = `${currentDate} ${currentTime}`;
+    }
 
     // 获取用户信息
     const userInfo = wx.getStorageSync('userInfo');
@@ -71,15 +103,29 @@ Page({
       username = userInfo.username || '当前用户';
     }
 
-    this.setData({
+    // 设置数据
+    const initialData = {
+      id: options.id || null,
       currentDate,
       currentTime,
       transactionTime: fullDateTime,
       storeId: options.storeId || '',
-      typeId: typeId,
+      typeId: options.typeId || '',
       accountType: accountType,
-      username: username
-    });
+      username: username,
+      isEditMode: isEditMode
+    };
+
+    // 如果是编辑模式，添加金额和备注
+    if (isEditMode && options.amount) {
+      initialData.amount = options.amount;
+    }
+
+    if (isEditMode && options.remark) {
+      initialData.remark = decodeURIComponent(options.remark);
+    }
+
+    this.setData(initialData);
 
     // 加载用户默认设置
     this.loadDefaultSettings();
@@ -447,15 +493,27 @@ Page({
     };
 
     wx.showLoading({
-      title: '提交中...',
+      title: this.data.isEditMode ? '更新中...' : '提交中...',
       mask: true
     });
 
-    request.post(config.apis.accounts.create, accountData)
+    // 根据是否为编辑模式选择接口
+    let apiUrl = config.apis.accounts.create;
+
+    if (this.data.isEditMode && this.data.id) {
+      apiUrl = `${config.apis.accounts.update}/${this.data.id}`;
+      // 添加ID到数据中
+      accountData.id = parseInt(this.data.id);
+    }
+
+    // 根据是否为编辑模式选择请求方法
+    const requestMethod = this.data.isEditMode ? request.put : request.post;
+
+    requestMethod(apiUrl, accountData)
       .then(() => {
         wx.hideLoading();
         wx.showToast({
-          title: '记账成功',
+          title: this.data.isEditMode ? '更新成功' : '记账成功',
           icon: 'success',
           duration: 2000
         });
@@ -465,9 +523,9 @@ Page({
       })
       .catch(err => {
         wx.hideLoading();
-        console.error('记账提交失败:', err);
+        console.error(this.data.isEditMode ? '更新失败:' : '记账提交失败:', err);
         wx.showToast({
-          title: err.message || '提交失败',
+          title: err.message || (this.data.isEditMode ? '更新失败' : '提交失败'),
           icon: 'none'
         });
       });

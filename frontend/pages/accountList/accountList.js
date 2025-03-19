@@ -609,8 +609,17 @@ Page({
     const type = account.amount >= 0 ? 'income' : 'expense';
     const amount = Math.abs(account.amount);
 
+    // 确保URL参数正确编码
+    const encodedRemark = encodeURIComponent(account.remark || '');
+    const encodedDate = encodeURIComponent(account.transaction_time);
+
+    // 构建跳转URL
+    const url = `/pages/addAccount/addAccount?id=${accountId}&type=${type}&storeId=${account.store_id}&typeId=${account.type_id}&amount=${amount}&remark=${encodedRemark}&date=${encodedDate}`;
+
+    console.log('编辑账单URL:', url);
+
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?id=${accountId}&type=${type}&storeId=${account.store_id}&typeId=${account.type_id}&amount=${amount}&remark=${account.remark || ''}&date=${account.transaction_time}`
+      url: url
     });
   },
 

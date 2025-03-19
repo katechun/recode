@@ -918,10 +918,10 @@ page {
   display: flex;
   justify-content: space-between;
   margin-bottom: 30rpx;
-  background-color: #fff;
-  border-radius: 12rpx;
+  background-color: var(--card-background);
+  border-radius: var(--border-radius);
   padding: 24rpx;
-  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.05);
+  box-shadow: var(--box-shadow);
 }
 
 .user-info-card {
@@ -931,10 +931,11 @@ page {
 }
 
 .avatar {
-  width: 80rpx;
-  height: 80rpx;
+  width: 90rpx;
+  height: 90rpx;
   border-radius: 50%;
-  margin-right: 16rpx;
+  margin-right: 20rpx;
+  border: 2rpx solid var(--primary-light);
 }
 
 .user-basic-info {
@@ -943,17 +944,18 @@ page {
 }
 
 .nickname {
-  font-size: 30rpx;
+  font-size: 34rpx;
   font-weight: bold;
-  margin-bottom: 4rpx;
+  margin-bottom: 8rpx;
+  color: var(--text-color);
 }
 
 .role {
   font-size: 22rpx;
-  color: #666;
-  background-color: #f5f5f5;
-  padding: 2rpx 10rpx;
-  border-radius: 8rpx;
+  color: var(--primary-color);
+  background-color: var(--primary-light);
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
   align-self: flex-start;
 }
 
