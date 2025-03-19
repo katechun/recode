@@ -11,8 +11,8 @@ const env = {
 };
 
 // 当前环境，可以通过编译时配置
-// const currentEnv = 'development';
-const currentEnv = 'production';
+const currentEnv = 'development';
+// const currentEnv = 'production';
 
 const config = {
   // API基础地址
@@ -56,6 +56,17 @@ const config = {
     },
     statistics: {
       report: '/api/statistics/report',
+    },
+    // 客户管理相关API
+    customer: {
+      list: '/api/customers',
+      detail: '/api/customers/detail',
+      add: '/api/customers/create',
+      update: '/api/customers/update',
+      weightRecords: '/api/customers/weight-records',
+      productUsage: '/api/customers/product-usage',
+      records: '/api/customers/records',
+      exportReport: '/api/customers/export-report'
     }
   }
 };

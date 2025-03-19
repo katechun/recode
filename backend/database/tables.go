@@ -5,91 +5,82 @@ import (
 	"log"
 )
 
-// 创建必要的数据库表
-func createTables() error {
-	// 用户表
-	createUserTable := `
-	CREATE TABLE IF NOT EXISTS users (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		username TEXT NOT NULL UNIQUE,
-		password TEXT NOT NULL,
-		nickname TEXT,
-		role INTEGER NOT NULL,
-		phone TEXT,
-		email TEXT,
-		avatar TEXT,
-		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		last_login TIMESTAMP
-	);`
-
-	// 店铺表
-	createStoreTable := `
-	CREATE TABLE IF NOT EXISTS stores (
+// CreateCustomerTables 创建客户管理相关的数据库表
+func CreateCustomerTables() error {
+	// 客户信息表
+	createCustomerTable := `
+	CREATE TABLE IF NOT EXISTS customers (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
-		address TEXT,
-		phone TEXT,
-		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		phone TEXT NOT NULL,
+		gender INTEGER NOT NULL DEFAULT 1,
+		age INTEGER,
+		height REAL,
+		initial_weight REAL,
+		current_weight REAL,
+		target_weight REAL,
+		store_id INTEGER NOT NULL,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (store_id) REFERENCES stores(id)
 	);`
 
-	// 账务类型表
-	createAccountTypeTable := `
-	CREATE TABLE IF NOT EXISTS account_types (
+	// 体重记录表
+	createWeightRecordTable := `
+	CREATE TABLE IF NOT EXISTS weight_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		customer_id INTEGER NOT NULL,
+		weight REAL NOT NULL,
+		record_date TEXT NOT NULL,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (customer_id) REFERENCES customers(id)
+	);`
+
+	// 产品表
+	createProductTable := `
+	CREATE TABLE IF NOT EXISTS products (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		name TEXT NOT NULL,
-		is_expense BOOLEAN NOT NULL DEFAULT 0,
-		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		store_id INTEGER NOT NULL,
+		price REAL NOT NULL DEFAULT 0,
+		stock INTEGER NOT NULL DEFAULT 0,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (store_id) REFERENCES stores(id)
 	);`
 
-	// 账务记录表
-	createAccountTable := `
-	CREATE TABLE IF NOT EXISTS accounts (
+	// 产品使用记录表
+	createProductUsageTable := `
+	CREATE TABLE IF NOT EXISTS product_usages (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		store_id INTEGER NOT NULL,
-		user_id INTEGER NOT NULL,
-		type_id INTEGER NOT NULL,
-		amount REAL NOT NULL,
-		remark TEXT,
-		transaction_time TIMESTAMP NOT NULL,
-		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (store_id) REFERENCES stores(id),
-		FOREIGN KEY (user_id) REFERENCES users(id),
-		FOREIGN KEY (type_id) REFERENCES account_types(id)
-	);`
-
-	// 用户店铺权限表
-	createUserStorePermission := `
-	CREATE TABLE IF NOT EXISTS user_store_permissions (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		user_id INTEGER NOT NULL,
-		store_id INTEGER NOT NULL,
-		account_type_id INTEGER,  -- NULL表示所有类型
-		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id),
-		FOREIGN KEY (store_id) REFERENCES stores(id),
-		FOREIGN KEY (account_type_id) REFERENCES account_types(id)
+		customer_id INTEGER NOT NULL,
+		product_id INTEGER NOT NULL,
+		usage_date TEXT NOT NULL,
+		quantity REAL NOT NULL DEFAULT 1,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (customer_id) REFERENCES customers(id),
+		FOREIGN KEY (product_id) REFERENCES products(id)
 	);`
 
 	// 执行创建表操作
 	tables := []string{
-		createUserTable,
-		createStoreTable,
-		createAccountTypeTable,
-		createAccountTable,
-		createUserStorePermission,
+		createCustomerTable,
+		createWeightRecordTable,
+		createProductTable,
+		createProductUsageTable,
 	}
 
 	for _, table := range tables {
 		_, err := DB.Exec(table)
 		if err != nil {
-			return fmt.Errorf("创建表失败: %v", err)
+			return fmt.Errorf("创建客户相关表失败: %v", err)
 		}
 	}
 
-	log.Println("数据库表初始化完成")
+	log.Println("客户管理相关数据库表初始化完成")
 	return nil
-} 
+}

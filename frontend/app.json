@@ -9,7 +9,10 @@
     "pages/userManage/userManage",
     "pages/storeManage/storeManage",
     "pages/addAccount/addAccount",
-    "pages/accountList/accountList"
+    "pages/accountList/accountList",
+    "pages/customer/customer",
+    "pages/customerDetail/customerDetail",
+    "pages/addCustomer/addCustomer"
   ],
   "useExtendedLib": {
     "weui": true
@@ -37,6 +40,10 @@
       {
         "pagePath": "pages/report/report",
         "text": "报表"
+      },
+      {
+        "pagePath": "pages/customer/customer",
+        "text": "客资"
       }
     ]
   },

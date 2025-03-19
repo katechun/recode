@@ -293,21 +293,6 @@ func CreateTables() error {
 	return nil
 }
 
-// InitializeTestData 初始化测试数据
-// func InitializeTestData() error {
-// 	// 创建基础测试数据
-// 	if err := CreateTestData(); err != nil {
-// 		return fmt.Errorf("创建基础测试数据失败: %w", err)
-// 	}
-//
-// 	// 添加店铺权限关联数据
-// 	if err := FixForeignKeyReferences(); err != nil {
-// 		return fmt.Errorf("设置用户店铺权限关联失败: %w", err)
-// 	}
-//
-// 	return nil
-// }
-
 // EnsureDatabaseTables 确保所有必要的数据库表存在
 // func EnsureDatabaseTables() error {
 // 	// 首先尝试创建所有基本表结构

@@ -28,6 +28,20 @@ func main() {
 	// 初始化数据库
 	database.InitDB()
 
+	// 创建必要的数据库表
+	if err := database.CreateTables(); err != nil {
+		log.Printf("数据库表结构初始化失败: %v", err)
+	} else {
+		log.Println("数据库表结构初始化成功")
+	}
+
+	// 创建客户管理相关数据库表
+	if err := database.CreateCustomerTables(); err != nil {
+		log.Printf("客户管理数据库表结构初始化失败: %v", err)
+	} else {
+		log.Println("客户管理数据库表结构初始化成功")
+	}
+
 	// 数据库表结构检查已经在InitDB中完成，这里不再重复执行
 	// if err := database.EnsureDatabaseTables(); err != nil {
 	// 	log.Printf("数据库表结构初始化失败: %v", err)
@@ -128,6 +142,20 @@ func main() {
 	// 在路由部分添加统计报表接口
 	// 统计相关接口
 	router.HandleFunc("/api/statistics/report", api.CORSMiddleware(api.GetReport)).Methods("GET", "OPTIONS")
+
+	// 客户管理相关API
+	router.HandleFunc("/api/customers", api.CORSMiddleware(api.GetCustomers)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/detail", api.CORSMiddleware(api.GetCustomerDetail)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/create", api.CORSMiddleware(api.CreateCustomer)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/customers/update", api.CORSMiddleware(api.UpdateCustomer)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/customers/delete", api.CORSMiddleware(api.DeleteCustomer)).Methods("GET", "DELETE", "OPTIONS")
+	router.HandleFunc("/api/customers/weight-records", api.CORSMiddleware(api.GetWeightRecords)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/weight-records/add", api.CORSMiddleware(api.AddWeightRecord)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/customers/product-usage", api.CORSMiddleware(api.GetProductUsage)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/product-usage/add", api.CORSMiddleware(api.AddProductUsage)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/customers/products", api.CORSMiddleware(api.GetProducts)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/records", api.CORSMiddleware(api.GetCustomerRecords)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/customers/export-report", api.CORSMiddleware(api.ExportCustomerReport)).Methods("GET", "OPTIONS")
 
 	// 添加调试API
 	router.HandleFunc("/api/debug/create-test-users", api.CORSMiddleware(api.CreateTestUsers)).Methods("POST", "OPTIONS")

@@ -31,10 +31,12 @@ const request = (url, options = {}) => {
   };
 
   // 显示加载提示
+  let showedLoading = false;
   if (!newOptions.hideLoading) {
     wx.showLoading({
       title: '加载中...'
     });
+    showedLoading = true;
   }
 
   return new Promise((resolve, reject) => {
@@ -94,23 +96,29 @@ const request = (url, options = {}) => {
         }
       },
       fail: (err) => {
-        const errorMsg = err ? (err.errMsg || '网络请求失败') : '网络请求失败';
-        console.error(`请求失败: ${errorMsg}`, { url: newOptions.url, error: err });
+        console.error('请求网络错误:', err, {
+          url: newOptions.url
+        });
 
         wx.showToast({
-          title: errorMsg,
+          title: '网络请求失败',
           icon: 'none'
         });
 
         reject({
-          code: err ? (err.errno || 500) : 500,
-          message: errorMsg,
+          code: err.errno || 500,
+          message: err.errMsg || '网络请求失败',
           originalError: err
         });
       },
       complete: () => {
-        if (!newOptions.hideLoading) {
+        // 隐藏加载提示
+        if (showedLoading) {
           wx.hideLoading();
+        }
+
+        if (typeof options.complete === 'function') {
+          options.complete();
         }
       }
     });

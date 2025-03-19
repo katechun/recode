@@ -1,0 +1,90 @@
+<!--pages/addCustomer/addCustomer.wxml-->
+<view class="container">
+  <view class="form-container">
+    <!-- 基本信息 -->
+    <view class="section-title">基本信息</view>
+    <view class="form-group">
+      <view class="form-item">
+        <text class="form-label required">姓名</text>
+        <input class="form-input" placeholder="请输入客户姓名" value="{{name}}" bindinput="bindInputChange" data-field="name" />
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label required">联系电话</text>
+        <input class="form-input" type="number" placeholder="请输入联系电话" value="{{phone}}" bindinput="bindInputChange" data-field="phone" />
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label required">所属店铺</text>
+        <picker mode="selector" range="{{stores}}" range-key="name" value="{{selectedStoreIndex}}" bindchange="bindStoreChange" disabled="{{stores.length === 0}}">
+          <view class="form-picker {{selectedStoreId ? '' : 'placeholder'}}">
+            <text>{{stores[selectedStoreIndex].name || '请选择店铺'}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+        <view wx:if="{{stores.length === 0}}" class="missing-tip">
+          <text>没有可用店铺，请先添加店铺</text>
+        </view>
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label">性别</text>
+        <picker mode="selector" range="{{['男', '女']}}" value="{{gender - 1}}" bindchange="bindGenderChange">
+          <view class="form-picker">
+            <text>{{gender === 1 ? '男' : '女'}}</text>
+            <text class="picker-arrow">▼</text>
+          </view>
+        </picker>
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label">年龄</text>
+        <input class="form-input" type="number" placeholder="请输入年龄" value="{{age}}" bindinput="bindInputChange" data-field="age" />
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label">身高(cm)</text>
+        <input class="form-input" type="digit" placeholder="请输入身高" value="{{height}}" bindinput="bindInputChange" data-field="height" />
+      </view>
+    </view>
+    
+    <!-- 减重信息 -->
+    <view class="section-title">减重信息</view>
+    <view class="form-group">
+      <view class="form-item">
+        <text class="form-label">初始体重(kg)</text>
+        <input class="form-input" type="digit" placeholder="请输入初始体重" value="{{initialWeight}}" bindinput="bindInputChange" data-field="initialWeight" />
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label">当前体重(kg)</text>
+        <input class="form-input" type="digit" placeholder="请输入当前体重" value="{{currentWeight}}" bindinput="bindInputChange" data-field="currentWeight" />
+      </view>
+      
+      <view class="form-item">
+        <text class="form-label">目标体重(kg)</text>
+        <input class="form-input" type="digit" placeholder="请输入目标体重" value="{{targetWeight}}" bindinput="bindInputChange" data-field="targetWeight" />
+      </view>
+    </view>
+    
+    <!-- 备注 -->
+    <view class="section-title">备注信息</view>
+    <view class="form-group">
+      <view class="form-item">
+        <textarea class="form-textarea" placeholder="请输入备注信息" value="{{notes}}" bindinput="bindInputChange" data-field="notes" />
+      </view>
+    </view>
+  </view>
+  
+  <!-- 底部按钮 -->
+  <view class="button-group">
+    <button class="btn cancel-btn" bindtap="cancelCustomer">取消</button>
+    <button class="btn submit-btn" bindtap="saveCustomer" disabled="{{!name || !phone || !selectedStoreId}}">保存</button>
+  </view>
+  
+  <!-- 加载中 -->
+  <view class="loading-mask" wx:if="{{isLoading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">处理中...</text>
+  </view>
+</view>

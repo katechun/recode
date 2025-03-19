@@ -1,0 +1,150 @@
+<!--pages/customerDetail/customerDetail.wxml-->
+<view class="container">
+  <!-- 顶部客户信息 -->
+  <view class="customer-header" wx:if="{{customer}}">
+    <view class="customer-basic">
+      <view class="customer-name">{{customer.name}}</view>
+      <view class="customer-meta">
+        <text class="store-name">{{customer.store_name}}</text>
+        <text class="phone">{{customer.phone}}</text>
+      </view>
+    </view>
+    <view class="weight-overview">
+      <view class="weight-item">
+        <text class="weight-label">初始体重</text>
+        <text class="weight-value">{{customer.initial_weight || '-'}} kg</text>
+      </view>
+      <view class="weight-item">
+        <text class="weight-label">当前体重</text>
+        <text class="weight-value">{{customer.current_weight || '-'}} kg</text>
+      </view>
+      <view class="weight-item">
+        <text class="weight-label">目标体重</text>
+        <text class="weight-value">{{customer.target_weight || '-'}} kg</text>
+      </view>
+    </view>
+    <view class="progress-section">
+      <view class="progress-header">
+        <text class="progress-label">减肥进度</text>
+        <text class="progress-percentage">{{customer.progress || 0}}%</text>
+      </view>
+      <view class="progress-bar-container">
+        <view class="progress-bar" style="width: {{customer.progress || 0}}%"></view>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 功能选项卡 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === 'info' ? 'active' : ''}}" bindtap="switchTab" data-tab="info">
+      <text>基本信息</text>
+    </view>
+    <view class="tab {{activeTab === 'record' ? 'active' : ''}}" bindtap="switchTab" data-tab="record">
+      <text>体重记录</text>
+    </view>
+    <view class="tab {{activeTab === 'product' ? 'active' : ''}}" bindtap="switchTab" data-tab="product">
+      <text>产品使用</text>
+    </view>
+  </view>
+  
+  <!-- 内容区 -->
+  <view class="content-area">
+    <!-- 基本信息 -->
+    <view class="content-section" wx:if="{{activeTab === 'info' && customer}}">
+      <view class="info-group">
+        <view class="info-item">
+          <text class="info-label">年龄</text>
+          <text class="info-value">{{customer.age || '-'}} 岁</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">身高</text>
+          <text class="info-value">{{customer.height || '-'}} cm</text>
+        </view>
+        <view class="info-item">
+          <text class="info-label">性别</text>
+          <text class="info-value">{{customer.gender === 1 ? '男' : (customer.gender === 2 ? '女' : '-')}}</text>
+        </view>
+      </view>
+      
+      <view class="info-item notes">
+        <text class="info-label">备注</text>
+        <text class="info-value">{{customer.notes || '无'}}</text>
+      </view>
+      
+      <view class="action-buttons">
+        <button class="action-btn edit" bindtap="editCustomer">编辑信息</button>
+        <button class="action-btn export" bindtap="exportWeightReport">导出报表</button>
+      </view>
+    </view>
+    
+    <!-- 体重记录 -->
+    <view class="content-section" wx:if="{{activeTab === 'record'}}">
+      <!-- 体重趋势图 -->
+      <view class="chart-container" wx:if="{{weightRecords.length > 0}}">
+        <view class="chart-title">体重变化趋势</view>
+        <view class="chart-area">
+          <!-- 这里需要引入图表组件 -->
+          <canvas class="weight-chart" canvas-id="weightChart"></canvas>
+        </view>
+      </view>
+      
+      <!-- 体重记录列表 -->
+      <view class="record-list">
+        <view class="record-header">
+          <text class="record-date-header">日期</text>
+          <text class="record-weight-header">体重(kg)</text>
+          <text class="record-change-header">变化</text>
+        </view>
+        
+        <block wx:if="{{weightRecords.length > 0}}">
+          <view class="record-item" wx:for="{{weightRecords}}" wx:key="id">
+            <text class="record-date">{{item.record_date}}</text>
+            <text class="record-weight">{{item.weight}}</text>
+            <text class="record-change {{item.change < 0 ? 'positive' : (item.change > 0 ? 'negative' : '')}}">
+              {{item.change < 0 ? '' : (item.change > 0 ? '+' : '')}}{{item.change || 0}}
+            </text>
+          </view>
+        </block>
+        <view wx:else class="empty-tip">
+          <text>暂无体重记录</text>
+        </view>
+      </view>
+      
+      <view class="action-buttons">
+        <button class="action-btn add" bindtap="addWeightRecord">添加记录</button>
+      </view>
+    </view>
+    
+    <!-- 产品使用 -->
+    <view class="content-section" wx:if="{{activeTab === 'product'}}">
+      <view class="product-list">
+        <view class="product-header">
+          <text class="product-name-header">产品名称</text>
+          <text class="product-date-header">使用日期</text>
+          <text class="product-count-header">剩余次数</text>
+        </view>
+        
+        <block wx:if="{{productUsageList.length > 0}}">
+          <view class="product-item" wx:for="{{productUsageList}}" wx:key="id">
+            <text class="product-name">{{item.product_name}}</text>
+            <text class="product-date">{{item.usage_date}}</text>
+            <text class="product-count">{{item.remaining_count || 0}}次</text>
+          </view>
+        </block>
+        <view wx:else class="empty-tip">
+          <text>暂无产品使用记录</text>
+        </view>
+      </view>
+      
+      <view class="action-buttons">
+        <button class="action-btn add" bindtap="addProductUsage">添加记录</button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 加载中 -->
+  <view class="loading-mask" wx:if="{{isLoading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+</view> 
