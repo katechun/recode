@@ -2,7 +2,13 @@
   <!-- 搜索和筛选区域 -->
   <view class="search-filter-bar">
     <view class="search-box">
-      <input type="text" placeholder="搜索备注关键词" bindinput="onSearchInput" value="{{searchKeyword}}" confirm-type="search"/>
+      <input type="text" placeholder="搜索备注关键词" 
+             bindinput="onSearchInput" 
+             value="{{searchKeyword}}" 
+             confirm-type="search" 
+             bindconfirm="doSearch"
+             bindfocus="onSearchFocus"
+             bindblur="onSearchBlur"/>
       <view class="search-icon" bindtap="doSearch">🔍</view>
       <view class="search-clear" bindtap="clearSearch" wx:if="{{searchKeyword}}">×</view>
     </view>
@@ -10,6 +16,20 @@
       <text>筛选</text>
       <text class="filter-icon">▼</text>
       <view class="filter-badge" wx:if="{{activeFilterCount > 0}}">{{activeFilterCount}}</view>
+    </view>
+  </view>
+  
+  <!-- 搜索历史区域 -->
+  <view class="search-history" wx:if="{{showSearchHistory && searchHistory.length > 0}}">
+    <view class="search-history-header">
+      <text>搜索历史</text>
+      <text class="clear-history" bindtap="clearSearchHistory">清除历史</text>
+    </view>
+    <view class="search-history-list">
+      <view class="search-history-item" wx:for="{{searchHistory}}" wx:key="*this" bindtap="useSearchHistory" data-keyword="{{item}}">
+        <text class="history-icon">🕒</text>
+        <text class="history-text">{{item}}</text>
+      </view>
     </view>
   </view>
   
@@ -160,6 +180,13 @@
             <input type="digit" placeholder="最小金额" value="{{minAmount}}" bindinput="onMinAmountInput" />
             <text class="amount-separator">至</text>
             <input type="digit" placeholder="最大金额" value="{{maxAmount}}" bindinput="onMaxAmountInput" />
+          </view>
+        </view>
+        
+        <view class="filter-section">
+          <text class="filter-label">关键词搜索</text>
+          <view class="search-input">
+            <input type="text" placeholder="搜索备注、用户等关键词" value="{{searchKeyword}}" bindinput="onSearchInput" />
           </view>
         </view>
       </view>

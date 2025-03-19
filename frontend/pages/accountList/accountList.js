@@ -9,6 +9,9 @@ Page({
     isLoading: false,
     isRefreshing: false,
     searchKeyword: '',
+    // 搜索历史相关
+    searchHistory: [],
+    showSearchHistory: false,
     // 分页相关
     pageSize: 20,
     currentPage: 1,
@@ -1585,6 +1588,9 @@ Page({
     // 初始化日期范围 - 默认最近3个月
     this.initDateRange();
 
+    // 加载搜索历史
+    this.loadSearchHistory();
+
     // 从本地存储恢复筛选设置（如果有）
     const hasStoredFilter = this.loadFilterSettings();
     console.log('是否从存储恢复了筛选设置:', hasStoredFilter);
@@ -1678,5 +1684,142 @@ Page({
     }
 
     return false;
+  },
+
+  // 搜索关键词输入处理
+  onSearchInput: function (e) {
+    const value = e.detail.value;
+    console.log('搜索关键词输入:', value);
+    this.setData({
+      searchKeyword: value
+    });
+  },
+
+  // 执行搜索
+  doSearch: function () {
+    console.log('执行搜索, 关键词:', this.data.searchKeyword);
+    // 保存搜索历史
+    if (this.data.searchKeyword) {
+      this.saveSearchHistory(this.data.searchKeyword);
+    }
+
+    // 更新筛选状态
+    this.updateFilterStatus();
+
+    // 保存筛选设置
+    this.saveFilterSettings();
+
+    // 重新加载数据
+    this.refreshWithFilters();
+  },
+
+  // 清除搜索
+  clearSearch: function () {
+    console.log('清除搜索关键词');
+    this.setData({
+      searchKeyword: ''
+    });
+
+    // 如果之前有搜索内容，更新筛选状态并重新加载数据
+    this.updateFilterStatus();
+    this.saveFilterSettings();
+    this.refreshWithFilters();
+  },
+
+  // 保存搜索历史
+  saveSearchHistory: function (keyword) {
+    if (!keyword) return;
+
+    let history = wx.getStorageSync('searchHistory') || [];
+
+    // 如果已存在，删除旧记录
+    const index = history.indexOf(keyword);
+    if (index > -1) {
+      history.splice(index, 1);
+    }
+
+    // 添加到历史记录开头
+    history.unshift(keyword);
+
+    // 最多保存10条
+    if (history.length > 10) {
+      history = history.slice(0, 10);
+    }
+
+    wx.setStorageSync('searchHistory', history);
+    console.log('保存搜索历史:', history);
+  },
+
+  // 取消筛选按钮事件
+  onClearFilter: function () {
+    console.log('清除所有筛选');
+    this.resetFilter();
+  },
+
+  // 加载搜索历史
+  loadSearchHistory: function () {
+    const history = wx.getStorageSync('searchHistory') || [];
+    this.setData({
+      searchHistory: history
+    });
+    console.log('加载搜索历史:', history);
+  },
+
+  // 清除搜索历史
+  clearSearchHistory: function () {
+    wx.showModal({
+      title: '确认清除',
+      content: '确定要清除所有搜索历史记录吗？',
+      success: (res) => {
+        if (res.confirm) {
+          wx.removeStorageSync('searchHistory');
+          this.setData({
+            searchHistory: [],
+            showSearchHistory: false
+          });
+          console.log('已清除搜索历史');
+          wx.showToast({
+            title: '已清除历史',
+            icon: 'success'
+          });
+        }
+      }
+    });
+  },
+
+  // 使用历史记录进行搜索
+  useSearchHistory: function (e) {
+    const keyword = e.currentTarget.dataset.keyword;
+    console.log('使用历史关键词搜索:', keyword);
+
+    this.setData({
+      searchKeyword: keyword,
+      showSearchHistory: false
+    });
+
+    // 立即执行搜索
+    this.doSearch();
+  },
+
+  // 搜索框获取焦点，显示历史记录
+  onSearchFocus: function () {
+    // 加载最新的搜索历史
+    this.loadSearchHistory();
+
+    // 只有当有历史记录时才显示
+    if (this.data.searchHistory.length > 0) {
+      this.setData({
+        showSearchHistory: true
+      });
+    }
+  },
+
+  // 搜索框失去焦点，隐藏历史记录（延迟执行，避免点击历史记录无效）
+  onSearchBlur: function () {
+    setTimeout(() => {
+      this.setData({
+        showSearchHistory: false
+      });
+    }, 200);
   },
 }) 
