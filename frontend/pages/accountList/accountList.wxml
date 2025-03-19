@@ -15,26 +15,26 @@
   
   <!-- 活跃筛选条件显示区域 -->
   <view class="active-filters" wx:if="{{hasActiveFilters}}">
-    <scroll-view scroll-x="true" class="filter-tags-container">
+    <view class="filter-tags-container">
       <view class="filter-tags">
         <view class="filter-tag" wx:if="{{selectedStoreName !== '全部店铺'}}">
-          店铺: {{selectedStoreName}} <text class="tag-close" data-filter="store" bindtap="clearSingleFilter">×</text>
+          店铺: {{selectedStoreName}} <text class="clear-tag" bindtap="clearSingleFilter" data-filter="store">✕</text>
         </view>
         <view class="filter-tag" wx:if="{{selectedTypeName !== '全部类型'}}">
-          类型: {{selectedTypeName}} <text class="tag-close" data-filter="type" bindtap="clearSingleFilter">×</text>
+          类型: {{selectedTypeName}} <text class="clear-tag" bindtap="clearSingleFilter" data-filter="type">✕</text>
         </view>
         <view class="filter-tag" wx:if="{{startDate || endDate}}">
-          日期: {{startDate}} 至 {{endDate}} <text class="tag-close" data-filter="date" bindtap="clearSingleFilter">×</text>
+          日期: {{startDate}} 至 {{endDate}} <text class="clear-tag" bindtap="clearSingleFilter" data-filter="date">✕</text>
         </view>
         <view class="filter-tag" wx:if="{{minAmount || maxAmount}}">
-          金额: {{minAmount || '0'}} - {{maxAmount || '不限'}} <text class="tag-close" data-filter="amount" bindtap="clearSingleFilter">×</text>
+          金额: {{minAmount || '0'}} - {{maxAmount || '不限'}} <text class="clear-tag" bindtap="clearSingleFilter" data-filter="amount">✕</text>
         </view>
         <view class="filter-tag" wx:if="{{searchKeyword}}">
-          关键词: {{searchKeyword}} <text class="tag-close" data-filter="keyword" bindtap="clearSingleFilter">×</text>
+          关键词: {{searchKeyword}} <text class="clear-tag" bindtap="clearSingleFilter" data-filter="keyword">✕</text>
         </view>
       </view>
-    </scroll-view>
-    <view class="clear-all-filters" bindtap="resetFilter">清除所有</view>
+      <view class="clear-all-filters" bindtap="onClearFilter">清除所有</view>
+    </view>
   </view>
   
   <!-- 日期范围选择 -->

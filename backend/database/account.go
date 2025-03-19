@@ -80,17 +80,14 @@ func CreateAccount(account *models.Account) (int64, error) {
 	return id, nil
 }
 
-// GetAccounts 获取账务记录列表 - 修改函数签名，直接传入所有筛选参数
-func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minAmount, maxAmount string, userID int64) ([]map[string]interface{}, error) {
-	// 检查用户是否是管理员
-	var isAdmin bool
-	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
-	if err != nil {
-		return nil, err
-	}
+// GetAccountsEnhanced 增强版获取账目列表，提供更详细的错误处理和调试信息
+func GetAccounts(userID, storeID, typeID, keyword, startDate, endDate, minAmount, maxAmount, page, limit string) ([]map[string]interface{}, int, error) {
+	// 调试日志
+	log.Printf("【调试】GetAccounts 输入参数: storeID=%s, typeID=%s, userID=%s", storeID, typeID, userID)
 
+	// 查询语句基础部分
 	query := `
-		SELECT 
+		SELECT
 			a.id, a.store_id, s.name as store_name, a.user_id, u.username,
 			a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time,
 			a.create_time, a.update_time
@@ -100,42 +97,90 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 		LEFT JOIN account_types t ON a.type_id = t.id
 		WHERE 1=1
 	`
-	var args []interface{}
 
-	// 普通店员需要添加权限过滤
-	if !isAdmin {
-		query += `
-			AND (
-				a.store_id IN (
-					SELECT store_id FROM user_store_permissions 
-					WHERE user_id = ?
-				)
-			)
-		`
-		args = append(args, userID)
+	// 基础查询参数
+	args := []interface{}{}
+
+	// 记录所有筛选条件
+	conditions := []string{}
+
+	// 用户权限过滤，确保只看到自己有权限的店铺数据
+	userIDInt, _ := strconv.ParseInt(userID, 10, 64)
+	if userIDInt <= 0 {
+		log.Printf("无效的用户ID: %s", userID)
+		return nil, 0, fmt.Errorf("无效的用户ID")
 	}
 
-	// 添加其他筛选条件
-	if storeID != "" && storeID != "0" {
-		// 记录原始storeID值和类型
-		log.Printf("【店铺筛选调试】筛选店铺ID: '%s', 类型: %T", storeID, storeID)
+	if userIDInt != 1 { // 1号用户(admin)可以看所有店铺
+		// 检查用户是管理员还是普通职员
+		var userRole int
+		if err := DB.QueryRow("SELECT role FROM users WHERE id = ?", userIDInt).Scan(&userRole); err != nil {
+			log.Printf("查询用户角色失败: %v", err)
+			return nil, 0, fmt.Errorf("查询用户权限失败")
+		}
 
-		// 尝试转换为数字，验证是否为有效ID
+		if userRole != 1 { // 不是管理员角色，需要过滤店铺权限
+			query += `
+				AND a.store_id IN (
+					SELECT store_id FROM user_store_permissions
+					WHERE user_id = ?
+				)
+			`
+			args = append(args, userIDInt)
+			conditions = append(conditions, fmt.Sprintf("用户ID=%d有权限的店铺", userIDInt))
+		}
+	}
+
+	// 处理店铺筛选
+	if storeID != "" && storeID != "0" {
 		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
 		if err != nil {
 			log.Printf("【店铺筛选调试】店铺ID不是有效数字: %v", err)
-		} else if storeIDInt > 0 {
-			log.Printf("【店铺筛选调试】店铺ID是有效数字: %d", storeIDInt)
-		} else {
-			log.Printf("【店铺筛选调试】店铺ID是0或负数，将视为无效ID")
-			storeID = "" // 无效ID按空处理
+			// 尝试浮点数转换
+			storeIDFloat, floatErr := strconv.ParseFloat(storeID, 64)
+			if floatErr == nil {
+				storeIDInt = int64(storeIDFloat)
+				log.Printf("【店铺筛选调试】浮点数转换成功: %f -> %d", storeIDFloat, storeIDInt)
+			}
 		}
 
-		// 如果ID有效，添加筛选条件
-		if storeID != "" {
-			query += " AND a.store_id = ?"
-			args = append(args, storeID) // 使用原始字符串进行比较
-			log.Printf("【店铺筛选调试】添加店铺筛选条件，ID: %s", storeID)
+		if storeIDInt > 0 {
+			log.Printf("【店铺筛选调试】店铺ID是有效数字: %d, 类型: %T", storeIDInt, storeIDInt)
+
+			// 验证店铺是否存在
+			var storeName string
+			err := DB.QueryRow("SELECT name FROM stores WHERE id = ?", storeIDInt).Scan(&storeName)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					log.Printf("【店铺筛选调试】店铺ID=%d不存在", storeIDInt)
+					return nil, 0, fmt.Errorf("店铺不存在")
+				}
+				log.Printf("【店铺筛选调试】查询店铺失败: %v", err)
+			} else {
+				log.Printf("【店铺筛选调试】店铺ID=%d对应店铺名称: %s", storeIDInt, storeName)
+
+				// 检查是否有该店铺的账目
+				var accountCount int
+				err := DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE store_id = ?", storeIDInt).Scan(&accountCount)
+				if err != nil {
+					log.Printf("【店铺筛选调试】查询店铺账目数量失败: %v", err)
+				} else {
+					log.Printf("【店铺筛选调试】店铺ID=%d的账目数量: %d", storeIDInt, accountCount)
+				}
+			}
+
+			// 直接在SQL中使用具体数值，避免参数化问题
+			query += fmt.Sprintf(" AND a.store_id = %d", storeIDInt)
+
+			// 不再使用参数化查询，以避免可能的类型转换问题
+			// query += " AND a.store_id = ?"
+			// args = append(args, storeIDInt)
+
+			log.Printf("【店铺筛选调试】添加店铺筛选条件，SQL片段: 'AND a.store_id = %d'", storeIDInt)
+			conditions = append(conditions, fmt.Sprintf("店铺ID=%d", storeIDInt))
+		} else {
+			log.Printf("【店铺筛选调试】店铺ID是0或负数或转换失败，将视为无效ID")
+			storeID = "" // 无效ID按空处理
 		}
 	} else {
 		log.Printf("【店铺筛选调试】未提供店铺ID筛选或ID为0，将返回所有店铺数据")
@@ -165,7 +210,6 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 	if minAmount != "" {
 		minAmountFloat, err := strconv.ParseFloat(minAmount, 64)
 		if err == nil {
-			// 使用绝对值比较：筛选绝对值大于等于minAmount的金额
 			query += " AND ABS(a.amount) >= ?"
 			args = append(args, minAmountFloat)
 		} else {
@@ -176,7 +220,6 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 	if maxAmount != "" {
 		maxAmountFloat, err := strconv.ParseFloat(maxAmount, 64)
 		if err == nil {
-			// 使用绝对值比较：筛选绝对值小于等于maxAmount的金额
 			query += " AND ABS(a.amount) <= ?"
 			args = append(args, maxAmountFloat)
 		} else {
@@ -254,7 +297,7 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 	// 执行查询
 	rows, err := DB.Query(query, args...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -295,22 +338,34 @@ func GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minA
 		for i, account := range accounts {
 			storeIDInResult := account["store_id"]
 			storeNameInResult := account["store_name"]
-			log.Printf("【店铺筛选调试】结果[%d]: 店铺ID=%v, 店铺名=%v",
-				i, storeIDInResult, storeNameInResult)
+			log.Printf("【店铺筛选调试】结果[%d]: 店铺ID=%v (类型: %T), 店铺名=%v",
+				i, storeIDInResult, storeIDInResult, storeNameInResult)
 		}
 	}
 
-	return accounts, nil
+	return accounts, limitInt, nil
 }
 
 // GetAccountStatistics 获取账务统计
 func GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmount string, userID int64) (map[string]interface{}, error) {
+	// 将userID转换为string，保持接口一致性
+	userIDStr := fmt.Sprintf("%d", userID)
+
+	// 调试日志
+	log.Printf("统计请求参数: storeID=%s, typeID=%s, startDate=%s, endDate=%s, minAmount=%s, maxAmount=%s",
+		storeID, typeID, startDate, endDate, minAmount, maxAmount)
+
+	// 检查用户权限
+	userIDInt, _ := strconv.ParseInt(userIDStr, 10, 64)
 	// 检查用户是否是管理员
-	var isAdmin bool
-	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
+	var userRole int
+	err := DB.QueryRow("SELECT role FROM users WHERE id = ?", userIDInt).Scan(&userRole)
 	if err != nil {
-		return nil, err
+		log.Printf("查询用户角色失败: %v", err)
+		return nil, fmt.Errorf("查询用户权限失败")
 	}
+
+	isAdmin := (userRole == 1)
 
 	query := `
 		SELECT 
@@ -332,30 +387,40 @@ func GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmo
 				)
 			)
 		`
-		args = append(args, userID)
+		args = append(args, userIDInt)
 	}
 
 	// 添加原有的筛选条件
 	if storeID != "" && storeID != "0" {
 		// 记录原始storeID值和类型
 		log.Printf("统计查询 - 筛选店铺ID: '%s', 类型: %T", storeID, storeID)
-		
+
 		// 尝试转换为数字，验证是否为有效ID
 		storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
 		if err != nil {
 			log.Printf("统计查询 - 店铺ID不是有效数字: %v", err)
-		} else if storeIDInt > 0 {
-			log.Printf("统计查询 - 店铺ID是有效数字: %d", storeIDInt)
-		} else {
-			log.Printf("统计查询 - 店铺ID是0或负数，将视为无效ID")
-			storeID = "" // 无效ID按空处理
+			// 尝试浮点数转换（前端可能传递浮点数形式）
+			storeIDFloat, floatErr := strconv.ParseFloat(storeID, 64)
+			if floatErr == nil {
+				storeIDInt = int64(storeIDFloat)
+				log.Printf("统计查询 - 浮点数转换成功: %f -> %d", storeIDFloat, storeIDInt)
+			}
 		}
 
-		// 如果ID有效，添加筛选条件
-		if storeID != "" {
-			query += " AND store_id = ?"
-			args = append(args, storeID) // 使用原始字符串进行比较
-			log.Printf("统计查询 - 添加店铺筛选条件，ID: %s", storeID)
+		if storeIDInt > 0 {
+			log.Printf("统计查询 - 店铺ID是有效数字: %d", storeIDInt)
+
+			// 直接在SQL中使用具体数值，避免参数化问题
+			query += fmt.Sprintf(" AND store_id = %d", storeIDInt)
+
+			// 不再使用参数化查询，以避免可能的类型转换问题
+			// query += " AND store_id = ?"
+			// args = append(args, storeIDInt)
+
+			log.Printf("统计查询 - 添加店铺筛选条件，SQL片段: 'AND store_id = %d'", storeIDInt)
+		} else {
+			log.Printf("统计查询 - 店铺ID是0或负数或转换失败，将视为无效ID")
+			storeID = "" // 无效ID按空处理
 		}
 	}
 
@@ -363,7 +428,7 @@ func GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmo
 	if typeID != "" && typeID != "0" {
 		// 记录原始typeID值
 		log.Printf("统计查询 - 筛选类型ID: '%s'", typeID)
-		
+
 		// 直接使用字符串比较，保持与店铺ID筛选一致
 		query += " AND type_id = ?"
 		args = append(args, typeID)

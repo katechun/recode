@@ -3,9 +3,9 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -174,13 +174,50 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 		if storeID == "undefined" || storeID == "null" || storeID == "0" {
 			log.Printf("【API筛选调试】店铺ID是特殊值(%s)，设为空", storeID)
 			storeID = ""
-		}
-
-		// 检查是否只包含数字，如果是且值为0，也设为空
-		if matched, _ := regexp.MatchString("^[0-9]+$", storeID); matched {
-			if val, err := strconv.ParseInt(storeID, 10, 64); err == nil && val == 0 {
-				log.Printf("【API筛选调试】店铺ID是数值0，设为空")
+		} else {
+			// 验证是否是有效数字
+			storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
+			if err != nil {
+				// 尝试浮点数解析
+				floatVal, err := strconv.ParseFloat(storeID, 64)
+				if err == nil {
+					// 是浮点数，转为整数字符串
+					if floatVal > 0 {
+						storeID = strconv.FormatInt(int64(floatVal), 10)
+						log.Printf("【API筛选调试】店铺ID是浮点数，转换为整数: %s", storeID)
+					} else {
+						log.Printf("【API筛选调试】店铺ID是非正浮点数(%s)，设为空", storeID)
+						storeID = ""
+					}
+				} else {
+					log.Printf("【API筛选调试】店铺ID不是有效数字(%s)，设为空", storeID)
+					storeID = ""
+				}
+			} else if storeIDInt <= 0 {
+				log.Printf("【API筛选调试】店铺ID是非正整数(%d)，设为空", storeIDInt)
 				storeID = ""
+			} else {
+				// 确保是整数字符串格式
+				storeID = strconv.FormatInt(storeIDInt, 10)
+				log.Printf("【API筛选调试】店铺ID是有效整数，标准化为: %s", storeID)
+
+				// 增加调试代码，测试数据库中是否有对应ID的店铺
+				var storeName string
+				storeErr := database.DB.QueryRow("SELECT name FROM stores WHERE id = ?", storeIDInt).Scan(&storeName)
+				if storeErr != nil {
+					log.Printf("【API筛选调试】查询store_id=%d的店铺失败: %v", storeIDInt, storeErr)
+				} else {
+					log.Printf("【API筛选调试】store_id=%d对应店铺名: %s", storeIDInt, storeName)
+				}
+
+				// 测试该店铺的账目数量
+				var accountCount int
+				countErr := database.DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE store_id = ?", storeIDInt).Scan(&accountCount)
+				if countErr != nil {
+					log.Printf("【API筛选调试】查询store_id=%d的账目数量失败: %v", storeIDInt, countErr)
+				} else {
+					log.Printf("【API筛选调试】store_id=%d的账目数量: %d", storeIDInt, accountCount)
+				}
 			}
 		}
 
@@ -194,7 +231,17 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 		userID, storeID, typeID, startDate, endDate, keyword, minAmount, maxAmount)
 
 	// 调用修改后的GetAccounts函数，传入所有参数
-	accounts, err := database.GetAccounts(storeID, typeID, startDate, endDate, keyword, limit, page, minAmount, maxAmount, userID)
+	accounts, limitInt, err := database.GetAccounts(
+		fmt.Sprintf("%d", userID), // 转换为字符串
+		storeID,
+		typeID,
+		keyword,
+		startDate,
+		endDate,
+		minAmount,
+		maxAmount,
+		page,
+		limit)
 	if err != nil {
 		log.Printf("获取账务记录失败: %v", err)
 		SendResponse(w, http.StatusInternalServerError, 500, "获取账务记录失败", nil)
@@ -205,6 +252,7 @@ func (h *AccountHandler) List(w http.ResponseWriter, r *http.Request) {
 	response := map[string]interface{}{
 		"data":  accounts,
 		"total": len(accounts),
+		"limit": limitInt,
 	}
 
 	SendResponse(w, http.StatusOK, 200, "获取账务记录成功", response)
@@ -242,9 +290,51 @@ func (h *AccountHandler) GetStatistics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 增强店铺ID处理
+	if storeID != "" {
+		log.Printf("【统计API】原始店铺ID: '%s', 类型: %T", storeID, storeID)
+
+		// 清理店铺ID
+		storeID = strings.TrimSpace(storeID)
+
+		if storeID == "undefined" || storeID == "null" || storeID == "0" {
+			log.Printf("【统计API】店铺ID是特殊值(%s)，设为空", storeID)
+			storeID = ""
+		} else {
+			// 验证是否是有效数字
+			storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
+			if err != nil {
+				// 尝试浮点数解析
+				floatVal, err := strconv.ParseFloat(storeID, 64)
+				if err == nil {
+					// 是浮点数，转为整数字符串
+					if floatVal > 0 {
+						storeID = strconv.FormatInt(int64(floatVal), 10)
+						log.Printf("【统计API】店铺ID是浮点数，转换为整数: %s", storeID)
+					} else {
+						log.Printf("【统计API】店铺ID是非正浮点数(%s)，设为空", storeID)
+						storeID = ""
+					}
+				} else {
+					log.Printf("【统计API】店铺ID不是有效数字(%s)，设为空", storeID)
+					storeID = ""
+				}
+			} else if storeIDInt <= 0 {
+				log.Printf("【统计API】店铺ID是非正整数(%d)，设为空", storeIDInt)
+				storeID = ""
+			} else {
+				// 确保是整数字符串格式
+				storeID = strconv.FormatInt(storeIDInt, 10)
+				log.Printf("【统计API】店铺ID是有效整数，标准化为: %s", storeID)
+			}
+		}
+
+		log.Printf("【统计API】处理后的店铺ID: '%s'", storeID)
+	}
+
 	// 记录请求参数
-	log.Printf("统计查询请求 - 用户ID: %d, 店铺ID: %s, 类型ID: %s, 开始日期: %s, 结束日期: %s, 最小金额: %s, 最大金额: %s",
-		userID, storeID, typeID, startDate, endDate, minAmount, maxAmount)
+	log.Printf("统计请求参数: storeID=%s, typeID=%s, startDate=%s, endDate=%s, minAmount=%s, maxAmount=%s",
+		storeID, typeID, startDate, endDate, minAmount, maxAmount)
 
 	// 调用GetAccountStatistics函数，传入所有筛选参数
 	statistics, err := database.GetAccountStatistics(storeID, typeID, startDate, endDate, minAmount, maxAmount, userID)
@@ -358,13 +448,50 @@ func (h *AccountHandler) Statistics(w http.ResponseWriter, r *http.Request) {
 		if storeID == "undefined" || storeID == "null" || storeID == "0" {
 			log.Printf("【统计API调试】店铺ID是特殊值(%s)，设为空", storeID)
 			storeID = ""
-		}
-
-		// 检查是否只包含数字，如果是且值为0，也设为空
-		if matched, _ := regexp.MatchString("^[0-9]+$", storeID); matched {
-			if val, err := strconv.ParseInt(storeID, 10, 64); err == nil && val == 0 {
-				log.Printf("【统计API调试】店铺ID是数值0，设为空")
+		} else {
+			// 验证是否是有效数字
+			storeIDInt, err := strconv.ParseInt(storeID, 10, 64)
+			if err != nil {
+				// 尝试浮点数解析
+				floatVal, err := strconv.ParseFloat(storeID, 64)
+				if err == nil {
+					// 是浮点数，转为整数字符串
+					if floatVal > 0 {
+						storeID = strconv.FormatInt(int64(floatVal), 10)
+						log.Printf("【统计API调试】店铺ID是浮点数，转换为整数: %s", storeID)
+					} else {
+						log.Printf("【统计API调试】店铺ID是非正浮点数(%s)，设为空", storeID)
+						storeID = ""
+					}
+				} else {
+					log.Printf("【统计API调试】店铺ID不是有效数字(%s)，设为空", storeID)
+					storeID = ""
+				}
+			} else if storeIDInt <= 0 {
+				log.Printf("【统计API调试】店铺ID是非正整数(%d)，设为空", storeIDInt)
 				storeID = ""
+			} else {
+				// 确保是整数字符串格式
+				storeID = strconv.FormatInt(storeIDInt, 10)
+				log.Printf("【统计API调试】店铺ID是有效整数，标准化为: %s", storeID)
+
+				// 增加调试代码，测试数据库中是否有对应ID的店铺
+				var storeName string
+				storeErr := database.DB.QueryRow("SELECT name FROM stores WHERE id = ?", storeIDInt).Scan(&storeName)
+				if storeErr != nil {
+					log.Printf("【API筛选调试】查询store_id=%d的店铺失败: %v", storeIDInt, storeErr)
+				} else {
+					log.Printf("【API筛选调试】store_id=%d对应店铺名: %s", storeIDInt, storeName)
+				}
+
+				// 测试该店铺的账目数量
+				var accountCount int
+				countErr := database.DB.QueryRow("SELECT COUNT(*) FROM accounts WHERE store_id = ?", storeIDInt).Scan(&accountCount)
+				if countErr != nil {
+					log.Printf("【API筛选调试】查询store_id=%d的账目数量失败: %v", storeIDInt, countErr)
+				} else {
+					log.Printf("【API筛选调试】store_id=%d的账目数量: %d", storeIDInt, accountCount)
+				}
 			}
 		}
 

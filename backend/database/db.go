@@ -15,6 +15,8 @@ import (
 var (
 	// DB 全局数据库连接
 	DB *sql.DB
+	// dbPath 全局数据库路径
+	dbPath string
 )
 
 // InitDB 初始化数据库连接
@@ -24,7 +26,7 @@ func InitDB() {
 		log.Fatalf("创建数据目录失败: %v", err)
 	}
 
-	dbPath := filepath.Join("./data", "account.db")
+	dbPath = filepath.Join("./data", "account.db")
 	log.Printf("数据库路径: %s", dbPath)
 
 	// 使用纯 Go 实现的 SQLite 驱动
@@ -46,4 +48,14 @@ func InitDB() {
 	// 设置数据库连接池参数
 	DB.SetMaxOpenConns(10)
 	DB.SetMaxIdleConns(5)
-} 
+}
+
+// GetDB 返回数据库连接实例
+func GetDB() *sql.DB {
+	return DB
+}
+
+// GetDBPath 返回数据库文件路径
+func GetDBPath() string {
+	return dbPath
+}

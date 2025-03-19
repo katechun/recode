@@ -37,7 +37,7 @@ func main() {
 	initTestData := os.Getenv("INIT_TEST_DATA")
 	if initTestData == "true" {
 		log.Println("检测到INIT_TEST_DATA=true，将初始化测试数据")
-		
+
 		// 重置数据库，创建正确的表结构
 		if err := database.ResetDatabase(); err != nil {
 			log.Printf("重置数据库失败: %v", err)
@@ -57,7 +57,7 @@ func main() {
 		if err := database.InsertTestAccount(); err != nil {
 			log.Printf("插入测试账户数据时出错: %v", err)
 		}
-		
+
 		log.Println("测试数据初始化完成")
 	} else {
 		log.Println("跳过测试数据初始化，保留现有数据")
@@ -133,6 +133,9 @@ func main() {
 
 	// 添加调试API
 	router.HandleFunc("/api/debug/create-test-users", api.CORSMiddleware(api.CreateTestUsers)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/debug/data", api.CORSMiddleware(api.DebugHandler)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/debug/query", api.CORSMiddleware(api.ExecuteDebugQuery)).Methods("GET", "POST", "OPTIONS")
+	router.HandleFunc("/api/debug/store", api.CORSMiddleware(api.TestStoreData)).Methods("GET", "OPTIONS")
 
 	log.Printf("服务器启动在 :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

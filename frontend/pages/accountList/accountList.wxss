@@ -118,54 +118,41 @@
 }
 
 .filter-tags-container {
-  flex: 1;
-  white-space: nowrap;
-  overflow-x: scroll;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 24rpx;
+  margin-bottom: 10rpx;
 }
 
 .filter-tags {
-  display: inline-flex;
-  white-space: nowrap;
+  display: flex;
+  flex-wrap: wrap;
+  flex: 1;
 }
 
 .filter-tag {
-  display: inline-flex;
-  align-items: center;
-  background-color: #e6f7ff;
-  border: 1rpx solid #91d5ff;
-  color: #1890ff;
-  font-size: 24rpx;
+  background-color: #f0f8ff;
   border-radius: 30rpx;
-  padding: 8rpx 20rpx;
-  margin-right: 16rpx;
-  max-width: 300rpx;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  padding: 6rpx 20rpx;
+  margin: 10rpx 10rpx 10rpx 0;
+  font-size: 26rpx;
+  color: #0066cc;
+  display: flex;
+  align-items: center;
 }
 
-.tag-close {
-  margin-left: 8rpx;
-  font-size: 26rpx;
+.clear-tag {
+  margin-left: 10rpx;
   color: #999;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 32rpx;
-  height: 32rpx;
-  border-radius: 16rpx;
-  background-color: #f0f0f0;
+  font-size: 24rpx;
 }
 
 .clear-all-filters {
-  font-size: 24rpx;
-  color: #ff5a5f;
-  padding: 10rpx 16rpx;
+  font-size: 26rpx;
+  color: #ff6666;
+  padding: 10rpx;
   white-space: nowrap;
-  background-color: #fff;
-  border-radius: 30rpx;
-  border: 1rpx solid #ffcdd2;
-  margin-left: 10rpx;
 }
 
 /* 日期范围选择栏 */
