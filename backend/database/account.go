@@ -88,7 +88,8 @@ func GetAccounts(userID, storeID, typeID, keyword, startDate, endDate, minAmount
 	// 查询语句基础部分
 	query := `
 		SELECT
-			a.id, a.store_id, s.name as store_name, a.user_id, u.username,
+			a.id, a.store_id, s.name as store_name, 
+			COALESCE(a.user_id, 0) as user_id, COALESCE(u.username, '未知用户') as username,
 			a.type_id, t.name as type_name, a.amount, a.remark, a.transaction_time,
 			a.create_time, a.update_time
 		FROM accounts a

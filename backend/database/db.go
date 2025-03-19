@@ -48,6 +48,11 @@ func InitDB() {
 	// 设置数据库连接池参数
 	DB.SetMaxOpenConns(10)
 	DB.SetMaxIdleConns(5)
+
+	// 检查并确保数据库表结构正确
+	if err := EnsureDatabaseTables(); err != nil {
+		log.Printf("数据库表结构检查失败: %v", err)
+	}
 }
 
 // GetDB 返回数据库连接实例

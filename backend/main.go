@@ -28,10 +28,12 @@ func main() {
 	// 初始化数据库
 	database.InitDB()
 
-	// 检查并迁移表结构 - 这只会创建不存在的表或添加新列，不会删除数据
-	if err := database.CheckAndMigrateTables(); err != nil {
-		log.Printf("检查表结构时出错: %v", err)
-	}
+	// 数据库表结构检查已经在InitDB中完成，这里不再重复执行
+	// if err := database.EnsureDatabaseTables(); err != nil {
+	// 	log.Printf("数据库表结构初始化失败: %v", err)
+	// } else {
+	// 	log.Println("数据库表结构初始化成功")
+	// }
 
 	// 仅在指定环境变量时初始化测试数据
 	initTestData := os.Getenv("INIT_TEST_DATA")
@@ -62,10 +64,6 @@ func main() {
 	} else {
 		log.Println("跳过测试数据初始化，保留现有数据")
 	}
-
-	// 注释掉重复的初始化函数调用
-	// database.InitUsers()
-	// database.InsertTestData()
 
 	// 实例化处理器
 	userHandler := &api.UserHandler{}

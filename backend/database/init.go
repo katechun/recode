@@ -170,11 +170,11 @@ func CreateTables() error {
 		last_login TIMESTAMP
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建用户表失败: %w", err)
 	}
-	
+
 	// 创建店铺表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS stores (
@@ -186,11 +186,11 @@ func CreateTables() error {
 		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建店铺表失败: %w", err)
 	}
-	
+
 	// 创建账务类型表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS account_types (
@@ -204,16 +204,17 @@ func CreateTables() error {
 		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建账务类型表失败: %w", err)
 	}
-	
+
 	// 创建账务记录表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS accounts (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		store_id INTEGER NOT NULL,
+		user_id INTEGER DEFAULT 0,  -- 记录人ID，默认为0表示未知用户
 		type_id INTEGER NOT NULL,
 		amount REAL NOT NULL,
 		remark TEXT,
@@ -224,11 +225,32 @@ func CreateTables() error {
 		FOREIGN KEY (type_id) REFERENCES account_types(id)
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建账务记录表失败: %w", err)
 	}
-	
+
+	// 检查accounts表中是否存在user_id列
+	var columnExists bool
+	err = DB.QueryRow(`
+		SELECT COUNT(*) > 0 
+		FROM pragma_table_info('accounts') 
+		WHERE name = 'user_id'
+	`).Scan(&columnExists)
+	if err != nil {
+		return fmt.Errorf("检查user_id列失败: %v", err)
+	}
+
+	// 如果账务表中不存在user_id列，添加该列
+	if !columnExists {
+		log.Println("检测到accounts表缺少user_id列，正在添加...")
+		_, err = DB.Exec(`ALTER TABLE accounts ADD COLUMN user_id INTEGER DEFAULT 0`)
+		if err != nil {
+			return fmt.Errorf("添加user_id列失败: %v", err)
+		}
+		log.Println("已成功添加user_id列到accounts表")
+	}
+
 	// 创建用户店铺权限表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS user_store_permissions (
@@ -236,34 +258,85 @@ func CreateTables() error {
 		user_id INTEGER NOT NULL,
 		store_id INTEGER NOT NULL,
 		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (store_id) REFERENCES stores(id) ON DELETE CASCADE,
+		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		FOREIGN KEY (store_id) REFERENCES stores(id),
 		UNIQUE(user_id, store_id)
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建用户店铺权限表失败: %w", err)
 	}
-	
+
 	// 创建用户默认设置表
 	_, err = DB.Exec(`
 	CREATE TABLE IF NOT EXISTS user_default_settings (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		user_id INTEGER NOT NULL,
-		default_store_id INTEGER,
+		store_id INTEGER,
+		income_type_id INTEGER,
+		expense_type_id INTEGER,
 		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
 		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-		FOREIGN KEY (default_store_id) REFERENCES stores(id) ON DELETE SET NULL
+		FOREIGN KEY (user_id) REFERENCES users(id),
+		FOREIGN KEY (store_id) REFERENCES stores(id),
+		FOREIGN KEY (income_type_id) REFERENCES account_types(id),
+		FOREIGN KEY (expense_type_id) REFERENCES account_types(id)
 	)
 	`)
-	
+
 	if err != nil {
 		return fmt.Errorf("创建用户默认设置表失败: %w", err)
 	}
-	
+
 	return nil
 }
+
+// InitializeTestData 初始化测试数据
+// func InitializeTestData() error {
+// 	// 创建基础测试数据
+// 	if err := CreateTestData(); err != nil {
+// 		return fmt.Errorf("创建基础测试数据失败: %w", err)
+// 	}
+//
+// 	// 添加店铺权限关联数据
+// 	if err := FixForeignKeyReferences(); err != nil {
+// 		return fmt.Errorf("设置用户店铺权限关联失败: %w", err)
+// 	}
+//
+// 	return nil
+// }
+
+// EnsureDatabaseTables 确保所有必要的数据库表存在
+// func EnsureDatabaseTables() error {
+// 	// 首先尝试创建所有基本表结构
+// 	if err := CreateTables(); err != nil {
+// 		return fmt.Errorf("创建基本表结构失败: %v", err)
+// 	}
+
+// 	// 检查accounts表中是否存在user_id列
+// 	var columnExists bool
+// 	err := DB.QueryRow(`
+// 		SELECT COUNT(*) > 0
+// 		FROM pragma_table_info('accounts')
+// 		WHERE name = 'user_id'
+// 	`).Scan(&columnExists)
+// 	if err != nil {
+// 		return fmt.Errorf("检查user_id列失败: %v", err)
+// 	}
+
+// 	// 如果accounts表中不存在user_id列，添加该列
+// 	if !columnExists {
+// 		log.Println("检测到accounts表缺少user_id列，正在添加...")
+// 		_, err = DB.Exec(`ALTER TABLE accounts ADD COLUMN user_id INTEGER DEFAULT 0`)
+// 		if err != nil {
+// 			return fmt.Errorf("添加user_id列失败: %v", err)
+// 		}
+// 		log.Println("已成功添加user_id列到accounts表")
+// 	}
+
+// 	return nil
+// }
 
 // 其余函数保持不变
