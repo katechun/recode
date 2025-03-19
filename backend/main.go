@@ -136,6 +136,7 @@ func main() {
 	router.HandleFunc("/api/debug/data", api.CORSMiddleware(api.DebugHandler)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/debug/query", api.CORSMiddleware(api.ExecuteDebugQuery)).Methods("GET", "POST", "OPTIONS")
 	router.HandleFunc("/api/debug/store", api.CORSMiddleware(api.TestStoreData)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/debug/permissions", api.CORSMiddleware(api.CheckPermissions)).Methods("GET", "OPTIONS")
 
 	log.Printf("服务器启动在 :8080")
 	log.Fatal(http.ListenAndServe(":8080", router))

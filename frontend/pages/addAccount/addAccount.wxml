@@ -61,6 +61,13 @@
       <text class="form-label">备注</text>
       <input class="form-input" placeholder="请输入备注（选填）" value="{{remark}}" bindinput="bindRemarkInput" />
     </view>
+    
+    <view class="form-item recorder-info">
+      <text class="form-label">记录人</text>
+      <view class="recorder-value">
+        <text>{{username || '未知用户'}}</text>
+      </view>
+    </view>
   </view>
   
   <view class="button-group">

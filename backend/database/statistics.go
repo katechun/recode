@@ -1,7 +1,9 @@
 package database
 
 import (
+	"database/sql"
 	"fmt"
+	"log"
 	"time"
 )
 
@@ -47,42 +49,63 @@ func GetReportData(startDate, endDate time.Time, storeId int64, userID int64) (R
 	var isAdmin bool
 	err := DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("检查用户权限失败: %w", err)
 	}
 
-	// 获取用户可访问的店铺ID列表(如果不是管理员)
-	var storeFilter string
-	var args []interface{}
-	
+	// 记录查询使用的关键参数
+	log.Printf("GetReportData - 用户ID: %d, 店铺ID: %d, 日期: %s 到 %s, 是否管理员: %v",
+		userID, storeId, startDate.Format("2006-01-02"), endDate.Format("2006-01-02"), isAdmin)
+
+	// 处理店铺权限
 	if !isAdmin && storeId <= 0 {
-		// 非管理员且选择"全部店铺"时，只统计有权限的店铺
-		storeFilter = `
-			AND a.store_id IN (
-				SELECT store_id FROM user_store_permissions 
-				WHERE user_id = ?
-			)
-		`
-		args = append(args, userID)
-	} else if storeId > 0 {
-		// 指定了特定店铺ID，还需要验证权限
-		if !isAdmin {
-			var hasPermission bool
-			err := DB.QueryRow(`
-				SELECT EXISTS (
-					SELECT 1 FROM user_store_permissions
-					WHERE user_id = ? AND store_id = ?
-				)
-			`, userID, storeId).Scan(&hasPermission)
-			
-			if err != nil {
-				return reportData, err
+		// 对于非管理员且未指定店铺，尝试获取第一个有权限的店铺
+		row := DB.QueryRow(`
+			SELECT store_id FROM user_store_permissions 
+			WHERE user_id = ? LIMIT 1
+		`, userID)
+
+		err := row.Scan(&storeId)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// 没有权限的店铺，返回空数据
+				log.Printf("用户 %d 没有任何店铺权限", userID)
+				return ReportData{}, nil
 			}
-			
-			if !hasPermission {
-				return reportData, fmt.Errorf("用户无权访问此店铺")
-			}
+			return reportData, fmt.Errorf("获取用户店铺权限失败: %w", err)
 		}
-		
+
+		log.Printf("非管理员用户 %d 未指定店铺，自动选择第一个有权限的店铺ID: %d", userID, storeId)
+	} else if !isAdmin && storeId > 0 {
+		// 非管理员指定了店铺，检查是否有权限
+		var hasPermission bool
+		err := DB.QueryRow(`
+			SELECT EXISTS (
+				SELECT 1 FROM user_store_permissions
+				WHERE user_id = ? AND store_id = ?
+			)
+		`, userID, storeId).Scan(&hasPermission)
+
+		if err != nil {
+			return reportData, fmt.Errorf("检查店铺权限失败: %w", err)
+		}
+
+		if !hasPermission {
+			log.Printf("用户 %d 无权访问店铺 %d", userID, storeId)
+			return reportData, fmt.Errorf("用户无权访问此店铺")
+		}
+	}
+
+	// 如果此时仍然没有有效的店铺ID，返回空数据
+	if storeId <= 0 && !isAdmin {
+		log.Printf("用户 %d 没有指定有效的店铺ID", userID)
+		return ReportData{}, nil
+	}
+
+	// 构建查询参数
+	var args []interface{}
+	var storeFilter string
+
+	if storeId > 0 {
 		storeFilter = " AND a.store_id = ?"
 		args = append(args, storeId)
 	}
@@ -90,31 +113,31 @@ func GetReportData(startDate, endDate time.Time, storeId int64, userID int64) (R
 	// 获取总计数据
 	reportData.TotalIncome, reportData.TotalExpense, reportData.NetIncome, err = getTotalAmounts(startDate, endDate, storeId, storeFilter, args)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("获取总计数据失败: %w", err)
 	}
 
 	// 获取趋势数据
 	reportData.Trend, err = getTrendData(startDate, endDate, storeId, storeFilter, args)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("获取趋势数据失败: %w", err)
 	}
 
 	// 获取分类对比数据
 	reportData.Compare, err = getCompareData(startDate, endDate, storeId)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("获取分类对比数据失败: %w", err)
 	}
 
 	// 获取收入分类数据
 	reportData.IncomeCategories, err = getCategoryData(startDate, endDate, storeId, true)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("获取收入分类数据失败: %w", err)
 	}
 
 	// 获取支出分类数据
 	reportData.ExpenseCategories, err = getCategoryData(startDate, endDate, storeId, false)
 	if err != nil {
-		return reportData, err
+		return reportData, fmt.Errorf("获取支出分类数据失败: %w", err)
 	}
 
 	return reportData, nil
@@ -125,7 +148,7 @@ func getTotalAmounts(startDate, endDate time.Time, storeId int64, storeFilter st
 	// 复制args以避免修改原始切片
 	queryArgs := make([]interface{}, len(args))
 	copy(queryArgs, args)
-	
+
 	// 添加日期参数
 	query := `
 		SELECT 
@@ -135,12 +158,12 @@ func getTotalAmounts(startDate, endDate time.Time, storeId int64, storeFilter st
 		FROM accounts a
 		WHERE a.transaction_time BETWEEN ? AND ?
 	` + storeFilter
-	
+
 	queryArgs = append([]interface{}{startDate, endDate}, queryArgs...)
-	
+
 	var income, expense, net float64
 	err := DB.QueryRow(query, queryArgs...).Scan(&income, &expense, &net)
-	
+
 	return income, expense, net, err
 }
 
@@ -159,12 +182,12 @@ func getTrendData(startDate, endDate time.Time, storeId int64, storeFilter strin
 	// 修改SQL查询，先添加日期条件，然后再添加其他条件
 	query := `
 		SELECT 
-			SUBSTR(transaction_time, 1, 10) as date,
-			SUM(CASE WHEN amount >= 0 THEN amount ELSE 0 END) as income,
-			SUM(CASE WHEN amount < 0 THEN amount ELSE 0 END) as expense,
-			SUM(amount) as net
-		FROM accounts
-		WHERE transaction_time BETWEEN ? AND ?
+			SUBSTR(a.transaction_time, 1, 10) as date,
+			SUM(CASE WHEN a.amount >= 0 THEN a.amount ELSE 0 END) as income,
+			SUM(CASE WHEN a.amount < 0 THEN a.amount ELSE 0 END) as expense,
+			SUM(a.amount) as net
+		FROM accounts a
+		WHERE a.transaction_time BETWEEN ? AND ?
 	`
 
 	// 先准备日期参数
@@ -176,7 +199,7 @@ func getTrendData(startDate, endDate time.Time, storeId int64, storeFilter strin
 	}
 
 	// 按日期分组
-	query += " GROUP BY SUBSTR(transaction_time, 1, 10) ORDER BY date"
+	query += " GROUP BY SUBSTR(a.transaction_time, 1, 10) ORDER BY date"
 
 	// 执行查询
 	rows, err := DB.Query(query, queryArgs...)
@@ -224,7 +247,7 @@ func getCompareData(startDate, endDate time.Time, storeId int64) ([]CompareData,
 
 	// 准备参数
 	args := []interface{}{startDateStr, endDateStr}
-	
+
 	// 添加店铺过滤条件
 	if storeId > 0 {
 		query += " AND a.store_id = ?"
@@ -303,4 +326,4 @@ func getCategoryData(startDate, endDate time.Time, storeId int64, isIncome bool)
 	}
 
 	return categoryData, nil
-} 
+}

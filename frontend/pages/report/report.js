@@ -119,21 +119,52 @@ Page({
 
   // 加载店铺列表
   loadStores() {
-    request.get(config.apis.stores.list)
-      .then(res => {
-        if (res.data) {
-          // 添加"全部店铺"选项
-          const stores = [{ id: '', name: '全部店铺' }].concat(res.data);
-          this.setData({ stores });
+    const userInfo = wx.getStorageSync('userInfo');
+    if (!userInfo) return;
+
+    // 管理员可以看到所有店铺，普通用户只能看到有权限的店铺
+    wx.request({
+      url: config.apiBaseUrl + '/api/stores',
+      method: 'GET',
+      header: {
+        'content-type': 'application/json',
+        'X-User-ID': userInfo.id
+      },
+      success: (res) => {
+        if (res.statusCode === 200 && res.data && res.data.code === 200) {
+          const stores = res.data.data || [];
+
+          // 添加"全部店铺"选项（仅对管理员有效）
+          if (userInfo.role === 1) { // 管理员
+            stores.unshift({
+              id: '',
+              name: '全部店铺'
+            });
+          }
+
+          this.setData({
+            stores,
+            selectedStore: stores.length > 0 ? stores[0] : null,
+            selectedStoreId: stores.length > 0 ? stores[0].id : ''
+          });
+
+          console.log('店铺列表加载成功:', stores);
+        } else {
+          console.error('获取店铺列表失败:', res);
+          wx.showToast({
+            title: '获取店铺列表失败',
+            icon: 'none'
+          });
         }
-      })
-      .catch(err => {
-        console.error('加载店铺失败:', err);
+      },
+      fail: (err) => {
+        console.error('获取店铺列表请求失败:', err);
         wx.showToast({
-          title: '加载店铺失败',
+          title: '网络错误，请重试',
           icon: 'none'
         });
-      });
+      }
+    });
   },
 
   // 加载报表数据
@@ -151,15 +182,28 @@ Page({
       params.storeId = this.data.selectedStoreId;
     }
 
+    // 确保添加用户ID
+    const userInfo = wx.getStorageSync('userInfo');
+    if (userInfo && userInfo.id) {
+      params.userId = userInfo.id;
+    }
+
     console.log('加载报表数据，参数:', params);
 
-    // 用户ID已经在request工具函数中添加了
-    request.get(config.apis.statistics.report, params)
-      .then(res => {
+    // 发送请求获取报表数据
+    wx.request({
+      url: config.apiBaseUrl + config.apis.statistics.report,
+      data: params,
+      method: 'GET',
+      header: {
+        'content-type': 'application/json',
+        'X-User-ID': params.userId || ''
+      },
+      success: (res) => {
         console.log('报表数据返回:', res);
 
-        if (res.code === 200 && res.data) {
-          const reportData = res.data;
+        if (res.statusCode === 200 && res.data && res.data.code === 200) {
+          const reportData = res.data.data;
 
           this.setData({
             totalIncome: this.formatAmount(reportData.totalIncome || 0),
@@ -195,13 +239,13 @@ Page({
           this.processCategoryData(reportData);
         } else {
           wx.showToast({
-            title: res.message || '数据加载失败',
+            title: res.data?.message || '数据加载失败',
             icon: 'none'
           });
         }
         this.setData({ isLoading: false });
-      })
-      .catch(err => {
+      },
+      fail: (err) => {
         console.error('获取报表数据失败:', err);
         this.setData({
           isLoading: false,
@@ -218,11 +262,16 @@ Page({
 
         // 显示更详细的错误信息
         wx.showToast({
-          title: err.message || '数据加载失败，请稍后重试',
+          title: '数据加载失败，请稍后重试',
           icon: 'none',
           duration: 3000
         });
-      });
+      },
+      complete: () => {
+        // 确保隐藏loading
+        wx.hideLoading();
+      }
+    });
   },
 
   // 处理分类数据
@@ -290,15 +339,18 @@ Page({
 
   // 选择店铺
   selectStore(e) {
-    const storeId = e.currentTarget.dataset.id;
-    const storeName = e.currentTarget.dataset.name;
+    const index = e.currentTarget.dataset.index;
+    const store = this.data.stores[index];
 
     this.setData({
-      selectedStoreId: storeId,
-      selectedStore: { id: storeId, name: storeName },
+      selectedStore: store,
+      selectedStoreId: store.id,
       storePickerVisible: false
     });
 
+    console.log('选择店铺:', store);
+
+    // 重新加载报表数据
     this.loadReportData();
   },
 

@@ -19,7 +19,8 @@ Page({
     dateTimePickerVisible: false,
     pickerStep: 'date', // 'date' 或 'time'
     defaultSettings: null, // 存储用户默认设置
-    isTypeSwitchedByUser: false // 标记是否由用户手动切换了类型
+    isTypeSwitchedByUser: false, // 标记是否由用户手动切换了类型
+    username: '' // 当前用户名
   },
 
   onLoad: function (options) {
@@ -63,13 +64,21 @@ Page({
     const typeId = options.typeId || '';
     console.log('设置类型ID:', typeId, '类型:', accountType);
 
+    // 获取用户信息
+    const userInfo = wx.getStorageSync('userInfo');
+    let username = '';
+    if (userInfo) {
+      username = userInfo.username || '当前用户';
+    }
+
     this.setData({
       currentDate,
       currentTime,
       transactionTime: fullDateTime,
       storeId: options.storeId || '',
       typeId: typeId,
-      accountType: accountType
+      accountType: accountType,
+      username: username
     });
 
     // 加载用户默认设置

@@ -471,3 +471,120 @@ func TestStoreData(w http.ResponseWriter, r *http.Request) {
 
 	SendResponse(w, http.StatusOK, 200, "店铺测试数据", response)
 }
+
+// CheckPermissions 用于调试时检查用户的店铺权限
+func CheckPermissions(w http.ResponseWriter, r *http.Request) {
+	log.Printf("收到权限检查请求: %s", r.URL.String())
+
+	// 获取查询参数
+	userIDStr := r.URL.Query().Get("userId")
+
+	// 转换用户ID
+	var userID int64
+	if userIDStr != "" {
+		var err error
+		userID, err = strconv.ParseInt(userIDStr, 10, 64)
+		if err != nil {
+			errMsg := fmt.Sprintf("无效的用户ID: %s", userIDStr)
+			log.Printf("权限检查错误: %s", errMsg)
+			SendResponse(w, http.StatusBadRequest, 400, errMsg, nil)
+			return
+		}
+	}
+
+	// 验证用户ID是否有效
+	if userID <= 0 {
+		errMsg := "必须提供有效的用户ID"
+		log.Printf("权限检查错误: %s", errMsg)
+		SendResponse(w, http.StatusBadRequest, 400, errMsg, nil)
+		return
+	}
+
+	// 检查用户是否是管理员
+	var isAdmin bool
+	err := database.DB.QueryRow("SELECT role = 1 FROM users WHERE id = ?", userID).Scan(&isAdmin)
+	if err != nil {
+		errMsg := fmt.Sprintf("检查用户权限失败: %v", err)
+		log.Printf("权限检查错误: %s", errMsg)
+		SendResponse(w, http.StatusInternalServerError, 500, errMsg, nil)
+		return
+	}
+
+	// 获取用户信息
+	var user struct {
+		ID       int64  `json:"id"`
+		Username string `json:"username"`
+		Role     int    `json:"role"`
+	}
+	err = database.DB.QueryRow("SELECT id, username, role FROM users WHERE id = ?", userID).Scan(&user.ID, &user.Username, &user.Role)
+	if err != nil {
+		errMsg := fmt.Sprintf("获取用户信息失败: %v", err)
+		log.Printf("权限检查错误: %s", errMsg)
+		SendResponse(w, http.StatusInternalServerError, 500, errMsg, nil)
+		return
+	}
+
+	// 获取用户有权限的店铺
+	type StorePermission struct {
+		StoreID   int64  `json:"store_id"`
+		StoreName string `json:"store_name"`
+	}
+	var storePermissions []StorePermission
+
+	if isAdmin {
+		// 管理员有所有店铺的权限
+		rows, err := database.DB.Query("SELECT id, name FROM stores")
+		if err != nil {
+			errMsg := fmt.Sprintf("获取店铺列表失败: %v", err)
+			log.Printf("权限检查错误: %s", errMsg)
+			SendResponse(w, http.StatusInternalServerError, 500, errMsg, nil)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var store StorePermission
+			err := rows.Scan(&store.StoreID, &store.StoreName)
+			if err != nil {
+				log.Printf("读取店铺信息失败: %v", err)
+				continue
+			}
+			storePermissions = append(storePermissions, store)
+		}
+	} else {
+		// 非管理员需要查询权限表
+		rows, err := database.DB.Query(`
+			SELECT s.id, s.name 
+			FROM stores s
+			JOIN user_store_permissions usp ON s.id = usp.store_id
+			WHERE usp.user_id = ?
+		`, userID)
+		if err != nil {
+			errMsg := fmt.Sprintf("获取用户店铺权限失败: %v", err)
+			log.Printf("权限检查错误: %s", errMsg)
+			SendResponse(w, http.StatusInternalServerError, 500, errMsg, nil)
+			return
+		}
+		defer rows.Close()
+
+		for rows.Next() {
+			var store StorePermission
+			err := rows.Scan(&store.StoreID, &store.StoreName)
+			if err != nil {
+				log.Printf("读取店铺权限信息失败: %v", err)
+				continue
+			}
+			storePermissions = append(storePermissions, store)
+		}
+	}
+
+	// 返回结果
+	result := map[string]interface{}{
+		"user":        user,
+		"is_admin":    isAdmin,
+		"permissions": storePermissions,
+	}
+
+	log.Printf("用户权限检查结果: %+v", result)
+	SendResponse(w, http.StatusOK, 200, "成功", result)
+}

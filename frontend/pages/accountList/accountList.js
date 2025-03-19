@@ -1074,66 +1074,47 @@ Page({
     });
   },
 
-  // 处理返回的数据
+  // 格式化金额，保留两位小数
+  formatAmount: function (amount) {
+    return parseFloat(amount).toFixed(2);
+  },
+
+  // 处理账目数据
   processAccounts: function (accounts) {
     if (!accounts || !Array.isArray(accounts)) {
-      console.error('处理账目数据时收到无效数据:', accounts);
       return [];
     }
 
+    // 处理账目数据，添加格式化信息
     return accounts.map(account => {
-      // 确保各项数据有效性
-      const id = account.id || 0;
-      const storeId = account.store_id || 0;
-      const storeName = account.store_name || '未知店铺';
-      const typeId = account.type_id || 0;
-      const typeName = account.type_name || '未知类型';
-      const amount = parseFloat(account.amount) || 0;
-      const remark = account.remark || '';
-      const transactionTime = account.transaction_time || '';
+      // 提取日期部分
+      const date = account.transaction_time ? account.transaction_time.split(' ')[0] : '';
 
-      // 格式化日期
-      let formattedDate = '';
-      let date = '';
+      // 处理金额和类型
+      const amount = parseFloat(account.amount);
+      const isIncome = amount >= 0;
+      const formattedAmount = this.formatAmount(Math.abs(amount));
 
-      if (transactionTime) {
-        try {
-          const dateObj = new Date(transactionTime.replace(/-/g, '/'));
-          if (!isNaN(dateObj.getTime())) {
-            formattedDate = dateObj.toLocaleString('zh-CN', {
-              year: 'numeric',
-              month: '2-digit',
-              day: '2-digit',
-              hour: '2-digit',
-              minute: '2-digit'
-            });
-            date = dateObj.toISOString().split('T')[0];
-          }
-        } catch (err) {
-          console.error('日期格式化错误:', err, transactionTime);
-          formattedDate = transactionTime;
-          date = transactionTime.split(' ')[0];
-        }
+      // 确保所有字段都存在
+      const processedAccount = {
+        ...account,
+        date,
+        isIncome,
+        formattedAmount,
+        formattedDate: account.transaction_time ? account.transaction_time.replace('T', ' ') : '',
+        store_id: account.store_id || 0,
+        store_name: account.store_name || '未知店铺',
+        type_id: account.type_id || 0,
+        type_name: account.type_name || '未分类',
+        username: account.username || '未知用户' // 确保username字段存在
+      };
+
+      // 调试日志
+      if (!account.username) {
+        console.warn('账户缺少用户名信息:', account.id, account);
       }
 
-      // 格式化金额
-      const formattedAmount = Math.abs(amount).toFixed(2);
-      const isIncome = amount >= 0;
-
-      return {
-        id,
-        store_id: storeId,
-        store_name: storeName,
-        type_id: typeId,
-        type_name: typeName,
-        amount,
-        remark,
-        transaction_time: transactionTime,
-        formattedDate,
-        formattedAmount,
-        isIncome,
-        date
-      };
+      return processedAccount;
     });
   },
 

@@ -119,8 +119,7 @@
         <view class="store-item {{selectedStoreId === (item.id || '') ? 'active' : ''}}" 
               wx:for="{{stores}}" 
               wx:key="id" 
-              data-id="{{item.id || ''}}"
-              data-name="{{item.name}}"
+              data-index="{{index}}"
               bindtap="selectStore">
           {{item.name}}
         </view>
