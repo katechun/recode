@@ -1418,8 +1418,11 @@ Page({
         ...account,
         amountValue: amountValue,
         formattedAmount: this.formatAmount(Math.abs(amountValue)),
+        formattedDate: account.create_time || account.transaction_time,
         isIncome: amountValue >= 0
       };
+
+      console.log('账单详情数据:', formattedAccount);
 
       // 显示详情弹窗
       this.setData({
@@ -1438,21 +1441,30 @@ Page({
       title: '加载中...',
     });
 
-    request.get(`${config.apis.accounts.detail}?id=${accountId}`)
+    request.get(`${config.apis.accounts.list}/${accountId}`)
       .then(res => {
         wx.hideLoading();
 
         if (res.data) {
           const amountValue = parseFloat(res.data.amount);
 
-          // 处理账目数据
+          // 确保各字段都存在
           const account = {
             ...res.data,
             amountValue: amountValue,
+            amount: amountValue, // 确保amount字段存在并为数字类型
             formattedAmount: this.formatAmount(Math.abs(amountValue)),
-            formattedDate: res.data.transaction_time ? res.data.transaction_time.substring(0, 16).replace('T', ' ') : '',
-            isIncome: amountValue >= 0
+            formattedDate: res.data.transaction_time ? res.data.transaction_time.substring(0, 19).replace('T', ' ') : '',
+            isIncome: amountValue >= 0,
+            store_id: res.data.store_id || 0,
+            type_id: res.data.type_id || 0,
+            store_name: res.data.store_name || '未知店铺',
+            type_name: res.data.type_name || '未分类',
+            remark: res.data.remark || '',
+            username: res.data.username || '未知用户'
           };
+
+          console.log('从API获取的账单详情:', account);
 
           // 显示详情弹窗
           this.setData({
@@ -1470,10 +1482,39 @@ Page({
         wx.hideLoading();
         console.error('加载账目详情失败:', err);
 
-        wx.showToast({
-          title: '加载失败',
-          icon: 'none'
-        });
+        // 尝试备用URL
+        request.get(`${config.apis.accounts.detail}?id=${accountId}`)
+          .then(res => {
+            if (res.data) {
+              const amountValue = parseFloat(res.data.amount);
+              const account = {
+                ...res.data,
+                amountValue: amountValue,
+                amount: amountValue,
+                formattedAmount: this.formatAmount(Math.abs(amountValue)),
+                formattedDate: res.data.transaction_time ? res.data.transaction_time.substring(0, 19).replace('T', ' ') : '',
+                isIncome: amountValue >= 0,
+                store_id: res.data.store_id || 0,
+                type_id: res.data.type_id || 0
+              };
+
+              this.setData({
+                currentAccount: account,
+                showDetailModal: true
+              });
+            } else {
+              wx.showToast({
+                title: '账目不存在',
+                icon: 'none'
+              });
+            }
+          })
+          .catch(error => {
+            wx.showToast({
+              title: '加载失败',
+              icon: 'none'
+            });
+          });
       });
   },
 
@@ -1489,9 +1530,31 @@ Page({
     // 隐藏弹窗
     this.hideDetail();
 
+    const account = this.data.currentAccount;
+    if (!account) {
+      wx.showToast({
+        title: '账目信息不完整',
+        icon: 'none'
+      });
+      return;
+    }
+
+    // 确保type参数是字符串
+    const type = account.amount >= 0 ? 'income' : 'expense';
+    const amount = Math.abs(account.amount);
+
+    // 确保URL参数正确编码
+    const encodedRemark = encodeURIComponent(account.remark || '');
+    const encodedDate = encodeURIComponent(account.transaction_time);
+
+    // 构建完整的URL，包含所有必要的参数
+    const url = `/pages/addAccount/addAccount?id=${account.id}&type=${type}&storeId=${account.store_id}&typeId=${account.type_id}&amount=${amount}&remark=${encodedRemark}&date=${encodedDate}`;
+
+    console.log('编辑账单URL:', url);
+
     // 跳转到编辑页面
     wx.navigateTo({
-      url: `/pages/addAccount/addAccount?id=${this.data.currentAccount.id}&edit=true`
+      url: url
     });
   },
 
@@ -1519,10 +1582,13 @@ Page({
       title: '删除中...'
     });
 
-    request.delete(`${config.apis.accounts.delete}?id=${accountId}`)
+    // 首先尝试RESTful风格URL
+    const restfulUrl = `${config.apis.accounts.delete}/${accountId}`;
+    console.log('尝试RESTful删除URL:', restfulUrl);
+
+    request.delete(restfulUrl)
       .then(res => {
         wx.hideLoading();
-
         wx.showToast({
           title: '删除成功',
           icon: 'success'
@@ -1533,13 +1599,85 @@ Page({
         this.loadStatistics();
       })
       .catch(err => {
-        wx.hideLoading();
-        console.error('删除账目失败:', err);
+        // 检查是否是405错误(方法不允许)
+        if (err && err.code === 405) {
+          console.log('服务器不支持DELETE方法，尝试使用POST模拟DELETE');
 
-        wx.showToast({
-          title: '删除失败',
-          icon: 'none'
-        });
+          // 使用POST模拟DELETE
+          return request.simulateDelete(`${config.apis.accounts.delete}/${accountId}`)
+            .then(res => {
+              wx.hideLoading();
+              wx.showToast({
+                title: '删除成功',
+                icon: 'success'
+              });
+
+              // 刷新账目列表
+              this.loadRecentRecords();
+              this.loadStatistics();
+            })
+            .catch(simulateErr => {
+              console.error('模拟DELETE失败:', simulateErr);
+              // 继续尝试下一个方法
+              return Promise.reject(simulateErr);
+            });
+        }
+
+        console.error('RESTful方式删除失败，尝试查询参数方式:', err);
+
+        // 备用方法：使用带查询参数的URL
+        const queryUrl = `${config.apis.accounts.delete}?id=${accountId}`;
+        console.log('尝试备用删除URL:', queryUrl);
+
+        return request.delete(queryUrl)
+          .then(res => {
+            wx.hideLoading();
+            wx.showToast({
+              title: '删除成功',
+              icon: 'success'
+            });
+
+            // 刷新账目列表
+            this.loadRecentRecords();
+            this.loadStatistics();
+          })
+          .catch(queryErr => {
+            // 如果是405错误，尝试用POST模拟DELETE
+            if (queryErr && queryErr.code === 405) {
+              console.log('查询参数删除也不支持DELETE方法，尝试使用POST模拟DELETE');
+
+              return request.simulateDelete(queryUrl)
+                .then(res => {
+                  wx.hideLoading();
+                  wx.showToast({
+                    title: '删除成功',
+                    icon: 'success'
+                  });
+
+                  // 刷新账目列表
+                  this.loadRecentRecords();
+                  this.loadStatistics();
+                })
+                .catch(finalErr => {
+                  wx.hideLoading();
+                  console.error('所有删除方式均失败:', finalErr);
+
+                  wx.showToast({
+                    title: '删除失败，请重试',
+                    icon: 'none'
+                  });
+                });
+            }
+
+            // 非405错误，所有方法均失败
+            wx.hideLoading();
+            console.error('所有删除方式均失败:', queryErr);
+
+            wx.showToast({
+              title: '删除失败，请重试',
+              icon: 'none'
+            });
+          });
       });
   },
 

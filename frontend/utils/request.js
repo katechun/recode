@@ -301,26 +301,66 @@ export default {
   delete: function (url) {
     console.log('发送DELETE请求:', url);
 
-    // 不再移除查询参数
-    // const cleanUrl = url.split('?')[0]; // 这行代码会移除查询参数，导致后端无法获取到用户ID
+    // 获取用户信息
+    const userInfo = wx.getStorageSync('userInfo');
+    const userIdHeader = userInfo ? userInfo.id : '';
+
+    // 构建完整的请求头
+    const headers = {
+      'content-type': 'application/json',
+      'X-User-ID': userIdHeader
+    };
+
+    // 显示加载提示
+    wx.showLoading({
+      title: '处理中...',
+      mask: true
+    });
+
+    // 检查URL格式
+    if (!url) {
+      console.error('DELETE请求错误: URL为空');
+      wx.hideLoading();
+      return Promise.reject({
+        code: 400,
+        message: 'URL不能为空'
+      });
+    }
+
+    console.log('DELETE请求详情:', {
+      url: config.apiBaseUrl + url,
+      headers: headers
+    });
 
     return new Promise((resolve, reject) => {
-      wx.showLoading({
-        title: '处理中...',
-        mask: true
-      });
-
       wx.request({
-        url: config.apiBaseUrl + url, // 使用完整URL，包括查询参数
+        url: config.apiBaseUrl + url,
         method: 'DELETE',
-        header: {
-          'content-type': 'application/json',
-          'X-User-ID': wx.getStorageSync('userInfo') ? wx.getStorageSync('userInfo').id : ''
-        },
+        header: headers,
         success: function (res) {
+          console.log('DELETE响应状态码:', res.statusCode);
+          console.log('DELETE响应数据:', res.data);
+
           wx.hideLoading();
+
+          if (res.statusCode === 405) {
+            console.error('服务器不支持DELETE方法，可能需要使用POST请求模拟DELETE操作');
+            reject({
+              code: 405,
+              message: '服务器不支持DELETE方法',
+              response: res.data,
+              suggestion: '尝试使用POST请求并添加_method=DELETE参数'
+            });
+            return;
+          }
+
           if (res.statusCode >= 400) {
-            console.log('请求失败: HTTP错误:', res.statusCode, { url: config.apiBaseUrl + url });
+            console.error('DELETE请求失败:', {
+              statusCode: res.statusCode,
+              url: config.apiBaseUrl + url,
+              response: res.data
+            });
+
             reject({
               code: res.statusCode,
               message: 'HTTP错误: ' + res.statusCode,
@@ -329,12 +369,12 @@ export default {
             return;
           }
 
-          // 特殊处理服务器返回的数据格式
+          // 处理成功响应
           const responseData = res.data;
           if (responseData && (responseData.code === 200 || responseData.code === 0)) {
             resolve(responseData);
           } else {
-            console.log('请求异常:', responseData);
+            console.error('DELETE请求返回异常数据:', responseData);
             reject(responseData || {
               code: res.statusCode,
               message: '服务器返回异常数据'
@@ -343,13 +383,114 @@ export default {
         },
         fail: function (err) {
           wx.hideLoading();
-          console.error('请求失败:', err, { url: config.apiBaseUrl + url });
-          reject(err);
-        },
-        complete: function () {
-          // wx.hideLoading() 移至success和fail中以避免race condition
+          console.error('DELETE请求网络错误:', err, {
+            url: config.apiBaseUrl + url
+          });
+
+          reject({
+            code: err.errno || 500,
+            message: err.errMsg || '网络请求失败',
+            originalError: err
+          });
         }
       });
     });
-  }
+  },
+  // 使用POST方法模拟DELETE操作，用于不支持DELETE方法的服务器
+  simulateDelete: function (url) {
+    console.log('使用POST模拟DELETE请求:', url);
+
+    // 获取用户信息
+    const userInfo = wx.getStorageSync('userInfo');
+    const userIdHeader = userInfo ? userInfo.id : '';
+
+    // 构建请求头
+    const headers = {
+      'content-type': 'application/json',
+      'X-User-ID': userIdHeader,
+      'X-HTTP-Method-Override': 'DELETE' // 告诉服务器这是一个DELETE请求
+    };
+
+    // 检查URL格式
+    if (!url) {
+      console.error('模拟DELETE请求错误: URL为空');
+      return Promise.reject({
+        code: 400,
+        message: 'URL不能为空'
+      });
+    }
+
+    // 处理URL，添加_method参数
+    let requestUrl = url;
+    if (requestUrl.includes('?')) {
+      requestUrl += '&_method=DELETE';
+    } else {
+      requestUrl += '?_method=DELETE';
+    }
+
+    console.log('模拟DELETE详情:', {
+      url: config.apiBaseUrl + requestUrl,
+      headers: headers
+    });
+
+    return new Promise((resolve, reject) => {
+      wx.showLoading({
+        title: '处理中...',
+        mask: true
+      });
+
+      wx.request({
+        url: config.apiBaseUrl + requestUrl,
+        method: 'POST',
+        header: headers,
+        data: { _method: 'DELETE' }, // 在请求体中也添加方法标识
+        success: function (res) {
+          wx.hideLoading();
+          console.log('模拟DELETE响应:', {
+            statusCode: res.statusCode,
+            data: res.data
+          });
+
+          if (res.statusCode >= 400) {
+            console.error('模拟DELETE请求失败:', {
+              statusCode: res.statusCode,
+              url: config.apiBaseUrl + requestUrl,
+              response: res.data
+            });
+
+            reject({
+              code: res.statusCode,
+              message: 'HTTP错误: ' + res.statusCode,
+              response: res.data
+            });
+            return;
+          }
+
+          // 处理成功响应
+          const responseData = res.data;
+          if (responseData && (responseData.code === 200 || responseData.code === 0)) {
+            resolve(responseData);
+          } else {
+            console.error('模拟DELETE请求返回异常数据:', responseData);
+            reject(responseData || {
+              code: res.statusCode,
+              message: '服务器返回异常数据'
+            });
+          }
+        },
+        fail: function (err) {
+          wx.hideLoading();
+          console.error('模拟DELETE请求网络错误:', err, {
+            url: config.apiBaseUrl + requestUrl
+          });
+
+          reject({
+            code: err.errno || 500,
+            message: err.errMsg || '网络请求失败',
+            originalError: err
+          });
+        }
+      });
+    });
+  },
 }; 
