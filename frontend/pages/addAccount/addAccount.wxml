@@ -72,7 +72,7 @@
   
   <view class="button-group">
     <button class="btn cancel-btn" bindtap="cancelAccount">取消</button>
-    <button class="btn submit-btn" bindtap="submitAccount" disabled="{{!storeId || !typeId || !amount}}">保存</button>
+    <button class="btn submit-btn" bindtap="saveAccount" disabled="{{!storeId || !typeId || !amount}}">保存</button>
   </view>
 
   <view class="tip-text" wx:if="{{defaultSettings}}">

@@ -111,9 +111,18 @@ Page({
     // 页面显示时，检查是否需要刷新数据
     const needRefresh = wx.getStorageSync('accountListNeedRefresh');
     if (needRefresh) {
-      console.log('检测到需要刷新标志，重新加载数据');
+      console.log('检测到需要刷新标志，重新加载账目列表数据');
+      // 重置页码并清空当前数据
+      this.setData({
+        currentPage: 1,
+        accounts: []
+      });
+
+      // 重新加载数据（刷新模式）
       this.loadAccounts(true);
       this.loadStatistics();
+
+      // 清除刷新标志
       wx.removeStorageSync('accountListNeedRefresh');
     }
 
@@ -146,6 +155,9 @@ Page({
         }
       }
     }
+
+    // 检查并更新筛选标签状态
+    this.updateFilterStatus();
   },
 
   // 初始化日期范围，默认展示最近一个月的数据

@@ -120,6 +120,15 @@ Page({
     this.loadPageData();
   },
   onShow() {
+    // 检查是否需要刷新数据
+    const needRefresh = wx.getStorageSync('indexNeedRefresh');
+    if (needRefresh) {
+      console.log('检测到需要刷新标志，重新加载首页数据');
+      this.loadPageData();
+      // 清除刷新标志
+      wx.removeStorageSync('indexNeedRefresh');
+    }
+
     // 检查userInfo是否存在
     if (this.data.userInfo) {
       // 避免自动加载覆盖店铺特定数据

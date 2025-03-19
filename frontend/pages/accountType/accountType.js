@@ -69,7 +69,14 @@ Page({
    * 生命周期函数--监听页面显示
    */
   onShow() {
-    this.loadAccountTypes();
+    // 检查是否需要刷新数据
+    const needRefresh = wx.getStorageSync('accountTypeListNeedRefresh');
+    if (needRefresh) {
+      console.log('检测到需要刷新账务类型列表标志，重新加载数据');
+      this.loadAccountTypes();
+      // 清除刷新标志
+      wx.removeStorageSync('accountTypeListNeedRefresh');
+    }
   },
 
   /**

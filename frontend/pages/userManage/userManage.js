@@ -83,7 +83,14 @@ Page({
    * 生命周期函数--监听页面显示
    */
   onShow() {
-    this.loadUsers();
+    // 检查是否需要刷新数据
+    const needRefresh = wx.getStorageSync('userListNeedRefresh');
+    if (needRefresh) {
+      console.log('检测到需要刷新用户列表标志，重新加载数据');
+      this.loadUsers();
+      // 清除刷新标志
+      wx.removeStorageSync('userListNeedRefresh');
+    }
   },
 
   /**

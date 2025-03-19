@@ -66,7 +66,14 @@ Page({
    * 生命周期函数--监听页面显示
    */
   onShow() {
-    this.loadStores();
+    // 检查是否需要刷新数据
+    const needRefresh = wx.getStorageSync('storeListNeedRefresh');
+    if (needRefresh) {
+      console.log('检测到需要刷新店铺列表标志，重新加载数据');
+      this.loadStores();
+      // 清除刷新标志
+      wx.removeStorageSync('storeListNeedRefresh');
+    }
   },
 
   /**
@@ -116,9 +123,9 @@ Page({
       .then(res => {
         wx.hideLoading();
         if (res.data) {
-          this.setData({ 
+          this.setData({
             stores: res.data,
-            filteredStores: res.data 
+            filteredStores: res.data
           });
         } else {
           wx.showToast({
@@ -190,12 +197,12 @@ Page({
     // 支持既可以传入 storeId 参数，也可以从事件中获取
     let storeId;
     let storeName;
-    
+
     // 检查是否从按钮事件直接调用
     if (e && e.currentTarget && e.currentTarget.dataset) {
       storeId = e.currentTarget.dataset.id;
       storeName = e.currentTarget.dataset.name;
-      
+
       // 如果是从按钮点击直接调用，需要先显示确认对话框
       wx.showModal({
         title: '确认删除',
@@ -208,7 +215,7 @@ Page({
       });
       return;
     }
-    
+
     // 如果已经是传入 ID 参数，直接执行删除
     this.executeDeleteStore(storeId);
   },
@@ -224,7 +231,7 @@ Page({
       });
       return;
     }
-    
+
     // 确保storeId是数值类型
     storeId = Number(storeId);
 
@@ -305,8 +312,8 @@ Page({
     });
 
     const url = isEditing
-      ? config.apiBaseUrl+'/api/stores/update'
-      : config.apiBaseUrl+'/api/stores/create';
+      ? config.apiBaseUrl + '/api/stores/update'
+      : config.apiBaseUrl + '/api/stores/create';
 
     const method = isEditing ? 'PUT' : 'POST';
 
@@ -343,16 +350,16 @@ Page({
   },
 
   // 搜索店铺
-  searchStores: function(e) {
+  searchStores: function (e) {
     const keyword = e.detail.value.toLowerCase();
     this.setData({
       searchKey: keyword,
-      filteredStores: keyword ? 
-        this.data.stores.filter(store => 
-          store.name.toLowerCase().includes(keyword) || 
+      filteredStores: keyword ?
+        this.data.stores.filter(store =>
+          store.name.toLowerCase().includes(keyword) ||
           (store.address && store.address.toLowerCase().includes(keyword)) ||
           (store.phone && store.phone.includes(keyword))
-        ) : 
+        ) :
         this.data.stores
     });
   }

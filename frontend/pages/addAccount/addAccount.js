@@ -22,7 +22,8 @@ Page({
     defaultSettings: null, // 存储用户默认设置
     isTypeSwitchedByUser: false, // 标记是否由用户手动切换了类型
     username: '', // 当前用户名
-    isEditMode: false // 标记是否为编辑模式
+    isEditMode: false, // 标记是否为编辑模式
+    accountId: null // 添加accountId，用于保存账单ID
   },
 
   onLoad: function (options) {
@@ -113,7 +114,8 @@ Page({
       typeId: options.typeId || '',
       accountType: accountType,
       username: username,
-      isEditMode: isEditMode
+      isEditMode: isEditMode,
+      accountId: options.id || null
     };
 
     // 如果是编辑模式，添加金额和备注
@@ -447,76 +449,72 @@ Page({
     });
   },
 
-  // 提交记账
-  submitAccount: function () {
-    // 表单验证
-    if (!this.validateForm()) {
-      return;
-    }
+  // 保存账目
+  saveAccount: function () {
+    if (!this.validateForm()) return;
 
-    const amount = parseFloat(this.data.amount);
-    if (isNaN(amount) || amount <= 0) {
-      wx.showToast({
-        title: '请输入有效金额',
-        icon: 'none'
-      });
-      return;
-    }
-
-    // 根据账目类型决定金额正负
-    const finalAmount = this.data.accountType === 'expense' ? -amount : amount;
-
-    // 格式化交易时间
-    let transactionTime = dateUtil.formatDateString(this.data.transactionTime);
-
-    // 如果是 ISO 格式 (包含 T)，转换为标准格式（空格分隔）
-    if (transactionTime.includes('T')) {
-      transactionTime = transactionTime.replace('T', ' ');
-    }
-
-    // 确保使用标准格式 YYYY-MM-DD HH:MM:SS
-    if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(transactionTime)) {
-      // 如果缺少秒，添加秒
-      if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(transactionTime)) {
-        transactionTime += ':00';
-      }
-    }
-
-    console.log('格式化后的交易时间:', transactionTime);
-
-    const accountData = {
-      store_id: parseInt(this.data.storeId),
-      type_id: parseInt(this.data.typeId),
-      amount: finalAmount,
-      remark: this.data.remark,
-      transaction_time: transactionTime
-    };
-
+    // 显示加载提示
     wx.showLoading({
       title: this.data.isEditMode ? '更新中...' : '提交中...',
       mask: true
     });
 
-    // 根据是否为编辑模式选择接口
-    let apiUrl = config.apis.accounts.create;
+    // 准备API路径
+    const apiUrl = this.data.isEditMode ?
+      `${config.apis.accounts.update}/${this.data.accountId}` :
+      config.apis.accounts.add;
 
-    if (this.data.isEditMode && this.data.id) {
-      apiUrl = `${config.apis.accounts.update}/${this.data.id}`;
-      // 添加ID到数据中
-      accountData.id = parseInt(this.data.id);
+    // 准备请求方法
+    const requestMethod = this.data.isEditMode ?
+      request.put.bind(request) :
+      request.post.bind(request);
+
+    // 准备账目数据 - 确保数字类型正确
+    const amount = parseFloat(this.data.amount);
+    let finalAmount = amount;
+
+    // 如果是支出，转为负值
+    if (this.data.accountType === 'expense') {
+      finalAmount = -Math.abs(amount);
+    } else {
+      // 确保收入是正数
+      finalAmount = Math.abs(amount);
     }
 
-    // 根据是否为编辑模式选择请求方法
-    const requestMethod = this.data.isEditMode ? request.put : request.post;
+    // 构建账目数据对象
+    const accountData = {
+      store_id: parseInt(this.data.storeId, 10),
+      type_id: parseInt(this.data.typeId, 10),
+      amount: finalAmount,
+      remark: this.data.remark || '',
+      transaction_time: this.data.transactionTime
+    };
+
+    // 如果是编辑模式，添加ID
+    if (this.data.isEditMode) {
+      accountData.id = parseInt(this.data.accountId, 10);
+    }
+
+    // 打印提交的数据
+    console.log(this.data.isEditMode ? '更新账目数据:' : '提交账目数据:', accountData);
 
     requestMethod(apiUrl, accountData)
       .then(() => {
         wx.hideLoading();
+
+        // 设置标志，表示账目列表页面需要刷新
+        wx.setStorageSync('accountListNeedRefresh', true);
+
+        // 设置首页也需要刷新
+        wx.setStorageSync('indexNeedRefresh', true);
+
+        // 显示成功消息
         wx.showToast({
           title: this.data.isEditMode ? '更新成功' : '记账成功',
           icon: 'success',
           duration: 2000
         });
+
         setTimeout(() => {
           wx.navigateBack();
         }, 2000);
