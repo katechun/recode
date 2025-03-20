@@ -1,0 +1,76 @@
+<!--pages/addWeightRecord/addWeightRecord.wxml-->
+<view class="container">
+  <view class="header">
+    <text class="title">{{isEdit ? '编辑' : '添加'}}体重记录</text>
+    <text class="subtitle">{{customerName}}</text>
+  </view>
+
+  <view class="form-container">
+    <view class="form-group">
+      <text class="form-label">记录日期</text>
+      <view class="date-picker" bindtap="showDatePicker">
+        <text class="date-value">{{weightRecord.recordDate}}</text>
+        <view class="date-icon">
+          <image src="/assets/icons/calendar.png" mode="aspectFit"></image>
+        </view>
+      </view>
+    </view>
+
+    <view class="form-group">
+      <text class="form-label">当前体重 (kg)</text>
+      <input 
+        class="form-input" 
+        type="digit" 
+        placeholder="请输入体重" 
+        value="{{weightRecord.weight}}"
+        bindinput="bindInputChange"
+        data-field="weight"
+      />
+    </view>
+
+    <view class="form-group">
+      <text class="form-label">备注</text>
+      <textarea 
+        class="form-textarea" 
+        placeholder="请输入备注信息" 
+        value="{{weightRecord.notes}}"
+        bindinput="bindInputChange"
+        data-field="notes"
+      ></textarea>
+    </view>
+
+    <view class="button-group">
+      <button class="btn-cancel" bindtap="cancel">取消</button>
+      <button class="btn-save" bindtap="saveWeightRecord">保存</button>
+    </view>
+  </view>
+
+  <!-- 日期选择器 -->
+  <view class="calendar-mask" wx:if="{{showCalendar}}" bindtap="hideDatePicker">
+    <view class="calendar-container" catchtap="stopPropagation">
+      <view class="calendar-header">
+        <text class="calendar-title">选择日期</text>
+        <view class="calendar-close" bindtap="hideDatePicker">×</view>
+      </view>
+      <picker-view 
+        class="date-picker-view" 
+        value="{{currentDate}}" 
+        mode="date" 
+        bindchange="confirmDate"
+      >
+        <picker-view-column>
+          <!-- 日期选择器内容 -->
+        </picker-view-column>
+      </picker-view>
+      <view class="calendar-footer">
+        <button class="calendar-btn calendar-confirm" bindtap="confirmDate">确定</button>
+      </view>
+    </view>
+  </view>
+
+  <!-- 加载中遮罩 -->
+  <view class="loading-mask" wx:if="{{isLoading}}">
+    <view class="loading-spinner"></view>
+    <text class="loading-text">加载中...</text>
+  </view>
+</view> 

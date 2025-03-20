@@ -15,7 +15,12 @@ Page({
         weightRecords: [],
         pageNum: 1,
         pageSize: 10,
-        hasMore: true
+        hasMore: true,
+        isExporting: false,
+        weightChart: null,
+        reportType: 'pdf', // 默认导出PDF格式
+        dateRange: '30', // 默认导出近30天的数据
+        isFormatterLoaded: false
     },
 
     onLoad: function (options) {
@@ -82,12 +87,17 @@ Page({
 
         const { userInfo, customerId } = this.data;
 
+        // 使用Promise方式发送请求
         request.get(config.apis.customer.detail, {
             data: {
                 user_id: userInfo.id,
                 customer_id: customerId
-            },
-            success: (res) => {
+            }
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+                wx.stopPullDownRefresh();
+
                 if (res && res.code === 200) {
                     const customerDetail = res.data || {};
 
@@ -98,8 +108,20 @@ Page({
                         const progress = totalNeedLoss <= 0 ? 0 : Math.min(100, Math.round((currentLoss / totalNeedLoss) * 100));
 
                         customerDetail.progress = progress;
+
+                        // 计算已减体重
+                        customerDetail.lost_weight = (customerDetail.initial_weight - customerDetail.current_weight).toFixed(1);
+
+                        // 计算还需减重
+                        if (customerDetail.current_weight > customerDetail.target_weight) {
+                            customerDetail.needs_to_lose = (customerDetail.current_weight - customerDetail.target_weight).toFixed(1);
+                        } else {
+                            customerDetail.needs_to_lose = '0';
+                        }
                     } else {
                         customerDetail.progress = 0;
+                        customerDetail.lost_weight = 0;
+                        customerDetail.needs_to_lose = 0;
                     }
 
                     this.setData({
@@ -111,12 +133,17 @@ Page({
                         icon: 'none'
                     });
                 }
-            },
-            complete: () => {
+            })
+            .catch(err => {
+                console.error('加载客户详情失败:', err);
                 this.setData({ isLoading: false });
                 wx.stopPullDownRefresh();
-            }
-        });
+
+                wx.showToast({
+                    title: '加载客户详情失败',
+                    icon: 'none'
+                });
+            });
     },
 
     // 加载减肥记录
@@ -125,14 +152,46 @@ Page({
 
         const { userInfo, customerId } = this.data;
 
+        // 使用Promise方式发送请求
         request.get(config.apis.customer.weightRecords, {
             data: {
                 user_id: userInfo.id,
                 customer_id: customerId
-            },
-            success: (res) => {
+            }
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
                 if (res && res.code === 200) {
                     let records = res.data || [];
+
+                    // 如果记录为空，添加一条初始记录
+                    if (records.length === 0 && this.data.customer) {
+                        const { initial_weight, current_weight } = this.data.customer;
+                        if (initial_weight) {
+                            // 为了图表显示，增加两个点：初始体重和当前体重
+                            const initialDate = new Date();
+                            initialDate.setMonth(initialDate.getMonth() - 1);
+
+                            records = [
+                                {
+                                    id: 'initial',
+                                    weight: initial_weight,
+                                    record_date: this.formatDate(initialDate),
+                                    notes: '初始体重'
+                                }
+                            ];
+
+                            if (current_weight && current_weight !== initial_weight) {
+                                records.push({
+                                    id: 'current',
+                                    weight: current_weight,
+                                    record_date: this.formatDate(new Date()),
+                                    notes: '当前体重'
+                                });
+                            }
+                        }
+                    }
 
                     // 计算体重变化
                     if (records.length > 0) {
@@ -154,19 +213,30 @@ Page({
                         icon: 'none'
                     });
                 }
-            },
-            complete: () => {
+            })
+            .catch(err => {
+                console.error('加载减肥记录失败:', err);
                 this.setData({ isLoading: false });
-            }
-        });
+
+                wx.showToast({
+                    title: '加载减肥记录失败',
+                    icon: 'none'
+                });
+            });
+    },
+
+    // 格式化日期为 YYYY-MM-DD
+    formatDate: function (date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
     },
 
     // 计算体重变化
     calculateWeightChanges: function (records) {
         // 按日期排序，旧的在前面
         const sortedRecords = [...records].sort((a, b) => new Date(a.record_date) - new Date(b.record_date));
-
-        let prevWeight = null;
 
         // 计算每条记录相对于前一次记录的变化
         return sortedRecords.map((record, index) => {
@@ -183,6 +253,15 @@ Page({
                 record.change = (record.weight - sortedRecords[index - 1].weight).toFixed(1);
             }
 
+            // 计算减重百分比
+            const initialWeight = this.data.customer?.initial_weight;
+            if (initialWeight && initialWeight > 0) {
+                const totalLoss = initialWeight - record.weight;
+                record.lossPercentage = ((totalLoss / initialWeight) * 100).toFixed(1);
+            } else {
+                record.lossPercentage = '0.0';
+            }
+
             return record;
         });
     },
@@ -193,14 +272,18 @@ Page({
 
         const { userInfo, customerId } = this.data;
 
+        // 使用Promise方式发送请求
         request.get(config.apis.customer.productUsage, {
             data: {
                 user_id: userInfo.id,
                 customer_id: customerId,
                 page: 1,
                 page_size: 999 // 一次性加载所有
-            },
-            success: (res) => {
+            }
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
                 if (res && res.code === 200) {
                     const productUsage = res.data || [];
 
@@ -213,11 +296,16 @@ Page({
                         icon: 'none'
                     });
                 }
-            },
-            complete: () => {
+            })
+            .catch(err => {
+                console.error('加载产品使用记录失败:', err);
                 this.setData({ isLoading: false });
-            }
-        });
+
+                wx.showToast({
+                    title: '加载产品使用记录失败',
+                    icon: 'none'
+                });
+            });
     },
 
     // 加载更多记录
@@ -228,14 +316,18 @@ Page({
 
         const { userInfo, customerId, pageNum, pageSize } = this.data;
 
+        // 使用Promise方式发送请求
         request.get(config.apis.customer.records, {
             data: {
                 user_id: userInfo.id,
                 customer_id: customerId,
                 page: pageNum,
                 page_size: pageSize
-            },
-            success: (res) => {
+            }
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
                 if (res && res.code === 200) {
                     const newRecords = res.data || [];
 
@@ -253,11 +345,16 @@ Page({
                         icon: 'none'
                     });
                 }
-            },
-            complete: () => {
+            })
+            .catch(err => {
+                console.error('加载更多记录失败:', err);
                 this.setData({ isLoading: false });
-            }
-        });
+
+                wx.showToast({
+                    title: '加载更多记录失败',
+                    icon: 'none'
+                });
+            });
     },
 
     // 创建减肥趋势图数据
@@ -268,8 +365,21 @@ Page({
         const sortedRecords = [...records].sort((a, b) => new Date(a.record_date) - new Date(b.record_date));
 
         // 用于图表的数据
-        const dates = sortedRecords.map(record => record.record_date.substring(5)); // 只显示月-日
+        const dates = sortedRecords.map(record => {
+            const dateObj = new Date(record.record_date);
+            return `${dateObj.getMonth() + 1}/${dateObj.getDate()}`; // 显示为 月/日
+        });
         const weights = sortedRecords.map(record => record.weight);
+
+        // 创建BMI变化数据（如果有身高数据）
+        let bmiData = null;
+        if (this.data.customer && this.data.customer.height && this.data.customer.height > 0) {
+            const height = this.data.customer.height / 100; // 转换为米
+            bmiData = sortedRecords.map(record => {
+                const bmi = (record.weight / (height * height)).toFixed(1);
+                return parseFloat(bmi);
+            });
+        }
 
         // 在页面中设置图表数据
         this.setData({
@@ -280,36 +390,69 @@ Page({
                         name: '体重',
                         data: weights,
                         format: (val) => val + 'kg'
-                    }
-                ]
+                    },
+                    bmiData ? {
+                        name: 'BMI',
+                        data: bmiData,
+                        format: (val) => val
+                    } : null
+                ].filter(Boolean) // 移除空值
             }
         });
 
         // 使用WxCharts绘制图表
-        this.drawWeightChart(dates, weights);
+        this.drawWeightChart(dates, weights, bmiData);
     },
 
     // 绘制体重趋势图
-    drawWeightChart: function (dates, weights) {
+    drawWeightChart: function (dates, weights, bmiData) {
         // 获取系统信息
         const systemInfo = wx.getSystemInfoSync();
         const screenWidth = systemInfo.windowWidth;
 
         // 在小程序中，延迟一下绘制图表，确保Canvas已经准备好
         setTimeout(() => {
-            // 创建图表实例
-            new WxCharts({
-                canvasId: 'weightChart',
-                title: '体重变化趋势',
-                categories: dates,
-                data: weights,
-                width: screenWidth - 40, // 左右留出一些边距
-                height: 220,
-                colors: ['#1aad19'],
-                padding: 30,
-                yAxisFormat: (val) => val + 'kg'
-            });
-        }, 100);
+            try {
+                // 体重图表配置
+                const chartConfig = {
+                    canvasId: 'weightChart',
+                    type: 'line',
+                    categories: dates,
+                    series: [{
+                        name: '体重(kg)',
+                        data: weights,
+                        format: (val) => val + 'kg'
+                    }],
+                    yAxis: {
+                        title: '体重(kg)',
+                        format: (val) => val,
+                        min: Math.floor(Math.min(...weights) * 0.9), // 稍微向下扩展范围
+                        max: Math.ceil(Math.max(...weights) * 1.1)   // 稍微向上扩展范围
+                    },
+                    width: screenWidth - 40, // 左右留出一些边距
+                    height: 220,
+                    dataLabel: true, // 显示数据点的值
+                    dataPointShape: true,
+                    extra: {
+                        lineStyle: 'curve' // 曲线方式
+                    }
+                };
+
+                // 如果有BMI数据，添加第二个系列
+                if (bmiData) {
+                    chartConfig.series.push({
+                        name: 'BMI',
+                        data: bmiData,
+                        format: (val) => val
+                    });
+                }
+
+                // 创建图表实例
+                this.data.weightChart = new WxCharts(chartConfig);
+            } catch (error) {
+                console.error('绘制图表失败:', error);
+            }
+        }, 300);
     },
 
     // 切换Tab
@@ -324,9 +467,10 @@ Page({
             setTimeout(() => {
                 this.drawWeightChart(
                     this.data.chartData.categories,
-                    this.data.chartData.series[0].data
+                    this.data.chartData.series[0].data,
+                    this.data.chartData.series[1]?.data
                 );
-            }, 100);
+            }, 300);
         }
     },
 
@@ -335,6 +479,77 @@ Page({
         wx.navigateTo({
             url: `/pages/addWeightRecord/addWeightRecord?customer_id=${this.data.customerId}`
         });
+    },
+
+    // 删除体重记录
+    deleteWeightRecord: function (e) {
+        const recordId = e.currentTarget.dataset.id;
+
+        wx.showModal({
+            title: '确认删除',
+            content: '确定要删除此条体重记录吗？',
+            success: (res) => {
+                if (res.confirm) {
+                    this.performDeleteRecord(recordId);
+                }
+            }
+        });
+    },
+
+    // 执行删除记录操作
+    performDeleteRecord: function (recordId) {
+        this.setData({ isLoading: true });
+
+        const { userInfo } = this.data;
+
+        request.post(config.apis.customer.deleteWeightRecord, {
+            user_id: userInfo.id,
+            record_id: recordId
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
+                if (res && res.code === 200) {
+                    wx.showToast({
+                        title: '删除成功',
+                        icon: 'success'
+                    });
+
+                    // 更新记录列表，移除已删除的记录
+                    const updatedRecords = this.data.weightRecords.filter(record => record.id !== recordId);
+                    this.setData({
+                        weightRecords: updatedRecords
+                    });
+
+                    // 重新计算体重变化
+                    if (updatedRecords.length > 0) {
+                        const recalculatedRecords = this.calculateWeightChanges(updatedRecords);
+                        this.setData({
+                            weightRecords: recalculatedRecords
+                        });
+                    }
+
+                    // 重新绘制图表
+                    this.createWeightTrendData(updatedRecords);
+
+                    // 可能需要更新客户当前体重
+                    this.loadCustomerDetail();
+                } else {
+                    wx.showToast({
+                        title: res?.message || '删除失败',
+                        icon: 'none'
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('删除记录失败:', err);
+                this.setData({ isLoading: false });
+
+                wx.showToast({
+                    title: '删除失败',
+                    icon: 'none'
+                });
+            });
     },
 
     // 添加产品使用记录
@@ -351,27 +566,83 @@ Page({
         });
     },
 
+    // 选择报表类型
+    selectReportType: function (e) {
+        this.setData({
+            reportType: e.currentTarget.dataset.type
+        });
+    },
+
+    // 选择日期范围
+    selectDateRange: function (e) {
+        this.setData({
+            dateRange: e.currentTarget.dataset.range
+        });
+    },
+
+    // 显示导出报表选项
+    showExportOptions: function () {
+        this.setData({
+            showExportOptions: true
+        });
+    },
+
+    // 隐藏导出报表选项
+    hideExportOptions: function () {
+        this.setData({
+            showExportOptions: false
+        });
+    },
+
     // 导出减肥报表
     exportWeightReport: function () {
-        wx.showToast({
-            title: '生成中，请稍候',
-            icon: 'loading',
-            duration: 2000
+        // 隐藏选项框
+        this.hideExportOptions();
+
+        // 设置导出中状态
+        this.setData({ isExporting: true });
+
+        wx.showLoading({
+            title: '生成报表中...',
+            mask: true
         });
 
-        const { userInfo, customerId } = this.data;
+        const { userInfo, customerId, reportType, dateRange } = this.data;
 
+        // 设置超时处理，确保状态不会无限持续
+        const timeout = setTimeout(() => {
+            wx.hideLoading();
+            this.setData({ isExporting: false });
+            wx.showToast({
+                title: '生成报表超时，请重试',
+                icon: 'none'
+            });
+        }, 25000); // 25秒超时
+
+        // 使用Promise方式发送请求
         request.get(config.apis.customer.exportReport, {
             data: {
                 user_id: userInfo.id,
-                customer_id: customerId
-            },
-            success: (res) => {
+                customer_id: customerId,
+                report_type: reportType,
+                date_range: dateRange
+            }
+        })
+            .then(res => {
+                clearTimeout(timeout); // 清除超时定时器
+                wx.hideLoading();
+                this.setData({ isExporting: false });
+
+                console.log('导出报表响应:', res);
+
                 if (res && res.code === 200) {
                     const reportUrl = res.data.url;
 
                     if (reportUrl) {
-                        // 如果是小程序环境，使用微信API预览或下载
+                        // 完整的报表URL
+                        const fullUrl = reportUrl.startsWith('http') ? reportUrl : config.baseUrl + reportUrl;
+
+                        // 根据报表类型处理不同的查看方式
                         wx.showModal({
                             title: '报表已生成',
                             content: '可以通过以下方式查看报表：\n1. 预览报表\n2. 复制报表链接',
@@ -380,7 +651,6 @@ Page({
                             success: (result) => {
                                 if (result.confirm) {
                                     // 复制链接
-                                    const fullUrl = config.baseUrl + reportUrl;
                                     wx.setClipboardData({
                                         data: fullUrl,
                                         success: () => {
@@ -392,7 +662,6 @@ Page({
                                     });
                                 } else if (result.cancel) {
                                     // 预览文件
-                                    const fullUrl = config.baseUrl + reportUrl;
                                     wx.downloadFile({
                                         url: fullUrl,
                                         success: (res) => {
@@ -401,6 +670,7 @@ Page({
                                                 wx.openDocument({
                                                     filePath: filePath,
                                                     showMenu: true,
+                                                    fileType: reportType,
                                                     success: () => {
                                                         console.log('打开文档成功');
                                                     },
@@ -414,7 +684,8 @@ Page({
                                                 });
                                             }
                                         },
-                                        fail: () => {
+                                        fail: (err) => {
+                                            console.error('下载文件失败:', err);
                                             wx.showToast({
                                                 title: '下载文件失败',
                                                 icon: 'none'
@@ -436,7 +707,23 @@ Page({
                         icon: 'none'
                     });
                 }
-            }
-        });
+            })
+            .catch(err => {
+                clearTimeout(timeout); // 清除超时定时器
+                wx.hideLoading();
+                this.setData({ isExporting: false });
+
+                console.error('导出报表失败:', err);
+
+                wx.showToast({
+                    title: '导出报表失败',
+                    icon: 'none'
+                });
+            });
+    },
+
+    // 阻止事件冒泡
+    stopPropagation: function () {
+        // 阻止点击穿透
     }
 }); 

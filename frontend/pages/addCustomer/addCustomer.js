@@ -328,9 +328,34 @@ Page({
 
     this.setData({ isLoading: true });
 
-    // 发送请求
-    request.post(isEdit ? config.apis.customer.update : config.apis.customer.add, data, {
-      success: (res) => {
+    // 显示加载提示
+    wx.showLoading({
+      title: '保存中...',
+      mask: true
+    });
+
+    // 设置请求超时定时器
+    const timeout = setTimeout(() => {
+      wx.hideLoading();
+      this.setData({ isLoading: false });
+      wx.showToast({
+        title: '保存超时，请重试',
+        icon: 'none'
+      });
+    }, 15000); // 15秒超时
+
+    console.log('保存客户数据:', data);
+
+    // 使用promise方式发送请求
+    const apiUrl = isEdit ? config.apis.customer.update : config.apis.customer.add;
+    request.post(apiUrl, data)
+      .then(res => {
+        clearTimeout(timeout); // 清除超时定时器
+        wx.hideLoading();
+        this.setData({ isLoading: false });
+
+        console.log('保存客户响应:', res);
+
         if (res && res.code === 200) {
           wx.showToast({
             title: isEdit ? '客户信息更新成功' : '客户添加成功',
@@ -354,11 +379,19 @@ Page({
             icon: 'none'
           });
         }
-      },
-      complete: () => {
+      })
+      .catch(err => {
+        clearTimeout(timeout); // 清除超时定时器
+        wx.hideLoading();
         this.setData({ isLoading: false });
-      }
-    });
+
+        console.error('保存客户失败:', err);
+
+        wx.showToast({
+          title: isEdit ? '更新失败' : '添加失败',
+          icon: 'none'
+        });
+      });
   },
 
   // 取消

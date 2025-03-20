@@ -31,6 +31,10 @@
       <view class="progress-bar-container">
         <view class="progress-bar" style="width: {{customer.progress || 0}}%"></view>
       </view>
+      <view class="weight-lost-info">
+        <text>已减重: {{customer.lost_weight || 0}} kg</text>
+        <text>还需减重: {{customer.needs_to_lose || 0}} kg</text>
+      </view>
     </view>
   </view>
   
@@ -73,7 +77,7 @@
       
       <view class="action-buttons">
         <button class="action-btn edit" bindtap="editCustomer">编辑信息</button>
-        <button class="action-btn export" bindtap="exportWeightReport">导出报表</button>
+        <button class="action-btn export" bindtap="showExportOptions">导出报表</button>
       </view>
     </view>
     
@@ -86,6 +90,16 @@
           <!-- 这里需要引入图表组件 -->
           <canvas class="weight-chart" canvas-id="weightChart"></canvas>
         </view>
+        <view class="chart-legend">
+          <view class="legend-item">
+            <view class="legend-color" style="background-color: #1aad19"></view>
+            <text class="legend-text">体重(kg)</text>
+          </view>
+          <view class="legend-item" wx:if="{{customer.height}}">
+            <view class="legend-color" style="background-color: #f56c6c"></view>
+            <text class="legend-text">BMI</text>
+          </view>
+        </view>
       </view>
       
       <!-- 体重记录列表 -->
@@ -94,15 +108,23 @@
           <text class="record-date-header">日期</text>
           <text class="record-weight-header">体重(kg)</text>
           <text class="record-change-header">变化</text>
+          <text class="record-action-header"></text>
         </view>
         
         <block wx:if="{{weightRecords.length > 0}}">
           <view class="record-item" wx:for="{{weightRecords}}" wx:key="id">
             <text class="record-date">{{item.record_date}}</text>
-            <text class="record-weight">{{item.weight}}</text>
+            <text class="record-weight">{{item.weight}}
+              <text class="record-percent" wx:if="{{item.lossPercentage && item.lossPercentage != '0.0'}}">
+                ({{item.lossPercentage}}%)
+              </text>
+            </text>
             <text class="record-change {{item.change < 0 ? 'positive' : (item.change > 0 ? 'negative' : '')}}">
               {{item.change < 0 ? '' : (item.change > 0 ? '+' : '')}}{{item.change || 0}}
             </text>
+            <view class="record-actions">
+              <view class="record-delete" catchtap="deleteWeightRecord" data-id="{{item.id}}" wx:if="{{item.id !== 'initial' && item.id !== 'current'}}">删除</view>
+            </view>
           </view>
         </block>
         <view wx:else class="empty-tip">
@@ -142,9 +164,56 @@
     </view>
   </view>
   
+  <!-- 导出报表选项 -->
+  <view class="export-options-mask" wx:if="{{showExportOptions}}" bindtap="hideExportOptions">
+    <view class="export-options-container" catchtap="stopPropagation">
+      <view class="export-options-header">
+        <text class="export-options-title">导出减肥报表</text>
+        <view class="export-options-close" bindtap="hideExportOptions">×</view>
+      </view>
+      
+      <view class="export-options-content">
+        <view class="export-option-group">
+          <text class="export-option-label">报表格式</text>
+          <view class="export-option-buttons">
+            <view class="export-option-btn {{reportType === 'pdf' ? 'active' : ''}}" bindtap="selectReportType" data-type="pdf">
+              PDF
+            </view>
+            <view class="export-option-btn {{reportType === 'excel' ? 'active' : ''}}" bindtap="selectReportType" data-type="excel">
+              Excel
+            </view>
+            <view class="export-option-btn {{reportType === 'word' ? 'active' : ''}}" bindtap="selectReportType" data-type="word">
+              Word
+            </view>
+          </view>
+        </view>
+        
+        <view class="export-option-group">
+          <text class="export-option-label">日期范围</text>
+          <view class="export-option-buttons">
+            <view class="export-option-btn {{dateRange === '30' ? 'active' : ''}}" bindtap="selectDateRange" data-range="30">
+              近30天
+            </view>
+            <view class="export-option-btn {{dateRange === '90' ? 'active' : ''}}" bindtap="selectDateRange" data-range="90">
+              近3个月
+            </view>
+            <view class="export-option-btn {{dateRange === 'all' ? 'active' : ''}}" bindtap="selectDateRange" data-range="all">
+              全部
+            </view>
+          </view>
+        </view>
+      </view>
+      
+      <view class="export-options-footer">
+        <button class="export-cancel-btn" bindtap="hideExportOptions">取消</button>
+        <button class="export-confirm-btn" bindtap="exportWeightReport">导出</button>
+      </view>
+    </view>
+  </view>
+  
   <!-- 加载中 -->
-  <view class="loading-mask" wx:if="{{isLoading}}">
+  <view class="loading-mask" wx:if="{{isLoading || isExporting}}">
     <view class="loading-spinner"></view>
-    <text class="loading-text">加载中...</text>
+    <text class="loading-text">{{isExporting ? '生成报表中...' : '加载中...'}}</text>
   </view>
 </view> 
