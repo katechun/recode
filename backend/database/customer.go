@@ -4,6 +4,9 @@ import (
 	"database/sql"
 	"fmt"
 	"log"
+	"math"
+	"os"
+	"sort"
 	"strings"
 	"time"
 
@@ -656,18 +659,151 @@ func GetCustomerRecords(customerID int, page int, pageSize int) (map[string]inte
 // ExportCustomerReport 导出客户报表，返回报表URL
 func ExportCustomerReport(customerID int) (string, error) {
 	// 检查客户是否存在
-	var exists int
-	err := DB.QueryRow("SELECT 1 FROM customers WHERE id = ?", customerID).Scan(&exists)
+	var customer models.Customer
+	err := DB.QueryRow(`
+		SELECT id, name, phone, gender, age, height, initial_weight, 
+		current_weight, target_weight, store_id, notes, created_at
+		FROM customers WHERE id = ?`, customerID).Scan(
+		&customer.ID, &customer.Name, &customer.Phone, &customer.Gender,
+		&customer.Age, &customer.Height, &customer.InitialWeight,
+		&customer.CurrentWeight, &customer.TargetWeight, &customer.StoreID,
+		&customer.Notes, &customer.CreatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return "", fmt.Errorf("客户不存在")
 		}
-		return "", fmt.Errorf("检查客户是否存在失败: %v", err)
+		return "", fmt.Errorf("获取客户信息失败: %v", err)
 	}
 
-	// 这里应该实现导出报表的逻辑，可能涉及生成PDF、Excel等文件
-	// 为了演示，这里简单返回一个假URL
-	reportURL := fmt.Sprintf("/api/reports/customer_%d_%s.pdf", customerID, time.Now().Format("20060102_150405"))
+	// 获取店铺名称
+	err = DB.QueryRow("SELECT name FROM stores WHERE id = ?", customer.StoreID).Scan(&customer.StoreName)
+	if err != nil && err != sql.ErrNoRows {
+		log.Printf("获取店铺名称失败: %v", err)
+	}
+
+	// 获取减肥记录
+	weightRecords, err := GetWeightRecords(customerID)
+	if err != nil {
+		return "", fmt.Errorf("获取减肥记录失败: %v", err)
+	}
+
+	// 获取产品使用记录
+	productUsages, err := GetProductUsages(customerID, 1, 999)
+	if err != nil {
+		return "", fmt.Errorf("获取产品使用记录失败: %v", err)
+	}
+
+	// 生成报告文件名
+	filename := fmt.Sprintf("customer_%d_%s.pdf", customerID, time.Now().Format("20060102_150405"))
+	filePath := fmt.Sprintf("./data/reports/%s", filename)
+
+	// 确保报告目录存在
+	err = os.MkdirAll("./data/reports", 0755)
+	if err != nil {
+		return "", fmt.Errorf("创建报告目录失败: %v", err)
+	}
+
+	// 生成PDF报告
+	err = generatePDFReport(filePath, customer, weightRecords, productUsages["list"].([]models.ProductUsage))
+	if err != nil {
+		return "", fmt.Errorf("生成PDF报告失败: %v", err)
+	}
+
+	// 返回可访问的URL
+	reportURL := fmt.Sprintf("/api/download/reports/%s", filename)
 
 	return reportURL, nil
+}
+
+// generatePDFReport 生成PDF报告
+func generatePDFReport(filePath string, customer models.Customer, weightRecords []models.WeightRecord, productUsages []models.ProductUsage) error {
+	// 这里实现PDF生成逻辑
+	// 此处使用简单的文本文件作为示例，实际项目中应该使用PDF库
+	file, err := os.Create(filePath)
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	// 写入客户基本信息
+	fmt.Fprintf(file, "客户减肥报告\n")
+	fmt.Fprintf(file, "==========================================\n")
+	fmt.Fprintf(file, "客户信息\n")
+	fmt.Fprintf(file, "姓名: %s\n", customer.Name)
+	fmt.Fprintf(file, "电话: %s\n", customer.Phone)
+
+	// 修复三元运算符的语法错误
+	gender := "男"
+	if customer.Gender == 2 {
+		gender = "女"
+	}
+	fmt.Fprintf(file, "性别: %s\n", gender)
+
+	fmt.Fprintf(file, "年龄: %d岁\n", customer.Age)
+	fmt.Fprintf(file, "身高: %.1fcm\n", customer.Height)
+	fmt.Fprintf(file, "初始体重: %.1fkg\n", customer.InitialWeight)
+	fmt.Fprintf(file, "当前体重: %.1fkg\n", customer.CurrentWeight)
+	fmt.Fprintf(file, "目标体重: %.1fkg\n", customer.TargetWeight)
+	fmt.Fprintf(file, "减重进度: %.1f%%\n", calculateProgress(customer))
+	fmt.Fprintf(file, "记录开始日期: %s\n", customer.CreatedAt.Format("2006-01-02"))
+	fmt.Fprintf(file, "已记录天数: %d天\n", int(time.Since(customer.CreatedAt).Hours()/24))
+
+	// 写入体重记录
+	fmt.Fprintf(file, "\n体重记录\n")
+	fmt.Fprintf(file, "------------------------------------------\n")
+	fmt.Fprintf(file, "日期\t\t体重(kg)\t变化(kg)\n")
+
+	var totalWeightLoss float64
+	var prevWeight float64
+
+	// 按日期排序
+	sort.Slice(weightRecords, func(i, j int) bool {
+		return weightRecords[i].RecordDate < weightRecords[j].RecordDate
+	})
+
+	for i, record := range weightRecords {
+		var change float64
+		if i == 0 {
+			change = record.Weight - customer.InitialWeight
+			prevWeight = record.Weight
+		} else {
+			change = record.Weight - prevWeight
+			prevWeight = record.Weight
+		}
+
+		totalWeightLoss = customer.InitialWeight - record.Weight
+
+		fmt.Fprintf(file, "%s\t%.1f\t\t%+.1f\n", record.RecordDate, record.Weight, change)
+	}
+
+	fmt.Fprintf(file, "------------------------------------------\n")
+	fmt.Fprintf(file, "总减重: %.1fkg\n", totalWeightLoss)
+
+	// 写入产品使用记录
+	fmt.Fprintf(file, "\n产品使用记录\n")
+	fmt.Fprintf(file, "------------------------------------------\n")
+	fmt.Fprintf(file, "日期\t\t产品名称\t\t使用次数\t剩余次数\n")
+
+	for _, usage := range productUsages {
+		fmt.Fprintf(file, "%s\t%s\t\t%.1f\t\t%d\n", usage.UsageDate, usage.ProductName, usage.Quantity, 0)
+	}
+
+	return nil
+}
+
+// calculateProgress 计算减重进度百分比
+func calculateProgress(customer models.Customer) float64 {
+	if customer.InitialWeight == 0 || customer.TargetWeight == 0 || customer.CurrentWeight == 0 {
+		return 0
+	}
+
+	totalNeedLoss := customer.InitialWeight - customer.TargetWeight
+	if totalNeedLoss <= 0 {
+		return 0
+	}
+
+	currentLoss := customer.InitialWeight - customer.CurrentWeight
+	progress := math.Min(100, (currentLoss/totalNeedLoss)*100)
+
+	return progress
 }

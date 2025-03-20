@@ -1,6 +1,7 @@
 // pages/customerDetail/customerDetail.js
 import request from '../../utils/request';
 import config from '../../config/config';
+import WxCharts from '../../utils/wxCharts';
 
 Page({
     data: {
@@ -131,7 +132,12 @@ Page({
             },
             success: (res) => {
                 if (res && res.code === 200) {
-                    const records = res.data || [];
+                    let records = res.data || [];
+
+                    // 计算体重变化
+                    if (records.length > 0) {
+                        records = this.calculateWeightChanges(records);
+                    }
 
                     // 按日期排序，最新的在前面
                     records.sort((a, b) => new Date(b.record_date) - new Date(a.record_date));
@@ -152,6 +158,32 @@ Page({
             complete: () => {
                 this.setData({ isLoading: false });
             }
+        });
+    },
+
+    // 计算体重变化
+    calculateWeightChanges: function (records) {
+        // 按日期排序，旧的在前面
+        const sortedRecords = [...records].sort((a, b) => new Date(a.record_date) - new Date(b.record_date));
+
+        let prevWeight = null;
+
+        // 计算每条记录相对于前一次记录的变化
+        return sortedRecords.map((record, index) => {
+            if (index === 0) {
+                // 第一次记录，获取客户初始体重作为参考
+                const initialWeight = this.data.customer?.initial_weight;
+                if (initialWeight) {
+                    record.change = (record.weight - initialWeight).toFixed(1);
+                } else {
+                    record.change = 0;
+                }
+            } else {
+                // 后续记录，计算与前一次的差值
+                record.change = (record.weight - sortedRecords[index - 1].weight).toFixed(1);
+            }
+
+            return record;
         });
     },
 
@@ -252,6 +284,32 @@ Page({
                 ]
             }
         });
+
+        // 使用WxCharts绘制图表
+        this.drawWeightChart(dates, weights);
+    },
+
+    // 绘制体重趋势图
+    drawWeightChart: function (dates, weights) {
+        // 获取系统信息
+        const systemInfo = wx.getSystemInfoSync();
+        const screenWidth = systemInfo.windowWidth;
+
+        // 在小程序中，延迟一下绘制图表，确保Canvas已经准备好
+        setTimeout(() => {
+            // 创建图表实例
+            new WxCharts({
+                canvasId: 'weightChart',
+                title: '体重变化趋势',
+                categories: dates,
+                data: weights,
+                width: screenWidth - 40, // 左右留出一些边距
+                height: 220,
+                colors: ['#1aad19'],
+                padding: 30,
+                yAxisFormat: (val) => val + 'kg'
+            });
+        }, 100);
     },
 
     // 切换Tab
@@ -260,6 +318,16 @@ Page({
         this.setData({
             activeTab: tab
         });
+
+        // 如果切换到体重记录标签，重新绘制图表
+        if (tab === 'record' && this.data.chartData) {
+            setTimeout(() => {
+                this.drawWeightChart(
+                    this.data.chartData.categories,
+                    this.data.chartData.series[0].data
+                );
+            }, 100);
+        }
     },
 
     // 添加减肥记录
@@ -312,8 +380,9 @@ Page({
                             success: (result) => {
                                 if (result.confirm) {
                                     // 复制链接
+                                    const fullUrl = config.baseUrl + reportUrl;
                                     wx.setClipboardData({
-                                        data: reportUrl,
+                                        data: fullUrl,
                                         success: () => {
                                             wx.showToast({
                                                 title: '链接已复制',
@@ -323,8 +392,9 @@ Page({
                                     });
                                 } else if (result.cancel) {
                                     // 预览文件
+                                    const fullUrl = config.baseUrl + reportUrl;
                                     wx.downloadFile({
-                                        url: reportUrl,
+                                        url: fullUrl,
                                         success: (res) => {
                                             if (res.statusCode === 200) {
                                                 const filePath = res.tempFilePath;

@@ -157,6 +157,9 @@ func main() {
 	router.HandleFunc("/api/customers/records", api.CORSMiddleware(api.GetCustomerRecords)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/export-report", api.CORSMiddleware(api.ExportCustomerReport)).Methods("GET", "OPTIONS")
 
+	// 添加下载报告的路由
+	router.HandleFunc("/api/download/reports/{filename}", api.CORSMiddleware(api.DownloadReport)).Methods("GET", "OPTIONS")
+
 	// 添加调试API
 	router.HandleFunc("/api/debug/create-test-users", api.CORSMiddleware(api.CreateTestUsers)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/debug/data", api.CORSMiddleware(api.DebugHandler)).Methods("GET", "OPTIONS")

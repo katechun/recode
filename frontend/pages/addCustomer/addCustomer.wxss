@@ -95,6 +95,16 @@
   margin-top: 10rpx;
 }
 
+.add-store-btn {
+  display: inline-block;
+  margin-top: 10rpx;
+  padding: 8rpx 20rpx;
+  background-color: #1890ff;
+  color: #fff;
+  font-size: 24rpx;
+  border-radius: 6rpx;
+}
+
 .button-group {
   position: fixed;
   bottom: 0;

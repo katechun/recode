@@ -18,12 +18,13 @@
         <text class="form-label required">所属店铺</text>
         <picker mode="selector" range="{{stores}}" range-key="name" value="{{selectedStoreIndex}}" bindchange="bindStoreChange" disabled="{{stores.length === 0}}">
           <view class="form-picker {{selectedStoreId ? '' : 'placeholder'}}">
-            <text>{{stores[selectedStoreIndex].name || '请选择店铺'}}</text>
+            <text>{{stores.length > 0 ? (stores[selectedStoreIndex].name || '请选择店铺') : '暂无可选店铺'}}</text>
             <text class="picker-arrow">▼</text>
           </view>
         </picker>
         <view wx:if="{{stores.length === 0}}" class="missing-tip">
           <text>没有可用店铺，请先添加店铺</text>
+          <view class="add-store-btn" bindtap="navigateToAddStore">创建店铺</view>
         </view>
       </view>
       

@@ -18,6 +18,9 @@ const config = {
   // API基础地址
   apiBaseUrl: env[currentEnv].apiBaseUrl,
 
+  // 添加baseUrl以支持完整URL访问
+  baseUrl: env[currentEnv].apiBaseUrl,
+
   // API路径
   apis: {
     login: '/api/login',

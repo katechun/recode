@@ -3,13 +3,17 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
 	"account/backend/database"
 	"account/backend/models"
+
+	"github.com/gorilla/mux"
 )
 
 // GetCustomers 获取客户列表接口
@@ -695,4 +699,45 @@ func ExportCustomerReport(w http.ResponseWriter, r *http.Request) {
 	SendResponse(w, http.StatusOK, 200, "导出客户报表成功", map[string]interface{}{
 		"url": reportURL,
 	})
+}
+
+// DownloadReport 下载报告文件
+func DownloadReport(w http.ResponseWriter, r *http.Request) {
+	// 从URL中获取文件名
+	vars := mux.Vars(r)
+	filename := vars["filename"]
+
+	if filename == "" {
+		SendResponse(w, http.StatusBadRequest, 400, "缺少文件名参数", nil)
+		return
+	}
+
+	// 文件路径
+	filePath := fmt.Sprintf("./data/reports/%s", filename)
+
+	// 检查文件是否存在
+	_, err := os.Stat(filePath)
+	if os.IsNotExist(err) {
+		SendResponse(w, http.StatusNotFound, 404, "报告文件不存在", nil)
+		return
+	}
+
+	// 打开文件
+	file, err := os.Open(filePath)
+	if err != nil {
+		log.Printf("打开报告文件失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, "打开报告文件失败", nil)
+		return
+	}
+	defer file.Close()
+
+	// 设置响应头，指定内容类型和下载文件名
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+
+	// 将文件内容写入响应
+	_, err = io.Copy(w, file)
+	if err != nil {
+		log.Printf("写入响应失败: %v", err)
+	}
 }

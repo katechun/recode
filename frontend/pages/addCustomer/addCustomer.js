@@ -50,12 +50,7 @@ Page({
     });
 
     // 加载店铺列表
-    this.loadStores();
-
-    // 如果是编辑，加载客户详情
-    if (isEdit) {
-      this.loadCustomerDetail();
-    }
+    this.loadStores(isEdit);
   },
 
   /**
@@ -108,25 +103,90 @@ Page({
   },
 
   // 加载店铺列表
-  loadStores: function () {
+  loadStores: function (isEdit) {
+    this.setData({ isLoading: true });
     const userInfo = this.data.userInfo;
 
-    request.get(config.apis.stores.list, {
-      data: {
-        user_id: userInfo.id
-      },
-      success: (res) => {
-        if (res && res.code === 200) {
-          const stores = res.data || [];
-          this.setData({ stores });
+    // 尝试从存储中获取店铺数据
+    const cachedStores = wx.getStorageSync('availableStores');
+    if (cachedStores && Array.isArray(cachedStores) && cachedStores.length > 0) {
+      console.log('从缓存获取到店铺数据:', cachedStores);
+      this.setData({
+        stores: cachedStores,
+        selectedStoreId: !isEdit && cachedStores.length > 0 ? cachedStores[0].id : this.data.selectedStoreId
+      });
+
+      // 如果是编辑模式，加载客户详情
+      if (isEdit) {
+        this.loadCustomerDetail();
+      }
+
+      this.setData({ isLoading: false });
+      return;
+    }
+
+    wx.showLoading({
+      title: '加载中...'
+    });
+
+    // 使用与店铺管理页面完全相同的方式获取店铺列表
+    request.get(config.apis.stores.list)
+      .then(res => {
+        wx.hideLoading();
+        console.log('店铺列表结果:', res);
+
+        // 健壮的响应处理逻辑，支持多种格式
+        let storeData = [];
+
+        // 1. res.data为数组: 直接使用
+        if (Array.isArray(res.data)) {
+          storeData = res.data;
+        }
+        // 2. res.data.data为数组: API返回了包装对象
+        else if (res.data && Array.isArray(res.data.data)) {
+          storeData = res.data.data;
+        }
+        // 3. res.data为对象，包含code和data字段: 标准API响应
+        else if (res.data && res.data.code === 200 && Array.isArray(res.data.data)) {
+          storeData = res.data.data;
+        }
+        // 4. res自身包含code和data字段: 另一种API响应格式
+        else if (res.code === 200 && Array.isArray(res.data)) {
+          storeData = res.data;
+        }
+
+        console.log('处理后的店铺数据:', storeData);
+
+        if (storeData.length > 0) {
+          this.setData({
+            stores: storeData,
+            // 如果是新增客户，默认选择第一个店铺
+            selectedStoreId: !isEdit && storeData.length > 0 ? storeData[0].id : this.data.selectedStoreId
+          });
+
+          // 如果是编辑模式，加载客户详情
+          if (isEdit) {
+            this.loadCustomerDetail();
+          }
         } else {
           wx.showToast({
-            title: res?.message || '加载店铺失败',
-            icon: 'none'
+            title: '请先创建店铺后再添加客户',
+            icon: 'none',
+            duration: 2000
           });
         }
-      }
-    });
+
+        this.setData({ isLoading: false });
+      })
+      .catch(err => {
+        wx.hideLoading();
+        console.error('获取店铺列表失败:', err);
+        wx.showToast({
+          title: '网络请求失败',
+          icon: 'none'
+        });
+        this.setData({ isLoading: false });
+      });
   },
 
   // 加载客户详情
@@ -139,14 +199,16 @@ Page({
       data: {
         user_id: userInfo.id,
         customer_id: customerId
-      },
-      success: (res) => {
+      }
+    })
+      .then(res => {
+        console.log('客户详情结果:', res);
         if (res && res.code === 200) {
           const customer = res.data || {};
 
           // 找到对应的店铺索引
           let storeIndex = 0;
-          if (customer.store_id) {
+          if (customer.store_id && this.data.stores.length > 0) {
             const index = this.data.stores.findIndex(store => store.id === customer.store_id);
             if (index !== -1) {
               storeIndex = index;
@@ -172,11 +234,16 @@ Page({
             icon: 'none'
           });
         }
-      },
-      complete: () => {
         this.setData({ isLoading: false });
-      }
-    });
+      })
+      .catch(err => {
+        console.error('加载客户详情失败:', err);
+        wx.showToast({
+          title: '加载客户详情失败',
+          icon: 'none'
+        });
+        this.setData({ isLoading: false });
+      });
   },
 
   // 店铺选择变更
@@ -297,5 +364,18 @@ Page({
   // 取消
   cancelCustomer: function () {
     wx.navigateBack();
+  },
+
+  // 跳转到添加店铺页面
+  navigateToAddStore: function () {
+    wx.navigateTo({
+      url: '/pages/storeManage/storeManage',
+      success: () => {
+        // 关闭当前页面，返回后直接到店铺管理页
+        setTimeout(() => {
+          wx.navigateBack();
+        }, 100);
+      }
+    });
   }
 })
