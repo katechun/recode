@@ -20,7 +20,15 @@ Page({
         weightChart: null,
         reportType: 'pdf', // 默认导出PDF格式
         dateRange: '30', // 默认导出近30天的数据
-        isFormatterLoaded: false
+        isFormatterLoaded: false,
+        showBmi: true, // 默认显示BMI曲线
+        bmiCategories: [
+            { min: 0, max: 18.5, label: '偏瘦', color: '#909399' },
+            { min: 18.5, max: 24, label: '正常', color: '#67c23a' },
+            { min: 24, max: 28, label: '超重', color: '#e6a23c' },
+            { min: 28, max: 32, label: '肥胖', color: '#f56c6c' },
+            { min: 32, max: 100, label: '重度肥胖', color: '#c03639' }
+        ]
     },
 
     onLoad: function (options) {
@@ -379,6 +387,18 @@ Page({
                 const bmi = (record.weight / (height * height)).toFixed(1);
                 return parseFloat(bmi);
             });
+
+            // 计算当前BMI值和分类
+            if (sortedRecords.length > 0) {
+                const latestRecord = sortedRecords[sortedRecords.length - 1];
+                const currentBmi = (latestRecord.weight / (height * height)).toFixed(1);
+                const bmiCategory = this.getBmiCategory(currentBmi);
+
+                this.setData({
+                    currentBmi: currentBmi,
+                    bmiCategory: bmiCategory
+                });
+            }
         }
 
         // 在页面中设置图表数据
@@ -406,6 +426,16 @@ Page({
 
     // 绘制体重趋势图
     drawWeightChart: function (dates, weights, bmiData) {
+        if (!dates || !weights || dates.length === 0 || weights.length === 0) {
+            console.error('绘制图表数据无效');
+            return;
+        }
+
+        // 如果没有启用BMI显示，则强制设为null
+        if (!this.data.showBmi) {
+            bmiData = null;
+        }
+
         // 获取系统信息
         const systemInfo = wx.getSystemInfoSync();
         const screenWidth = systemInfo.windowWidth;
@@ -413,6 +443,11 @@ Page({
         // 在小程序中，延迟一下绘制图表，确保Canvas已经准备好
         setTimeout(() => {
             try {
+                // 找出权重范围，给图表设定合适的区间
+                const minWeight = Math.min(...weights);
+                const maxWeight = Math.max(...weights);
+                const weightRange = maxWeight - minWeight;
+
                 // 体重图表配置
                 const chartConfig = {
                     canvasId: 'weightChart',
@@ -421,17 +456,19 @@ Page({
                     series: [{
                         name: '体重(kg)',
                         data: weights,
-                        format: (val) => val + 'kg'
+                        format: (val) => val + 'kg',
+                        color: '#1aad19'
                     }],
                     yAxis: {
                         title: '体重(kg)',
                         format: (val) => val,
-                        min: Math.floor(Math.min(...weights) * 0.9), // 稍微向下扩展范围
-                        max: Math.ceil(Math.max(...weights) * 1.1)   // 稍微向上扩展范围
+                        // 设置合适的最小值和最大值，保证曲线显示更平滑
+                        min: weightRange < 2 ? (minWeight - 1) : Math.floor(minWeight * 0.95),
+                        max: weightRange < 2 ? (maxWeight + 1) : Math.ceil(maxWeight * 1.05)
                     },
                     width: screenWidth - 40, // 左右留出一些边距
                     height: 220,
-                    dataLabel: true, // 显示数据点的值
+                    dataLabel: false, // 不显示数据点的值，减少拥挤
                     dataPointShape: true,
                     extra: {
                         lineStyle: 'curve' // 曲线方式
@@ -439,16 +476,30 @@ Page({
                 };
 
                 // 如果有BMI数据，添加第二个系列
-                if (bmiData) {
+                if (bmiData && bmiData.length > 0) {
                     chartConfig.series.push({
                         name: 'BMI',
                         data: bmiData,
-                        format: (val) => val
+                        format: (val) => val,
+                        color: '#f56c6c'
                     });
                 }
 
-                // 创建图表实例
-                this.data.weightChart = new WxCharts(chartConfig);
+                // 清理之前的图表实例
+                if (this.data.weightChart) {
+                    // 如果存在刷新方法，则使用刷新
+                    if (typeof this.data.weightChart.updateData === 'function') {
+                        this.data.weightChart.updateData({
+                            categories: dates,
+                            series: chartConfig.series
+                        });
+                        return;
+                    }
+                }
+
+                // 创建新的图表实例
+                const weightChart = new WxCharts(chartConfig);
+                this.setData({ weightChart });
             } catch (error) {
                 console.error('绘制图表失败:', error);
             }
@@ -468,7 +519,7 @@ Page({
                 this.drawWeightChart(
                     this.data.chartData.categories,
                     this.data.chartData.series[0].data,
-                    this.data.chartData.series[1]?.data
+                    this.data.showBmi ? this.data.chartData.series[1]?.data : null
                 );
             }, 300);
         }
@@ -720,6 +771,32 @@ Page({
                     icon: 'none'
                 });
             });
+    },
+
+    // 获取BMI分类
+    getBmiCategory: function (bmi) {
+        const bmiValue = parseFloat(bmi);
+        const category = this.data.bmiCategories.find(
+            category => bmiValue >= category.min && bmiValue < category.max
+        );
+        return category || this.data.bmiCategories[0];
+    },
+
+    // 切换BMI显示
+    toggleBmi: function () {
+        const showBmi = !this.data.showBmi;
+        this.setData({ showBmi });
+
+        // 重新绘制图表
+        if (this.data.chartData) {
+            setTimeout(() => {
+                this.drawWeightChart(
+                    this.data.chartData.categories,
+                    this.data.chartData.series[0].data,
+                    showBmi ? this.data.chartData.series[1]?.data : null
+                );
+            }, 100);
+        }
     },
 
     // 阻止事件冒泡

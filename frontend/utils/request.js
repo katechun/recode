@@ -1,7 +1,111 @@
 import config from '../config/config';
 
+/**
+ * 封装wx.request
+ */
+const request = (method, url, data, headers = {}) => {
+  const app = getApp();
+  const { token } = app.globalData.userInfo || {};
+
+  return new Promise((resolve, reject) => {
+    console.log(`API请求开始: ${method} ${url}`);
+    console.log('请求数据:', data);
+
+    // 显示加载图标
+    wx.showLoading({
+      title: '加载中',
+      mask: true
+    });
+
+    wx.request({
+      url,
+      method,
+      data,
+      header: {
+        'content-type': 'application/json',
+        'Authorization': token ? `Bearer ${token}` : '',
+        ...headers
+      },
+      success: function (res) {
+        console.log(`API响应: ${method} ${url}`, res);
+
+        wx.hideLoading();
+
+        if (res.statusCode === 401) {
+          // 未授权，跳转到登录页
+          wx.showToast({
+            title: '登录已过期，请重新登录',
+            icon: 'none',
+            duration: 2000
+          });
+
+          // 清除登录信息
+          app.globalData.userInfo = null;
+          wx.removeStorageSync('userInfo');
+
+          // 跳转到登录页
+          setTimeout(() => {
+            wx.redirectTo({
+              url: '/pages/login/login'
+            });
+          }, 1500);
+
+          reject({ message: '登录已过期', response: res.data });
+          return;
+        }
+
+        if (res.statusCode >= 400) {
+          // 处理错误响应
+          const errorMsg = (res.data && res.data.message) ||
+            '服务器错误，请稍后再试';
+
+          wx.showToast({
+            title: errorMsg,
+            icon: 'none',
+            duration: 2000
+          });
+
+          reject({
+            message: errorMsg,
+            response: res.data,
+            statusCode: res.statusCode
+          });
+          return;
+        }
+
+        resolve(res.data);
+      },
+      fail: function (err) {
+        console.error(`API请求失败: ${method} ${url}`, err);
+        wx.hideLoading();
+
+        // 处理网络错误
+        let errorMsg = '网络连接失败，请稍后再试';
+        if (err.errMsg) {
+          if (err.errMsg.includes('timeout')) {
+            errorMsg = '请求超时，请稍后再试';
+          } else if (err.errMsg.includes('fail')) {
+            errorMsg = '网络连接失败，请检查网络设置';
+          }
+        }
+
+        wx.showToast({
+          title: errorMsg,
+          icon: 'none',
+          duration: 2000
+        });
+
+        reject({
+          message: errorMsg,
+          error: err
+        });
+      }
+    });
+  });
+};
+
 // 请求工具函数
-const request = (url, options = {}) => {
+const requestWrapper = (url, options = {}) => {
   const defaultOptions = {
     header: {
       'content-type': 'application/json'
@@ -125,82 +229,55 @@ const request = (url, options = {}) => {
   });
 };
 
-export default {
-  get: (url, options = {}) => request(url, { ...options, method: 'GET' }),
-  post: function (url, data = {}, options = {}) {
-    // 打印完整的请求信息用于调试
-    console.log('发送POST请求详情:', {
-      url: url,
-      data: data,
-      dataString: JSON.stringify(data), // 显示字符串化的数据
-      options: options
-    });
+/**
+ * POST请求
+ * @param {string} url - 请求地址
+ * @param {object} data - 请求数据
+ * @param {object} header - 请求头
+ * @returns {Promise}
+ */
+const post = (url, data = {}, header = {}) => {
+  // 打印完整请求信息，方便调试
+  console.log('POST请求', {
+    url,
+    data: JSON.stringify(data),
+    header
+  });
 
-    // 确保URL不包含额外的查询参数
-    const cleanUrl = url.split('?')[0]; // 移除可能存在的查询字符串
+  try {
+    // 确保数据符合JSON格式
+    const validData = JSON.parse(JSON.stringify(data));
+
+    // 构建完整URL
+    const fullUrl = url.startsWith('http') ? url : config.apiBaseUrl + url;
 
     // 获取用户信息以设置请求头
     const userInfo = wx.getStorageSync('userInfo');
     const userIdHeader = userInfo ? userInfo.id : '';
 
-    // 准备请求头
-    const headers = {
+    // 合并自定义header
+    const mergedHeaders = {
       'content-type': 'application/json',
       'X-User-ID': userIdHeader,
-      ...(options.header || {}) // 合并自定义header
+      ...header
     };
 
-    console.log('请求头:', headers);
-    console.log('准备发送的JSON数据:', JSON.stringify(data));
+    console.log('发送请求到:', fullUrl);
+    console.log('完整请求头:', mergedHeaders);
 
-    return new Promise((resolve, reject) => {
-      wx.request({
-        url: config.apiBaseUrl + cleanUrl,
-        method: 'POST',
-        data: data,
-        header: headers,
-        success: function (res) {
-          console.log('收到响应:', {
-            statusCode: res.statusCode,
-            headers: res.header,
-            data: res.data
-          });
-
-          if (res.statusCode >= 400) {
-            console.log('请求失败: HTTP错误:', res.statusCode, {
-              url: config.apiBaseUrl + cleanUrl,
-              response: res.data
-            });
-            reject({
-              code: res.statusCode,
-              message: 'HTTP错误: ' + res.statusCode,
-              response: res.data
-            });
-            return;
-          }
-
-          // 特殊处理服务器返回的数据格式
-          const responseData = res.data;
-          if (responseData && (responseData.code === 200 || responseData.code === 0)) {
-            resolve(responseData);
-          } else {
-            console.log('请求异常:', responseData);
-            reject(responseData || {
-              code: res.statusCode,
-              message: '服务器返回异常数据'
-            });
-          }
-        },
-        fail: function (err) {
-          console.error('请求失败:', err, { url: config.apiBaseUrl + cleanUrl, data: data });
-          reject(err);
-        },
-        complete: function () {
-          // options中的其他功能如hideLoading等可以在这里处理
-        }
-      });
+    return request('POST', fullUrl, validData, mergedHeaders);
+  } catch (error) {
+    console.error('数据格式转换错误', error);
+    return Promise.reject({
+      message: '请求数据格式错误',
+      error
     });
-  },
+  }
+};
+
+export default {
+  get: (url, options = {}) => requestWrapper(url, { ...options, method: 'GET' }),
+  post,
   put: function (url, data = {}, options = {}) {
     // 处理两种不同的调用方式
     // 1. put(url, data, options)

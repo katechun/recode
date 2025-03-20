@@ -70,6 +70,30 @@
         </view>
       </view>
       
+      <view class="bmi-section" wx:if="{{currentBmi && customer.height}}">
+        <view class="bmi-header">
+          <text class="bmi-title">身体质量指数(BMI)</text>
+          <text class="bmi-value">{{currentBmi}}</text>
+        </view>
+        
+        <view class="bmi-category" style="color: {{bmiCategory.color}}">
+          {{bmiCategory.label}}
+        </view>
+        
+        <view class="bmi-scale">
+          <view class="bmi-range" wx:for="{{bmiCategories}}" wx:key="label"
+                style="flex: {{item.max - item.min}}; background-color: {{item.color}};">
+            <text class="bmi-range-label" wx:if="{{item.max - item.min > 3}}">{{item.label}}</text>
+          </view>
+        </view>
+        <view class="bmi-marker" style="left: {{(currentBmi > 40 ? 40 : (currentBmi < 15 ? 15 : currentBmi)) - 15}}%"></view>
+        
+        <view class="bmi-info">
+          <text class="bmi-info-text">BMI = 体重(kg) / 身高²(m)</text>
+          <text class="bmi-info-text">正常范围: 18.5 - 24</text>
+        </view>
+      </view>
+      
       <view class="info-item notes">
         <text class="info-label">备注</text>
         <text class="info-value">{{customer.notes || '无'}}</text>
@@ -85,9 +109,16 @@
     <view class="content-section" wx:if="{{activeTab === 'record'}}">
       <!-- 体重趋势图 -->
       <view class="chart-container" wx:if="{{weightRecords.length > 0}}">
-        <view class="chart-title">体重变化趋势</view>
+        <view class="chart-header">
+          <view class="chart-title">体重变化趋势</view>
+          <view class="chart-actions" wx:if="{{customer.height && chartData.series.length > 1}}">
+            <view class="chart-toggle" bindtap="toggleBmi">
+              <text>显示BMI</text>
+              <switch checked="{{showBmi}}" color="#4CAF50" />
+            </view>
+          </view>
+        </view>
         <view class="chart-area">
-          <!-- 这里需要引入图表组件 -->
           <canvas class="weight-chart" canvas-id="weightChart"></canvas>
         </view>
         <view class="chart-legend">
@@ -95,7 +126,7 @@
             <view class="legend-color" style="background-color: #1aad19"></view>
             <text class="legend-text">体重(kg)</text>
           </view>
-          <view class="legend-item" wx:if="{{customer.height}}">
+          <view class="legend-item" wx:if="{{customer.height && showBmi}}">
             <view class="legend-color" style="background-color: #f56c6c"></view>
             <text class="legend-text">BMI</text>
           </view>

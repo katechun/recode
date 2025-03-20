@@ -558,4 +558,107 @@ page {
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* BMI相关样式 */
+.bmi-section {
+  background-color: #f9f9f9;
+  border-radius: 8rpx;
+  padding: 20rpx;
+  margin-top: 30rpx;
+  position: relative;
+}
+
+.bmi-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15rpx;
+}
+
+.bmi-title {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.bmi-value {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.bmi-category {
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+}
+
+.bmi-scale {
+  display: flex;
+  height: 20rpx;
+  border-radius: 10rpx;
+  overflow: hidden;
+  margin-bottom: 30rpx;
+  position: relative;
+}
+
+.bmi-range {
+  height: 100%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+}
+
+.bmi-range-label {
+  position: absolute;
+  top: 25rpx;
+  font-size: 20rpx;
+  color: rgba(0, 0, 0, 0.6);
+  white-space: nowrap;
+}
+
+.bmi-marker {
+  width: 0;
+  height: 0;
+  border-left: 10rpx solid transparent;
+  border-right: 10rpx solid transparent;
+  border-bottom: 15rpx solid #333;
+  position: absolute;
+  top: 82rpx;
+  transform: translateX(-50%);
+}
+
+.bmi-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30rpx;
+}
+
+.bmi-info-text {
+  font-size: 22rpx;
+  color: #666;
+}
+
+/* 图表头部 */
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15rpx;
+}
+
+.chart-actions {
+  display: flex;
+}
+
+.chart-toggle {
+  display: flex;
+  align-items: center;
+  font-size: 24rpx;
+  color: #666;
+}
+
+.chart-toggle text {
+  margin-right: 10rpx;
 } 

@@ -306,25 +306,36 @@ Page({
     const { userInfo, isEdit, customerId, gender, age, height, initialWeight, currentWeight, targetWeight, notes } = this.data;
 
     const data = {
-      user_id: userInfo.id,
+      user_id: parseInt(userInfo.id), // 确保是整数
       name: this.data.name.trim(),
       phone: this.data.phone.trim(),
-      store_id: this.data.selectedStoreId,
-      gender,
-      notes: notes.trim()
+      store_id: parseInt(this.data.selectedStoreId), // 确保是整数
+      gender: parseInt(gender), // 确保是整数
+      notes: notes.trim() || '' // 确保notes不为undefined
     };
 
-    // 添加可选字段
-    if (age) data.age = parseInt(age) || 0;
-    if (height) data.height = parseFloat(height) || 0;
-    if (initialWeight) data.initial_weight = parseFloat(initialWeight) || 0;
-    if (currentWeight) data.current_weight = parseFloat(currentWeight) || 0;
-    if (targetWeight) data.target_weight = parseFloat(targetWeight) || 0;
+    // 添加可选字段，确保为适当的类型
+    if (age) data.age = parseInt(age);
+    if (height) data.height = parseFloat(height);
+    if (initialWeight) data.initial_weight = parseFloat(initialWeight);
+    if (currentWeight) data.current_weight = parseFloat(currentWeight);
+    if (targetWeight) data.target_weight = parseFloat(targetWeight);
 
     // 如果是编辑，添加客户ID
     if (isEdit) {
       data.customer_id = customerId;
     }
+
+    // 移除所有undefined或null值
+    Object.keys(data).forEach(key => {
+      if (data[key] === undefined || data[key] === null) {
+        delete data[key];
+      }
+      // 检查数字类型是否为NaN，如果是则设为0
+      if (typeof data[key] === 'number' && isNaN(data[key])) {
+        data[key] = 0;
+      }
+    });
 
     this.setData({ isLoading: true });
 
@@ -389,26 +400,35 @@ Page({
 
         wx.showToast({
           title: isEdit ? '更新失败' : '添加失败',
-          icon: 'none'
+          icon: 'none',
+          duration: 3000
         });
-      });
-  },
 
-  // 取消
-  cancelCustomer: function () {
-    wx.navigateBack();
-  },
-
-  // 跳转到添加店铺页面
-  navigateToAddStore: function () {
-    wx.navigateTo({
-      url: '/pages/storeManage/storeManage',
-      success: () => {
-        // 关闭当前页面，返回后直接到店铺管理页
-        setTimeout(() => {
+        // 显示详细错误信息
+        if (err && err.response && err.response.message) {
+          setTimeout(() => {
+            wx.showModal({
+              title: '错误详情',
+              content: err.response.message,
+              showCancel: false
+            });
+          }, 1000);
+        }
+        // 取消
+        cancelCustomer: function () {
           wx.navigateBack();
-        }, 100);
-      }
-    });
-  }
-})
+        },
+
+        // 跳转到添加店铺页面
+        navigateToAddStore: function () {
+          wx.navigateTo({
+            url: '/pages/storeManage/storeManage',
+            success: () => {
+              // 关闭当前页面，返回后直接到店铺管理页
+              setTimeout(() => {
+                wx.navigateBack();
+              }, 100);
+            }
+          });
+        }
+      })
