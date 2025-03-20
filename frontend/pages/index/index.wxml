@@ -141,6 +141,10 @@
             <text class="function-icon">📊</text>
             <text class="function-text">账务类型</text>
           </view>
+          <navigator url="/pages/products/index" class="function-item">
+            <text class="function-icon">🛍️</text>
+            <text class="function-text">产品管理</text>
+          </navigator>
         </view>
       </view>
     </block>
@@ -337,31 +341,6 @@
             <text>删除</text>
           </button>
         </view>
-      </view>
-    </view>
-
-    <!-- 管理模块 -->
-    <view class="section admin-section" wx:if="{{isAdmin}}">
-      <view class="section-header">
-        <text class="section-title">系统管理</text>
-      </view>
-      <view class="admin-grid">
-        <navigator url="/pages/userManage/userManage" class="admin-item">
-          <view class="admin-icon user-icon"></view>
-          <text>用户管理</text>
-        </navigator>
-        <navigator url="/pages/storeManage/storeManage" class="admin-item">
-          <view class="admin-icon store-icon"></view>
-          <text>店铺管理</text>
-        </navigator>
-        <navigator url="/pages/accountType/accountType" class="admin-item">
-          <view class="admin-icon type-icon"></view>
-          <text>账务类型</text>
-        </navigator>
-        <navigator url="/pages/products/index" class="admin-item">
-          <view class="admin-icon product-icon"></view>
-          <text>产品管理</text>
-        </navigator>
       </view>
     </view>
   </view>

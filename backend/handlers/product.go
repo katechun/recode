@@ -20,12 +20,59 @@ func GetProductList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 查询数据库获取产品列表
-	products, err := database.GetAllProducts()
+	// 获取用户ID
+	userIDInt, err := strconv.Atoi(userID)
 	if err != nil {
-		log.Printf("Error getting products: %v\n", err)
-		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get products")
+		utils.RespondWithError(w, http.StatusBadRequest, "Invalid user_id parameter")
 		return
+	}
+
+	// 检查用户是否是管理员
+	isAdmin, err := database.IsUserAdmin(int64(userIDInt))
+	if err != nil {
+		log.Printf("Error checking user admin status: %v\n", err)
+		utils.RespondWithError(w, http.StatusInternalServerError, "Failed to check user permissions")
+		return
+	}
+
+	var products []map[string]interface{}
+
+	if isAdmin {
+		// 管理员可以看到所有产品
+		products, err = database.GetAllProducts()
+		if err != nil {
+			log.Printf("Error getting all products: %v\n", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get products")
+			return
+		}
+	} else {
+		// 获取用户有权限的店铺ID列表
+		storeIDs, err := database.GetStoreIDsForUser(userIDInt)
+		if err != nil {
+			log.Printf("Error getting user store permissions: %v\n", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get user store permissions")
+			return
+		}
+
+		// 如果没有店铺权限，返回空列表
+		if len(storeIDs) == 0 {
+			utils.RespondWithJSON(w, http.StatusOK, 200, "Success", []interface{}{})
+			return
+		}
+
+		// 构建店铺ID列表字符串
+		storeIDsStr := make([]string, len(storeIDs))
+		for i, id := range storeIDs {
+			storeIDsStr[i] = strconv.Itoa(id.(int))
+		}
+
+		// 查询数据库获取产品列表
+		products, err = database.GetProducts(strings.Join(storeIDsStr, ","))
+		if err != nil {
+			log.Printf("Error getting products: %v\n", err)
+			utils.RespondWithError(w, http.StatusInternalServerError, "Failed to get products")
+			return
+		}
 	}
 
 	// 返回产品列表

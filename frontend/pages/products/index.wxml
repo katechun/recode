@@ -1,56 +1,72 @@
 <view class="container">
   <view class="header">
-    <view class="title">产品列表</view>
-    <button class="add-btn" bindtap="showAddModal">添加产品</button>
+    <view class="title">产品管理</view>
+    <view class="add-btn" bindtap="showAddModal">添加产品</view>
   </view>
-  
-  <view class="product-list" wx:if="{{!loading}}">
-    <view class="empty-container" wx:if="{{products.length === 0}}">
-      <text class="empty-text">暂无产品，请点击"添加产品"按钮创建</text>
-    </view>
-    
-    <view class="product-item" wx:for="{{products}}" wx:key="id">
-      <view class="product-info">
-        <view class="product-name">{{item.name}}</view>
-        <view class="product-description">{{item.description || '暂无描述'}}</view>
-        <view class="product-details">
-          <text>价格: ¥{{item.price}}</text>
-          <text>库存: {{item.stock}}</text>
-          <text>所属店铺: {{item.store_name || '默认店铺'}}</text>
+
+  <view class="product-list">
+    <block wx:if="{{!loading && products.length > 0}}">
+      <view class="product-item" wx:for="{{products}}" wx:key="id">
+        <view class="product-info">
+          <view class="product-name">{{item.name}}</view>
+          <view class="product-desc">{{item.description || '暂无描述'}}</view>
+          <view class="product-meta">
+            <text class="price">¥{{item.price}}</text>
+            <text class="stock">库存: {{item.stock}}</text>
+            <text class="store">店铺: {{item.store_name || '未知店铺'}}</text>
+          </view>
+        </view>
+        <view class="product-actions">
+          <view class="delete-btn" bindtap="handleDelete" data-id="{{item.id}}">删除</view>
         </view>
       </view>
-      <view class="delete-btn" bindtap="handleDelete" data-id="{{item.id}}">删除</view>
+    </block>
+    <view class="empty-state" wx:elif="{{!loading}}">
+      <text>暂无产品数据</text>
+    </view>
+    <view class="loading-state" wx:else>
+      <text>加载中...</text>
     </view>
   </view>
-  
-  <view class="loading-container" wx:if="{{loading}}">
-    <text>加载中...</text>
-  </view>
-  
+
   <!-- 添加产品弹窗 -->
-  <view class="modal-mask" wx:if="{{showModal}}" bindtap="hideModal"></view>
-  <view class="modal-container" wx:if="{{showModal}}">
-    <view class="modal-title">添加产品</view>
-    
-    <view class="form-item">
-      <input class="input" placeholder="产品名称 *" value="{{productForm.name}}" bindinput="inputName" />
-    </view>
-    
-    <view class="form-item">
-      <textarea class="input textarea" placeholder="产品描述" value="{{productForm.description}}" bindinput="inputDescription"></textarea>
-    </view>
-    
-    <view class="form-item">
-      <input class="input" placeholder="产品价格 *" type="digit" value="{{productForm.price}}" bindinput="inputPrice" />
-    </view>
-    
-    <view class="form-item">
-      <input class="input" placeholder="库存数量 *" type="number" value="{{productForm.stock}}" bindinput="inputStock" />
-    </view>
-    
-    <view class="button-group">
-      <view class="btn cancel-btn" bindtap="hideModal">取消</view>
-      <view class="btn confirm-btn" bindtap="handleAddProduct">确认添加</view>
+  <view class="modal" wx:if="{{showModal}}">
+    <view class="modal-mask" bindtap="hideModal"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text>添加产品</text>
+        <text class="close" bindtap="hideModal">×</text>
+      </view>
+      <view class="modal-body">
+        <view class="form-item">
+          <text class="label">产品名称</text>
+          <input class="input" placeholder="请输入产品名称" value="{{productForm.name}}" bindinput="inputName" />
+        </view>
+        <view class="form-item">
+          <text class="label">产品描述</text>
+          <textarea class="textarea" placeholder="请输入产品描述" value="{{productForm.description}}" bindinput="inputDescription" />
+        </view>
+        <view class="form-item">
+          <text class="label">价格</text>
+          <input class="input" type="digit" placeholder="请输入价格" value="{{productForm.price}}" bindinput="inputPrice" />
+        </view>
+        <view class="form-item">
+          <text class="label">库存</text>
+          <input class="input" type="number" placeholder="请输入库存数量" value="{{productForm.stock}}" bindinput="inputStock" />
+        </view>
+        <view class="form-item">
+          <text class="label">所属店铺</text>
+          <picker bindchange="changeStore" value="{{selectedStoreId}}" range="{{storeList}}" range-key="name">
+            <view class="picker">
+              {{storeList[selectedStoreId] ? storeList[selectedStoreId].name : '请选择店铺'}}
+            </view>
+          </picker>
+        </view>
+      </view>
+      <view class="modal-footer">
+        <button class="cancel-btn" bindtap="hideModal">取消</button>
+        <button class="confirm-btn" bindtap="handleAddProduct">确定</button>
+      </view>
     </view>
   </view>
 </view> 
