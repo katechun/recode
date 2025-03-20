@@ -2,5 +2,8 @@
   "navigationBarTitleText": "客户详情",
   "enablePullDownRefresh": true,
   "backgroundTextStyle": "dark",
-  "usingComponents": {}
-} 
+  "navigationBarTextStyle": "black",
+  "usingComponents": {
+    "ec-canvas": "../../components/ec-canvas/ec-canvas"
+  }
+}

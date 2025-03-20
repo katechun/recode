@@ -1,14 +1,47 @@
 <!--pages/customerDetail/customerDetail.wxml-->
 <view class="container">
-  <!-- 顶部客户信息 -->
+  <!-- 重构的顶部客户信息 -->
   <view class="customer-header" wx:if="{{customer}}">
-    <view class="customer-basic">
-      <view class="customer-name">{{customer.name}}</view>
-      <view class="customer-meta">
-        <text class="store-name">{{customer.store_name}}</text>
-        <text class="phone">{{customer.phone}}</text>
+    <!-- 名字和ID -->
+    <view class="header-top">
+      <view class="customer-name-id">
+        <text class="customer-name">{{customer.name}}</text>
+        <text class="customer-id">5555</text>
       </view>
     </view>
+    
+    <!-- 基本信息 -->
+    <view class="customer-profile">
+      <view class="profile-row">
+        <view class="profile-item">
+          <text class="profile-label">年龄</text>
+          <text class="profile-value">{{customer.age || '-'}} 岁</text>
+        </view>
+        <view class="profile-item">
+          <text class="profile-label">身高</text>
+          <text class="profile-value">{{customer.height || '-'}} cm</text>
+        </view>
+      </view>
+      <view class="profile-row">
+        <view class="profile-item">
+          <text class="profile-label">性别</text>
+          <text class="profile-value">{{customer.gender === 1 ? '男' : (customer.gender === 2 ? '女' : '-')}}</text>
+        </view>
+        <view class="profile-item">
+          <text class="profile-label">分店</text>
+          <text class="profile-value">{{customer.store_name || '-'}}</text>
+        </view>
+      </view>
+    </view>
+    
+    <!-- 电话号码 -->
+    <view class="customer-meta" wx:if="{{customer.phone}}">
+      <text class="phone">{{customer.phone}}</text>
+    </view>
+    
+    <!-- 不添加任何元素，确保没有红框内的元素 -->
+    
+    <!-- 体重信息 - 直接紧接在个人信息后面 -->
     <view class="weight-overview">
       <view class="weight-item">
         <text class="weight-label">初始体重</text>
@@ -23,6 +56,8 @@
         <text class="weight-value">{{customer.target_weight || '-'}} kg</text>
       </view>
     </view>
+    
+    <!-- 减肥进度 -->
     <view class="progress-section">
       <view class="progress-header">
         <text class="progress-label">减肥进度</text>
@@ -34,6 +69,10 @@
       <view class="weight-lost-info">
         <text>已减重: {{customer.lost_weight || 0}} kg</text>
         <text>还需减重: {{customer.needs_to_lose || 0}} kg</text>
+      </view>
+      <view class="goal-achieved" wx:if="{{customer.progress >= 100}}">
+        <image class="goal-icon" src="/images/icon-success.png"></image>
+        <text>恭喜您已达成减重目标！</text>
       </view>
     </view>
   </view>
@@ -55,21 +94,6 @@
   <view class="content-area">
     <!-- 基本信息 -->
     <view class="content-section" wx:if="{{activeTab === 'info' && customer}}">
-      <view class="info-group">
-        <view class="info-item">
-          <text class="info-label">年龄</text>
-          <text class="info-value">{{customer.age || '-'}} 岁</text>
-        </view>
-        <view class="info-item">
-          <text class="info-label">身高</text>
-          <text class="info-value">{{customer.height || '-'}} cm</text>
-        </view>
-        <view class="info-item">
-          <text class="info-label">性别</text>
-          <text class="info-value">{{customer.gender === 1 ? '男' : (customer.gender === 2 ? '女' : '-')}}</text>
-        </view>
-      </view>
-      
       <view class="bmi-section" wx:if="{{currentBmi && customer.height}}">
         <view class="bmi-header">
           <text class="bmi-title">身体质量指数(BMI)</text>
@@ -91,6 +115,47 @@
         <view class="bmi-info">
           <text class="bmi-info-text">BMI = 体重(kg) / 身高²(m)</text>
           <text class="bmi-info-text">正常范围: 18.5 - 24</text>
+        </view>
+
+        <view class="bmi-advice">
+          <text class="bmi-advice-title">健康指导建议</text>
+          <text class="bmi-advice-content" wx:if="{{currentBmi < 18.5}}">
+            您的体重偏瘦，建议适当增加营养摄入，增加肌肉锻炼，提高基础代谢率。
+          </text>
+          <text class="bmi-advice-content" wx:elif="{{currentBmi >= 18.5 && currentBmi < 24}}">
+            您的体重在健康范围内，建议保持当前饮食习惯和运动频率，维持健康体重。
+          </text>
+          <text class="bmi-advice-content" wx:elif="{{currentBmi >= 24 && currentBmi < 28}}">
+            您的体重超标，建议控制饮食热量，增加运动强度，每天保持30-60分钟中等强度有氧运动。
+          </text>
+          <text class="bmi-advice-content" wx:elif="{{currentBmi >= 28}}">
+            您的体重超标较多，建议在专业指导下制定减重计划，逐步恢复健康体重，定期监测身体状况。
+          </text>
+        </view>
+      </view>
+      
+      <view class="body-fat-section" wx:if="{{bodyFatPercentage && bodyFatCategory}}">
+        <view class="body-fat-header">
+          <text class="body-fat-title">体脂率估算</text>
+          <text class="body-fat-value">{{bodyFatPercentage}}%</text>
+        </view>
+        
+        <view class="body-fat-category" style="color: {{bodyFatCategory.color}}">
+          {{bodyFatCategory.label}}
+        </view>
+        
+        <view class="body-fat-scale">
+          <view class="body-fat-range gender-{{customer.gender === 1 ? 'male' : 'female'}} range-low"></view>
+          <view class="body-fat-range gender-{{customer.gender === 1 ? 'male' : 'female'}} range-normal"></view>
+          <view class="body-fat-range gender-{{customer.gender === 1 ? 'male' : 'female'}} range-high"></view>
+          <view class="body-fat-range gender-{{customer.gender === 1 ? 'male' : 'female'}} range-very-high"></view>
+        </view>
+        
+        <view class="body-fat-marker" style="left: {{(customer.gender === 1 ? (bodyFatPercentage > 40 ? 40 : (bodyFatPercentage < 5 ? 5 : bodyFatPercentage)) : (bodyFatPercentage > 45 ? 45 : (bodyFatPercentage < 10 ? 10 : bodyFatPercentage))) - (customer.gender === 1 ? 5 : 10)}}%"></view>
+        
+        <view class="body-fat-info">
+          <text class="body-fat-info-text">体脂率 = 体内脂肪总量/体重×100%</text>
+          <text class="body-fat-info-text">健康范围: {{customer.gender === 1 ? '10%-20%（男性）' : '15%-25%（女性）'}}</text>
         </view>
       </view>
       
@@ -118,8 +183,9 @@
             </view>
           </view>
         </view>
+        
         <view class="chart-area">
-          <canvas class="weight-chart" canvas-id="weightChart"></canvas>
+          <ec-canvas id="weightChart" canvas-id="weightChart" ec="{{ ec }}"></ec-canvas>
         </view>
         <view class="chart-legend">
           <view class="legend-item">
@@ -165,6 +231,7 @@
       
       <view class="action-buttons">
         <button class="action-btn add" bindtap="addWeightRecord">添加记录</button>
+        <button class="action-btn analysis" bindtap="showWeightAnalysis" wx:if="{{weightRecords.length >= 2}}">减重数据分析</button>
       </view>
     </view>
     
@@ -242,9 +309,244 @@
     </view>
   </view>
   
+  <!-- 减重数据分析模态框 -->
+  <view class="modal-mask" wx:if="{{showWeightAnalysisModal}}" bindtap="hideWeightAnalysis">
+    <view class="modal-content analysis-modal" catchtap="stopPropagation">
+      <view class="modal-header">
+        <text class="modal-title">减重数据分析</text>
+        <view class="modal-close" bindtap="hideWeightAnalysis">×</view>
+      </view>
+      
+      <scroll-view scroll-y class="modal-body">
+        <!-- 总体减重情况 -->
+        <view class="analysis-section">
+          <view class="analysis-title">总体减重情况</view>
+          <view class="analysis-cards">
+            <view class="analysis-card">
+              <text class="analysis-value">{{weightAnalysis.totalLoss}}kg</text>
+              <text class="analysis-label">总减重</text>
+            </view>
+            <view class="analysis-card">
+              <text class="analysis-value">{{weightAnalysis.totalDays}}天</text>
+              <text class="analysis-label">总时长</text>
+            </view>
+            <view class="analysis-card">
+              <text class="analysis-value">{{weightAnalysis.weeklyAvgLoss}}kg</text>
+              <text class="analysis-label">周平均</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 最佳减重期 -->
+        <view class="analysis-section" wx:if="{{weightAnalysis.bestPeriod}}">
+          <view class="analysis-title">最佳减重期</view>
+          <view class="best-period">
+            <view class="best-period-dates">
+              <text>{{weightAnalysis.bestPeriod.startDate}} 至 {{weightAnalysis.bestPeriod.endDate}}</text>
+              <text class="best-period-days">({{weightAnalysis.bestPeriod.days}}天)</text>
+            </view>
+            <view class="best-period-stats">
+              <text>减重: {{weightAnalysis.bestPeriod.loss}}kg</text>
+              <text>日均: {{weightAnalysis.bestPeriod.dailyRate}}kg/天</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 目标达成预测 -->
+        <view class="analysis-section" wx:if="{{weightAnalysis.targetReachEstimate}}">
+          <view class="analysis-title">目标达成预测</view>
+          <view class="target-estimate">
+            <view class="target-date">
+              <text class="target-date-label">预计达成日期:</text>
+              <text class="target-date-value">{{weightAnalysis.targetReachEstimate.date}}</text>
+            </view>
+            <view class="target-time">
+              <text>还需约 {{weightAnalysis.targetReachEstimate.weeks}} 周 ({{weightAnalysis.targetReachEstimate.days}} 天)</text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- 月度减重进度 -->
+        <view class="analysis-section" wx:if="{{weightAnalysis.monthlyData.length > 0}}">
+          <view class="analysis-title">月度减重进度</view>
+          <view class="monthly-progress">
+            <view class="monthly-item" wx:for="{{weightAnalysis.monthlyData}}" wx:key="month">
+              <text class="monthly-month">{{item.month}}</text>
+              <view class="monthly-bar-container">
+                <view class="monthly-bar" style="width: {{item.loss > 0 ? (item.loss * 20) : 0}}%"></view>
+              </view>
+              <text class="monthly-value {{item.loss > 0 ? 'positive' : (item.loss < 0 ? 'negative' : '')}}">
+                {{item.loss > 0 ? '-' : ''}}{{item.loss}}kg
+              </text>
+            </view>
+          </view>
+        </view>
+        
+        <!-- BMI变化趋势 -->
+        <view class="analysis-section" wx:if="{{weightAnalysis.bmiTrend}}">
+          <view class="analysis-title">BMI变化趋势</view>
+          <view class="bmi-trend">
+            <view class="bmi-trend-values">
+              <view class="bmi-trend-item">
+                <text class="bmi-trend-label">初始BMI:</text>
+                <text class="bmi-trend-value">{{weightAnalysis.bmiTrend.initial}}</text>
+                <text class="bmi-trend-category">({{weightAnalysis.bmiTrend.initialCategory}})</text>
+              </view>
+              <view class="bmi-trend-arrow">→</view>
+              <view class="bmi-trend-item">
+                <text class="bmi-trend-label">当前BMI:</text>
+                <text class="bmi-trend-value">{{weightAnalysis.bmiTrend.current}}</text>
+                <text class="bmi-trend-category">({{weightAnalysis.bmiTrend.currentCategory}})</text>
+              </view>
+            </view>
+            <view class="bmi-trend-change {{weightAnalysis.bmiTrend.change < 0 ? 'positive' : (weightAnalysis.bmiTrend.change > 0 ? 'negative' : '')}}">
+              <text>变化: {{weightAnalysis.bmiTrend.change < 0 ? '' : '+'}}{{weightAnalysis.bmiTrend.change}}</text>
+              <text class="bmi-trend-status" wx:if="{{weightAnalysis.bmiTrend.improved}}">（改善）</text>
+            </view>
+          </view>
+        </view>
+        
+        <view class="analysis-tips">
+          <text class="analysis-tips-title">健康提示</text>
+          <text class="analysis-tip-item">• 健康减重速度应控制在每周0.5-1公斤</text>
+          <text class="analysis-tip-item">• 快速减重可能导致反弹，建议保持稳定减重节奏</text>
+          <text class="analysis-tip-item">• 结合饮食控制和适量运动效果最佳</text>
+        </view>
+      </scroll-view>
+      
+      <view class="modal-footer">
+        <button class="modal-btn" bindtap="hideWeightAnalysis">关闭</button>
+      </view>
+    </view>
+  </view>
+  
   <!-- 加载中 -->
   <view class="loading-mask" wx:if="{{isLoading || isExporting}}">
     <view class="loading-spinner"></view>
     <text class="loading-text">{{isExporting ? '生成报表中...' : '加载中...'}}</text>
+  </view>
+
+  <!-- 悬浮按钮区域 -->
+  <view class="floating-buttons">
+    <view class="floating-button weight-button" bindtap="addWeightRecord">
+      <image class="button-icon" src="/images/icon-weight.png"></image>
+      <text class="button-text">记录体重</text>
+    </view>
+    <view class="floating-button product-button" bindtap="addProductUsage">
+      <image class="button-icon" src="/images/icon-product.png"></image>
+      <text class="button-text">记录产品</text>
+    </view>
+  </view>
+  
+  <!-- 体重记录弹窗 -->
+  <view class="modal-mask" wx:if="{{showWeightModal}}" bindtap="closeWeightModal">
+    <view class="modal-content weight-record-modal" catchtap="stopPropagation">
+      <view class="modal-header">
+        <text class="modal-title">记录体重</text>
+        <view class="modal-close" bindtap="closeWeightModal">×</view>
+      </view>
+      
+      <view class="modal-body">
+        <!-- 早晚称切换 -->
+        <view class="time-type-selector">
+          <view class="time-type-option {{weightTimeType === 'morning' ? 'active' : ''}}" 
+                bindtap="changeWeightTimeType" data-type="morning">
+            早称
+          </view>
+          <view class="time-type-option {{weightTimeType === 'evening' ? 'active' : ''}}" 
+                bindtap="changeWeightTimeType" data-type="evening">
+            晚称
+          </view>
+        </view>
+        
+        <!-- 日期选择 -->
+        <view class="form-item">
+          <text class="form-label">日期</text>
+          <picker mode="date" value="{{weightDate}}" bindchange="onWeightDateChange">
+            <view class="form-picker">
+              <text>{{weightDate}}</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        
+        <!-- 体重输入 -->
+        <view class="form-item">
+          <text class="form-label">体重(kg)</text>
+          <input class="form-input" type="digit" value="{{weightValue}}" 
+                 placeholder="请输入体重" bindinput="onWeightValueInput" />
+        </view>
+        
+        <!-- 显示掉秤量或代谢量 -->
+        <view class="weight-calc-results" wx:if="{{weightValue}}">
+          <view class="calc-item" wx:if="{{weightTimeType === 'morning' && weightDropValue !== null}}">
+            <text class="calc-label">掉秤量:</text>
+            <text class="calc-value {{weightDropValue > 0 ? 'positive' : (weightDropValue < 0 ? 'negative' : '')}}">
+              {{weightDropValue > 0 ? '+' : ''}}{{weightDropValue}} kg
+            </text>
+          </view>
+          <view class="calc-item" wx:if="{{weightTimeType === 'evening' && metabolismValue !== null}}">
+            <text class="calc-label">代谢量:</text>
+            <text class="calc-value {{metabolismValue > 0 ? 'positive' : (metabolismValue < 0 ? 'negative' : '')}}">
+              {{metabolismValue > 0 ? '+' : ''}}{{metabolismValue}} kg
+            </text>
+          </view>
+          <view class="calc-tip" wx:if="{{(weightTimeType === 'morning' && weightDropValue === null) || (weightTimeType === 'evening' && metabolismValue === null)}}">
+            无法计算，前一天没有相应的体重记录
+          </view>
+        </view>
+      </view>
+      
+      <view class="modal-footer">
+        <button class="modal-btn cancel" bindtap="closeWeightModal">取消</button>
+        <button class="modal-btn confirm" bindtap="saveWeightRecord">保存</button>
+      </view>
+    </view>
+  </view>
+  
+  <!-- 产品使用记录弹窗 -->
+  <view class="modal-mask" wx:if="{{showProductModal}}" bindtap="closeProductModal">
+    <view class="modal-content product-usage-modal" catchtap="stopPropagation">
+      <view class="modal-header">
+        <text class="modal-title">记录产品使用</text>
+        <view class="modal-close" bindtap="closeProductModal">×</view>
+      </view>
+      
+      <view class="modal-body">
+        <!-- 日期选择 -->
+        <view class="form-item">
+          <text class="form-label">使用日期</text>
+          <picker mode="date" value="{{productDate}}" bindchange="onProductDateChange">
+            <view class="form-picker">
+              <text>{{productDate}}</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        
+        <!-- 产品选择 -->
+        <view class="form-item">
+          <text class="form-label">产品名称</text>
+          <picker range="{{productList}}" range-key="name" bindchange="onProductSelect">
+            <view class="form-picker">
+              <text>{{productName || '请选择产品'}}</text>
+              <text class="picker-arrow">▼</text>
+            </view>
+          </picker>
+        </view>
+        
+        <!-- 剩余次数输入 -->
+        <view class="form-item">
+          <text class="form-label">剩余次数</text>
+          <input class="form-input" type="number" value="{{remainingCount}}" 
+                 placeholder="请输入剩余次数" bindinput="onRemainingCountInput" />
+        </view>
+      </view>
+      
+      <view class="modal-footer">
+        <button class="modal-btn cancel" bindtap="closeProductModal">取消</button>
+        <button class="modal-btn confirm" bindtap="saveProductUsage">保存</button>
+      </view>
+    </view>
   </view>
 </view> 

@@ -306,36 +306,34 @@ Page({
     const { userInfo, isEdit, customerId, gender, age, height, initialWeight, currentWeight, targetWeight, notes } = this.data;
 
     const data = {
-      user_id: parseInt(userInfo.id), // 确保是整数
+      user_id: parseInt(userInfo.id), // 转换为整数类型
       name: this.data.name.trim(),
       phone: this.data.phone.trim(),
-      store_id: parseInt(this.data.selectedStoreId), // 确保是整数
+      store_id: parseInt(this.data.selectedStoreId), // 转换为整数类型
       gender: parseInt(gender), // 确保是整数
-      notes: notes.trim() || '' // 确保notes不为undefined
+      notes: notes ? notes.trim() : '' // 确保notes不为undefined
     };
 
-    // 添加可选字段，确保为适当的类型
-    if (age) data.age = parseInt(age);
-    if (height) data.height = parseFloat(height);
-    if (initialWeight) data.initial_weight = parseFloat(initialWeight);
-    if (currentWeight) data.current_weight = parseFloat(currentWeight);
-    if (targetWeight) data.target_weight = parseFloat(targetWeight);
+    // 添加可选字段，确保为适当的类型并且有值时才添加
+    if (age) data.age = parseInt(age) || age;
+    if (height && !isNaN(parseFloat(height))) data.height = parseFloat(height);
+    if (initialWeight && !isNaN(parseFloat(initialWeight))) data.initial_weight = parseFloat(initialWeight);
+    if (currentWeight && !isNaN(parseFloat(currentWeight))) data.current_weight = parseFloat(currentWeight);
+    if (targetWeight && !isNaN(parseFloat(targetWeight))) data.target_weight = parseFloat(targetWeight);
 
     // 如果是编辑，添加客户ID
-    if (isEdit) {
-      data.customer_id = customerId;
+    if (isEdit && customerId) {
+      data.customer_id = parseInt(customerId); // 转换为整数类型
     }
 
-    // 移除所有undefined或null值
+    // 移除所有undefined、null值和空字符串
     Object.keys(data).forEach(key => {
-      if (data[key] === undefined || data[key] === null) {
+      if (data[key] === undefined || data[key] === null || data[key] === '') {
         delete data[key];
       }
-      // 检查数字类型是否为NaN，如果是则设为0
-      if (typeof data[key] === 'number' && isNaN(data[key])) {
-        data[key] = 0;
-      }
     });
+
+    console.log('保存客户数据(处理后):', data);
 
     this.setData({ isLoading: true });
 
@@ -354,8 +352,6 @@ Page({
         icon: 'none'
       });
     }, 15000); // 15秒超时
-
-    console.log('保存客户数据:', data);
 
     // 使用promise方式发送请求
     const apiUrl = isEdit ? config.apis.customer.update : config.apis.customer.add;
@@ -414,21 +410,24 @@ Page({
             });
           }, 1000);
         }
-        // 取消
-        cancelCustomer: function () {
-          wx.navigateBack();
-        },
+      });
+  },
 
-        // 跳转到添加店铺页面
-        navigateToAddStore: function () {
-          wx.navigateTo({
-            url: '/pages/storeManage/storeManage',
-            success: () => {
-              // 关闭当前页面，返回后直接到店铺管理页
-              setTimeout(() => {
-                wx.navigateBack();
-              }, 100);
-            }
-          });
-        }
-      })
+  // 取消
+  cancelCustomer: function () {
+    wx.navigateBack();
+  },
+
+  // 跳转到添加店铺页面
+  navigateToAddStore: function () {
+    wx.navigateTo({
+      url: '/pages/storeManage/storeManage',
+      success: () => {
+        // 关闭当前页面，返回后直接到店铺管理页
+        setTimeout(() => {
+          wx.navigateBack();
+        }, 100);
+      }
+    });
+  }
+})

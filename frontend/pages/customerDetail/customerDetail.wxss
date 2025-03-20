@@ -18,36 +18,97 @@ page {
   margin-bottom: 20rpx;
 }
 
-.customer-basic {
-  margin-bottom: 30rpx;
+/* 更新顶部样式 */
+.header-top {
+  margin-bottom: 20rpx;
+}
+
+/* 客户姓名和ID样式 */
+.customer-name-id {
+  display: flex;
+  align-items: center;
 }
 
 .customer-name {
-  font-size: 40rpx;
+  font-size: 36rpx;
   font-weight: bold;
+  color: #ffffff;
+  margin-right: 15rpx;
+}
+
+.customer-id {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.9);
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 4rpx 12rpx;
+  border-radius: 30rpx;
+}
+
+/* 客户基本信息样式 */
+.customer-profile {
+  background-color: rgba(255, 255, 255, 0.15);
+  border-radius: 12rpx;
+  padding: 16rpx;
+  margin-bottom: 15rpx;
+  box-shadow: 0 2rpx 6rpx rgba(0, 0, 0, 0.05);
+}
+
+.profile-row {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 12rpx;
+}
+
+.profile-row:last-child {
+  margin-bottom: 0;
+}
+
+.profile-item {
+  display: flex;
+  align-items: center;
+  width: 48%;
+  background-color: rgba(255, 255, 255, 0.1);
+  border-radius: 8rpx;
+  padding: 8rpx 12rpx;
+}
+
+.profile-label {
+  font-size: 24rpx;
+  color: rgba(255, 255, 255, 0.85);
+  margin-right: 10rpx;
+  font-weight: 500;
+}
+
+.profile-value {
+  font-size: 26rpx;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* 电话信息样式 */
+.customer-meta {
+  display: flex;
+  justify-content: flex-end;
   margin-bottom: 10rpx;
 }
 
-.customer-meta {
-  display: flex;
-  font-size: 28rpx;
+.phone {
+  background-color: rgba(255, 255, 255, 0.2);
+  padding: 4rpx 16rpx;
+  border-radius: 30rpx;
+  font-size: 24rpx;
   color: rgba(255, 255, 255, 0.9);
 }
 
-.store-name {
-  margin-right: 20rpx;
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 4rpx 12rpx;
-  border-radius: 6rpx;
-}
-
+/* 体重概览样式 */
 .weight-overview {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 30rpx;
+  margin-bottom: 20rpx;
   background-color: rgba(255, 255, 255, 0.1);
   border-radius: 12rpx;
   padding: 20rpx;
+  margin-top: 0;
 }
 
 .weight-item {
@@ -231,6 +292,13 @@ page {
   width: 100%;
 }
 
+/* 减重数据分析按钮 */
+.action-btn.analysis {
+  background-color: #ff9800;
+  margin-top: 20rpx;
+  width: 100%;
+}
+
 /* 体重记录图表 */
 .chart-container {
   margin-bottom: 30rpx;
@@ -245,10 +313,14 @@ page {
 
 .chart-area {
   width: 100%;
-  height: 220px;
-  background-color: #f9f9f9;
-  border-radius: 8rpx;
-  overflow: hidden;
+  height: 250px;
+  margin-top: 10px;
+  box-sizing: border-box;
+}
+
+ec-canvas {
+  width: 100%;
+  height: 100%;
 }
 
 .weight-chart {
@@ -661,4 +733,908 @@ page {
 
 .chart-toggle text {
   margin-right: 10rpx;
+}
+
+/* 模态框基础样式 */
+.modal-mask {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.6);
+  z-index: 999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modal-content {
+  width: 90%;
+  max-width: 600rpx;
+  background: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 24rpx;
+  border-bottom: 1rpx solid #eee;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.modal-title {
+  font-size: 36rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.modal-close {
+  font-size: 40rpx;
+  color: #999;
+  padding: 0 10rpx;
+}
+
+.modal-body {
+  padding: 24rpx;
+  flex: 1;
+  max-height: 60vh;
+}
+
+.modal-footer {
+  padding: 20rpx;
+  border-top: 1rpx solid #eee;
+  display: flex;
+  justify-content: center;
+}
+
+.modal-btn {
+  padding: 16rpx 40rpx;
+  background: #4caf50;
+  color: white;
+  border-radius: 8rpx;
+  font-size: 28rpx;
+  min-width: 160rpx;
+  text-align: center;
+}
+
+/* 食谱建议样式 */
+.diet-plan-modal .modal-body {
+  padding-bottom: 40rpx;
+}
+
+.diet-calories {
+  background: #f5f5f5;
+  padding: 16rpx;
+  border-radius: 8rpx;
+  margin-bottom: 24rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.diet-calories-label {
+  font-size: 28rpx;
+  color: #666;
+}
+
+.diet-calories-value {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #4caf50;
+}
+
+.diet-meals {
+  margin-bottom: 30rpx;
+}
+
+.diet-meal {
+  margin-bottom: 24rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx dashed #eee;
+}
+
+.diet-meal-time {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10rpx;
+  background: #f0f8ff;
+  padding: 8rpx 16rpx;
+  border-radius: 6rpx;
+}
+
+.diet-meal-foods {
+  padding-left: 16rpx;
+}
+
+.diet-food-item {
+  font-size: 28rpx;
+  color: #666;
+  padding: 6rpx 0;
+  display: flex;
+  align-items: center;
+}
+
+.diet-food-item::before {
+  content: "•";
+  margin-right: 10rpx;
+  color: #4caf50;
+}
+
+.diet-suggestions {
+  margin-top: 24rpx;
+  background: #f9f9f9;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.diet-suggestions-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12rpx;
+  border-bottom: 1rpx solid #eee;
+  padding-bottom: 8rpx;
+}
+
+.diet-suggestion-item {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+  padding: 6rpx 0;
+}
+
+.diet-disclaimer {
+  margin-top: 30rpx;
+  padding: 16rpx;
+  background: #fff8e6;
+  border-radius: 8rpx;
+  border-left: 4rpx solid #f0ad4e;
+}
+
+.diet-disclaimer text {
+  font-size: 24rpx;
+  color: #856404;
+  line-height: 1.4;
+}
+
+/* 健身计划样式 */
+.workout-plan-modal .modal-body {
+  padding-bottom: 40rpx;
+}
+
+.workout-weekly {
+  margin-bottom: 30rpx;
+}
+
+.workout-day {
+  margin-bottom: 24rpx;
+  padding-bottom: 16rpx;
+  border-bottom: 1rpx dashed #eee;
+}
+
+.workout-day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12rpx;
+  background: #e3f2fd;
+  padding: 10rpx 16rpx;
+  border-radius: 6rpx;
+}
+
+.workout-day-name {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #1976d2;
+}
+
+.workout-day-focus {
+  font-size: 26rpx;
+  color: #555;
+  background: #bbdefb;
+  padding: 4rpx 12rpx;
+  border-radius: 30rpx;
+}
+
+.workout-exercises {
+  padding-left: 16rpx;
+}
+
+.workout-exercise {
+  font-size: 28rpx;
+  color: #666;
+  padding: 6rpx 0;
+}
+
+.workout-tips {
+  margin-top: 24rpx;
+  background: #f9f9f9;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.workout-tips-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 12rpx;
+  border-bottom: 1rpx solid #eee;
+  padding-bottom: 8rpx;
+}
+
+.workout-tip-item {
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+  padding: 6rpx 0;
+}
+
+.workout-disclaimer {
+  margin-top: 30rpx;
+  padding: 16rpx;
+  background: #e8f5e9;
+  border-radius: 8rpx;
+  border-left: 4rpx solid #4caf50;
+}
+
+.workout-disclaimer text {
+  font-size: 24rpx;
+  color: #2e7d32;
+  line-height: 1.4;
+}
+
+/* 目标完成提示样式 */
+.goal-achieved {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 15rpx;
+  padding: 10rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 8rpx;
+}
+
+.goal-icon {
+  width: 32rpx;
+  height: 32rpx;
+  margin-right: 10rpx;
+}
+
+/* 健康指导建议样式 */
+.bmi-advice {
+  margin-top: 20rpx;
+  background-color: #f8f8f8;
+  padding: 16rpx;
+  border-radius: 8rpx;
+  border-left: 4rpx solid #4CAF50;
+}
+
+.bmi-advice-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.bmi-advice-content {
+  display: block;
+  font-size: 26rpx;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* 移除快捷指导标签样式 */
+.quick-guides {
+  display: none;
+}
+
+/* 移除食谱和健身计划相关按钮样式 */
+.action-btn.diet, .action-btn.workout {
+  display: none;
+}
+
+/* 添加体脂率相关样式 */
+.body-fat-section {
+  background-color: #f9f9f9;
+  border-radius: 8rpx;
+  padding: 20rpx;
+  margin-top: 30rpx;
+  position: relative;
+}
+
+.body-fat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15rpx;
+}
+
+.body-fat-title {
+  font-size: 28rpx;
+  color: #333;
+  font-weight: 500;
+}
+
+.body-fat-value {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.body-fat-category {
+  text-align: center;
+  font-size: 32rpx;
+  font-weight: bold;
+  margin-bottom: 20rpx;
+}
+
+.body-fat-scale {
+  display: flex;
+  height: 20rpx;
+  border-radius: 10rpx;
+  overflow: hidden;
+  margin-bottom: 30rpx;
+  position: relative;
+}
+
+.body-fat-range {
+  height: 100%;
+}
+
+/* 男性体脂率范围颜色 */
+.body-fat-range.gender-male.range-low {
+  flex: 10;
+  background-color: #909399;
+}
+
+.body-fat-range.gender-male.range-normal {
+  flex: 10;
+  background-color: #67c23a;
+}
+
+.body-fat-range.gender-male.range-high {
+  flex: 5;
+  background-color: #e6a23c;
+}
+
+.body-fat-range.gender-male.range-very-high {
+  flex: 15;
+  background-color: #f56c6c;
+}
+
+/* 女性体脂率范围颜色 */
+.body-fat-range.gender-female.range-low {
+  flex: 15;
+  background-color: #909399;
+}
+
+.body-fat-range.gender-female.range-normal {
+  flex: 10;
+  background-color: #67c23a;
+}
+
+.body-fat-range.gender-female.range-high {
+  flex: 5;
+  background-color: #e6a23c;
+}
+
+.body-fat-range.gender-female.range-very-high {
+  flex: 15;
+  background-color: #f56c6c;
+}
+
+.body-fat-marker {
+  width: 0;
+  height: 0;
+  border-left: 10rpx solid transparent;
+  border-right: 10rpx solid transparent;
+  border-bottom: 15rpx solid #333;
+  position: absolute;
+  top: 82rpx;
+  transform: translateX(-50%);
+}
+
+.body-fat-info {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 30rpx;
+}
+
+.body-fat-info-text {
+  font-size: 22rpx;
+  color: #666;
+}
+
+/* BMI趋势样式 */
+.bmi-trend {
+  background-color: #f5f5f5;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.bmi-trend-values {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 16rpx;
+}
+
+.bmi-trend-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+}
+
+.bmi-trend-label {
+  font-size: 24rpx;
+  color: #666;
+  margin-bottom: 6rpx;
+}
+
+.bmi-trend-value {
+  font-size: 32rpx;
+  font-weight: bold;
+  color: #333;
+}
+
+.bmi-trend-category {
+  font-size: 22rpx;
+  color: #666;
+  margin-top: 4rpx;
+}
+
+.bmi-trend-arrow {
+  font-size: 32rpx;
+  color: #999;
+  margin: 0 10rpx;
+}
+
+.bmi-trend-change {
+  text-align: center;
+  font-size: 28rpx;
+  padding: 8rpx 0;
+  border-top: 1rpx dashed #ddd;
+  font-weight: 500;
+}
+
+.bmi-trend-change.positive {
+  color: #67c23a;
+}
+
+.bmi-trend-change.negative {
+  color: #f56c6c;
+}
+
+.bmi-trend-status {
+  font-size: 24rpx;
+  margin-left: 6rpx;
+}
+
+/* 改进产品使用记录样式 */
+.product-item:nth-child(odd) {
+  background-color: #f9f9f9;
+}
+
+.product-count {
+  background-color: #e8f5e9;
+  padding: 4rpx 12rpx;
+  border-radius: 20rpx;
+  font-weight: 500;
+}
+
+/* 减重数据分析模态框样式 */
+.analysis-modal .modal-body {
+  padding-bottom: 40rpx;
+}
+
+.analysis-section {
+  margin-bottom: 30rpx;
+  padding-bottom: 20rpx;
+  border-bottom: 1rpx dashed #eee;
+}
+
+.analysis-title {
+  font-size: 30rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 16rpx;
+  padding-left: 12rpx;
+  border-left: 4rpx solid #4CAF50;
+}
+
+.analysis-cards {
+  display: flex;
+  justify-content: space-between;
+}
+
+.analysis-card {
+  background-color: #f5f5f5;
+  padding: 16rpx;
+  border-radius: 8rpx;
+  width: 30%;
+  text-align: center;
+}
+
+.analysis-value {
+  display: block;
+  font-size: 36rpx;
+  color: #4CAF50;
+  font-weight: bold;
+  margin-bottom: 6rpx;
+}
+
+.analysis-label {
+  display: block;
+  font-size: 24rpx;
+  color: #666;
+}
+
+/* 最佳减重期 */
+.best-period {
+  background-color: #e8f5e9;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.best-period-dates {
+  font-size: 28rpx;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.best-period-days {
+  font-size: 24rpx;
+  color: #666;
+  margin-left: 10rpx;
+}
+
+.best-period-stats {
+  display: flex;
+  justify-content: space-between;
+}
+
+.best-period-stats text {
+  font-size: 28rpx;
+  color: #4CAF50;
+  font-weight: 500;
+}
+
+/* 目标达成预测 */
+.target-estimate {
+  background-color: #e3f2fd;
+  padding: 16rpx;
+  border-radius: 8rpx;
+}
+
+.target-date {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 10rpx;
+}
+
+.target-date-label {
+  font-size: 28rpx;
+  color: #333;
+}
+
+.target-date-value {
+  font-size: 28rpx;
+  color: #1976d2;
+  font-weight: bold;
+}
+
+.target-time {
+  font-size: 26rpx;
+  color: #555;
+}
+
+/* 月度减重进度 */
+.monthly-progress {
+  margin-top: 10rpx;
+}
+
+.monthly-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.monthly-month {
+  width: 28%;
+  font-size: 26rpx;
+  color: #555;
+}
+
+.monthly-bar-container {
+  flex: 1;
+  height: 20rpx;
+  background-color: #f1f1f1;
+  border-radius: 10rpx;
+  overflow: hidden;
+  margin: 0 16rpx;
+}
+
+.monthly-bar {
+  height: 100%;
+  background-color: #4CAF50;
+  border-radius: 10rpx;
+}
+
+.monthly-value {
+  width: 18%;
+  text-align: right;
+  font-size: 26rpx;
+  font-weight: 500;
+}
+
+.monthly-value.positive {
+  color: #4CAF50;
+}
+
+.monthly-value.negative {
+  color: #f44336;
+}
+
+/* 健康提示 */
+.analysis-tips {
+  background-color: #fff8e1;
+  padding: 16rpx;
+  border-radius: 8rpx;
+  margin-top: 20rpx;
+}
+
+.analysis-tips-title {
+  display: block;
+  font-size: 28rpx;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 10rpx;
+}
+
+.analysis-tip-item {
+  display: block;
+  font-size: 24rpx;
+  color: #795548;
+  line-height: 1.5;
+  margin-bottom: 6rpx;
+}
+
+/* 隐藏可能在头部客户信息和体重信息之间的ID行 */
+.customer-header > view.customer-id-row {
+  display: none !important;
+}
+
+/* 确保没有额外的margin和padding可能导致空白行 */
+.customer-basic {
+  margin-bottom: 20rpx;
+}
+
+/* 为debug行添加样式 */
+.debug-row {
+  padding: 10rpx;
+  background-color: red;
+  color: white;
+  text-align: center;
+  margin: 10rpx 0;
+}
+
+.possible-id-row:after {
+  content: "可能的ID行位置";
+}
+
+/* 移除调试样式 */
+.debug-row, .possible-id-row {
+  display: none;
+}
+
+/* 添加悬浮按钮样式 */
+.floating-buttons {
+  position: fixed;
+  right: 30rpx;
+  bottom: 50rpx;
+  display: flex;
+  flex-direction: column;
+  z-index: 99;
+}
+
+.floating-button {
+  width: 120rpx;
+  height: 120rpx;
+  border-radius: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-top: 20rpx;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.2);
+  transition: all 0.3s;
+}
+
+.floating-button:active {
+  transform: scale(0.95);
+}
+
+.weight-button {
+  background-color: #4CAF50;
+}
+
+.product-button {
+  background-color: #2196F3;
+}
+
+.button-icon {
+  width: 50rpx;
+  height: 50rpx;
+  margin-bottom: 6rpx;
+}
+
+.button-text {
+  font-size: 20rpx;
+  color: #fff;
+}
+
+/* 处理小屏设备适配 */
+@media screen and (max-height: 600px) {
+  .floating-buttons {
+    bottom: 30rpx;
+  }
+
+  .floating-button {
+    width: 100rpx;
+    height: 100rpx;
+    margin-top: 16rpx;
+  }
+}
+
+/* 体重记录弹窗样式 */
+.weight-record-modal .modal-body {
+  padding: 30rpx 20rpx;
+}
+
+/* 早晚称切换样式 */
+.time-type-selector {
+  display: flex;
+  margin-bottom: 30rpx;
+  background-color: #f5f5f5;
+  border-radius: 8rpx;
+  overflow: hidden;
+}
+
+.time-type-option {
+  flex: 1;
+  text-align: center;
+  padding: 20rpx 0;
+  font-size: 30rpx;
+  color: #666;
+  transition: all 0.3s;
+}
+
+.time-type-option.active {
+  background-color: #4CAF50;
+  color: #fff;
+}
+
+/* 表单项样式 */
+.form-item {
+  margin-bottom: 24rpx;
+}
+
+.form-label {
+  display: block;
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 10rpx;
+}
+
+.form-input {
+  width: 100%;
+  height: 80rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+  font-size: 30rpx;
+}
+
+.form-picker {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  height: 80rpx;
+  border: 1rpx solid #ddd;
+  border-radius: 8rpx;
+  padding: 0 20rpx;
+  box-sizing: border-box;
+  font-size: 30rpx;
+}
+
+.picker-arrow {
+  font-size: 24rpx;
+  color: #999;
+}
+
+/* 掉秤量和代谢量结果样式 */
+.weight-calc-results {
+  margin-top: 30rpx;
+  padding: 20rpx;
+  background-color: #f9f9f9;
+  border-radius: 8rpx;
+}
+
+.calc-item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 10rpx;
+}
+
+.calc-label {
+  font-size: 28rpx;
+  color: #666;
+  width: 120rpx;
+}
+
+.calc-value {
+  font-size: 36rpx;
+  font-weight: bold;
+}
+
+.calc-value.positive {
+  color: #4CAF50;
+}
+
+.calc-value.negative {
+  color: #f44336;
+}
+
+.calc-tip {
+  font-size: 26rpx;
+  color: #ff9800;
+  text-align: center;
+  padding: 10rpx 0;
+}
+
+/* 弹窗底部按钮样式 */
+.modal-footer {
+  display: flex;
+  padding: 20rpx;
+  border-top: 1px solid #eee;
+}
+
+.modal-btn {
+  flex: 1;
+  margin: 0 10rpx;
+  height: 80rpx;
+  line-height: 80rpx;
+  text-align: center;
+  border-radius: 8rpx;
+  font-size: 30rpx;
+}
+
+.modal-btn.cancel {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.modal-btn.confirm {
+  background-color: #4CAF50;
+  color: #fff;
+}
+
+/* 产品使用记录弹窗样式 */
+.product-usage-modal .modal-body {
+  padding: 30rpx 20rpx;
+}
+
+/* 适配产品选择器样式 */
+.product-usage-modal .form-picker {
+  background-color: #fff;
 } 
