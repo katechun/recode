@@ -151,7 +151,11 @@ func main() {
 	router.HandleFunc("/api/customers/delete", api.CORSMiddleware(api.DeleteCustomer)).Methods("GET", "DELETE", "OPTIONS")
 	router.HandleFunc("/api/customers/weight-records", api.CORSMiddleware(api.GetWeightRecords)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/weight-records/add", api.CORSMiddleware(api.AddWeightRecord)).Methods("POST", "OPTIONS")
+	// 添加新的体重记录接口路由
+	router.HandleFunc("/api/customers/add-weight-record", api.CORSMiddleware(api.AddWeightRecord)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/product-usage", api.CORSMiddleware(api.GetProductUsage)).Methods("GET", "OPTIONS")
+	// 添加新的产品使用记录接口路由
+	router.HandleFunc("/api/customers/add-product-usage", api.CORSMiddleware(api.AddProductUsage)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/product-usage/add", api.CORSMiddleware(api.AddProductUsage)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/products", api.CORSMiddleware(api.GetProducts)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/records", api.CORSMiddleware(api.GetCustomerRecords)).Methods("GET", "OPTIONS")

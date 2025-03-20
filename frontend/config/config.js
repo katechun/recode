@@ -66,10 +66,24 @@ const config = {
       detail: '/api/customers/detail',
       add: '/api/customers/create',
       update: '/api/customers/update',
-      weightRecords: '/api/customers/weight-records',
-      productUsage: '/api/customers/product-usage',
+      weight: '/api/customers/weight',  // 添加体重记录
+      updateCurrentWeight: '/api/customers/update-current-weight', // 更新当前体重
+      weightRecords: '/api/customers/weight-records', // 获取体重记录
+      addWeightRecord: '/api/customers/add-weight-record', // 添加体重记录
+      deleteWeightRecord: '/api/customers/delete-weight-record', // 删除体重记录
+      productUsage: '/api/customers/product-usage', // 产品使用记录
+      addProductUsage: '/api/customers/add-product-usage', // 添加产品使用记录
       records: '/api/customers/records',
       exportReport: '/api/customers/export-report'
+    },
+    products: {
+      list: '/api/products/list', // 产品列表
+      add: '/api/products/create', // (可选)添加产品
+      update: '/api/products/update', // (可选)更新产品信息
+      delete: '/api/products/delete' // (可选)删除产品
+    },
+    report: {
+      generate: '/api/report/generate' // 生成报表
     }
   }
 };

@@ -249,28 +249,34 @@ const post = (url, data = {}, header = {}) => {
     const validData = JSON.parse(JSON.stringify(data));
 
     // 构建完整URL
-    const fullUrl = url.startsWith('http') ? url : config.apiBaseUrl + url;
+    let fullUrl = '';
+    if (url.startsWith('http')) {
+      fullUrl = url;
+    } else {
+      fullUrl = `${config.apiBaseUrl}${url}`;
+    }
 
-    // 获取用户信息以设置请求头
+    console.log('发送请求到:', fullUrl);
+
+    // 添加用户认证信息
     const userInfo = wx.getStorageSync('userInfo');
-    const userIdHeader = userInfo ? userInfo.id : '';
-
-    // 合并自定义header
-    const mergedHeaders = {
+    const headers = {
       'content-type': 'application/json',
-      'X-User-ID': userIdHeader,
       ...header
     };
 
-    console.log('发送请求到:', fullUrl);
-    console.log('完整请求头:', mergedHeaders);
+    if (userInfo && userInfo.id) {
+      headers['X-User-ID'] = userInfo.id;
+    }
 
-    return request('POST', fullUrl, validData, mergedHeaders);
-  } catch (error) {
-    console.error('数据格式转换错误', error);
+    console.log('完整请求头:', headers);
+
+    return request('POST', fullUrl, validData, headers);
+  } catch (err) {
+    console.error('数据格式转换错误', err);
     return Promise.reject({
       message: '请求数据格式错误',
-      error
+      error: err
     });
   }
 };

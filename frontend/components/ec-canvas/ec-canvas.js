@@ -91,7 +91,6 @@ Component({
 
       if (isUseNewCanvas) {
         // console.log('微信基础库版本大于2.9.0，开始使用<canvas type="2d"/>');
-        // 2.9.0 可以使用 <canvas type="2d"></canvas>
         this.initByNewWay(callback);
       } else {
         const isValid = compareVersion(version, '1.9.91') >= 0
@@ -220,16 +219,16 @@ Component({
         handler.dispatch('mousedown', {
           zrX: touch.x,
           zrY: touch.y,
-          preventDefault: () => {},
-          stopImmediatePropagation: () => {},
-          stopPropagation: () => {}
+          preventDefault: () => { },
+          stopImmediatePropagation: () => { },
+          stopPropagation: () => { }
         });
         handler.dispatch('mousemove', {
           zrX: touch.x,
           zrY: touch.y,
-          preventDefault: () => {},
-          stopImmediatePropagation: () => {},
-          stopPropagation: () => {}
+          preventDefault: () => { },
+          stopImmediatePropagation: () => { },
+          stopPropagation: () => { }
         });
         handler.processGesture(wrapTouch(e), 'start');
       }
@@ -242,9 +241,9 @@ Component({
         handler.dispatch('mousemove', {
           zrX: touch.x,
           zrY: touch.y,
-          preventDefault: () => {},
-          stopImmediatePropagation: () => {},
-          stopPropagation: () => {}
+          preventDefault: () => { },
+          stopImmediatePropagation: () => { },
+          stopPropagation: () => { }
         });
         handler.processGesture(wrapTouch(e), 'change');
       }
@@ -257,20 +256,63 @@ Component({
         handler.dispatch('mouseup', {
           zrX: touch.x,
           zrY: touch.y,
-          preventDefault: () => {},
-          stopImmediatePropagation: () => {},
-          stopPropagation: () => {}
+          preventDefault: () => { },
+          stopImmediatePropagation: () => { },
+          stopPropagation: () => { }
         });
         handler.dispatch('click', {
           zrX: touch.x,
           zrY: touch.y,
-          preventDefault: () => {},
-          stopImmediatePropagation: () => {},
-          stopPropagation: () => {}
+          preventDefault: () => { },
+          stopImmediatePropagation: () => { },
+          stopPropagation: () => { }
         });
         handler.processGesture(wrapTouch(e), 'end');
       }
+    },
+
+    createWeightTrendData: function (records) {
+      console.log('开始创建体重趋势图数据，记录数量:', records ? records.length : 0);
+      // ... 其余代码 ...
     }
+  },
+
+  onLoad: function (options) {
+    // ... 现有代码 ...
+
+    // 修改：初始化图表配置为非延迟加载
+    this.setData({
+      ec: {
+        onInit: initChart
+      }
+    });
+
+    // ... 其余代码 ...
+  },
+
+  onReady: function () {
+    // 确保图表在页面完全加载后初始化
+    setTimeout(() => {
+      const ecComponent = this.selectComponent('#weightChart');
+      if (ecComponent) {
+        // 使用init方法而不是等待lazyLoad
+        ecComponent.init((canvas, width, height, dpr) => {
+          const chart = echarts.init(canvas, null, {
+            width: width,
+            height: height,
+            devicePixelRatio: dpr
+          });
+          canvas.setChart(chart);
+
+          // 确保图表数据已准备好
+          if (this.data.weightRecords && this.data.weightRecords.length > 0) {
+            this.createWeightTrendData(this.data.weightRecords);
+          }
+
+          return chart;
+        });
+      }
+    }, 500);
   }
 });
 

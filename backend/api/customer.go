@@ -375,7 +375,7 @@ func GetWeightRecords(w http.ResponseWriter, r *http.Request) {
 
 // AddWeightRecord 添加体重记录接口
 func AddWeightRecord(w http.ResponseWriter, r *http.Request) {
-	// 解析请求数据
+	// 解析请求体
 	var requestData struct {
 		UserID     int     `json:"user_id"`
 		CustomerID int     `json:"customer_id"`
@@ -386,17 +386,27 @@ func AddWeightRecord(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
+		log.Printf("解析请求体失败: %v", err)
 		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
 		return
 	}
 
-	// 验证必要字段
-	if requestData.CustomerID == 0 || requestData.Weight == 0 || requestData.RecordDate == "" {
-		SendResponse(w, http.StatusBadRequest, 400, "客户ID、体重和记录日期为必填项", nil)
+	// 校验数据
+	if requestData.UserID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
 		return
 	}
 
-	// 检查日期格式
+	if requestData.CustomerID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的客户ID", nil)
+		return
+	}
+
+	if requestData.Weight <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的体重值", nil)
+		return
+	}
+
 	_, err = time.Parse("2006-01-02", requestData.RecordDate)
 	if err != nil {
 		SendResponse(w, http.StatusBadRequest, 400, "无效的日期格式，应为YYYY-MM-DD", nil)
@@ -505,7 +515,7 @@ func GetProductUsage(w http.ResponseWriter, r *http.Request) {
 
 // AddProductUsage 添加产品使用记录接口
 func AddProductUsage(w http.ResponseWriter, r *http.Request) {
-	// 解析请求数据
+	// 解析请求体
 	var requestData struct {
 		UserID     int     `json:"user_id"`
 		CustomerID int     `json:"customer_id"`
@@ -517,17 +527,32 @@ func AddProductUsage(w http.ResponseWriter, r *http.Request) {
 
 	err := json.NewDecoder(r.Body).Decode(&requestData)
 	if err != nil {
+		log.Printf("解析请求体失败: %v", err)
 		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
 		return
 	}
 
-	// 验证必要字段
-	if requestData.CustomerID == 0 || requestData.ProductID == 0 || requestData.UsageDate == "" {
-		SendResponse(w, http.StatusBadRequest, 400, "客户ID、产品ID和使用日期为必填项", nil)
+	// 校验数据
+	if requestData.UserID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
 		return
 	}
 
-	// 检查日期格式
+	if requestData.CustomerID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的客户ID", nil)
+		return
+	}
+
+	if requestData.ProductID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的产品ID", nil)
+		return
+	}
+
+	if requestData.Quantity <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的使用数量", nil)
+		return
+	}
+
 	_, err = time.Parse("2006-01-02", requestData.UsageDate)
 	if err != nil {
 		SendResponse(w, http.StatusBadRequest, 400, "无效的日期格式，应为YYYY-MM-DD", nil)

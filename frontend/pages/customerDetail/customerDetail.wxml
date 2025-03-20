@@ -32,17 +32,44 @@
           <text class="profile-value">{{customer.store_name || '-'}}</text>
         </view>
       </view>
+      <!-- 减肥情况（掉秤量和代谢量） - 作为profile的第三行 -->
+      <view class="profile-row weight-data-row">
+        <view class="profile-item weight-data-item">
+          <text class="profile-label">掉秤量</text>
+          <view class="weight-data-content">
+            <text class="profile-value weight-data-value">{{weightDropValue || '0.0'}} kg</text>
+            <text class="weight-data-hint">今日早称</text>
+          </view>
+        </view>
+        <view class="profile-item weight-data-item">
+          <text class="profile-label">代谢量</text>
+          <view class="weight-data-content">
+            <text class="profile-value weight-data-value">{{metabolismValue || '0.0'}} kg</text>
+            <text class="weight-data-hint">今日晚称</text>
+          </view>
+        </view>
+      </view>
     </view>
     
-    <!-- 电话号码 -->
-    <view class="customer-meta" wx:if="{{customer.phone}}">
-      <text class="phone">{{customer.phone}}</text>
+    <!-- 顾客电话信息 -->
+    <view class="customer-meta">
+      <view class="phone">{{customer.phone || '暂无电话'}}</view>
     </view>
     
-    <!-- 不添加任何元素，确保没有红框内的元素 -->
+    <!-- 添加周趋势图区域 -->
+    <view class="weekly-weight-trend">
+      <text class="weekly-trend-title">本周掉秤趋势</text>
+      <view class="weekly-trend-chart">
+        <view class="trend-day" wx:for="{{weeklyWeightTrend}}" wx:key="date">
+          <view class="trend-bar {{item.value < 0 ? 'negative' : ''}}" style="height: {{item.height}}rpx;"></view>
+          <text class="trend-value">{{item.value}}kg</text>
+          <text class="trend-date">{{item.date}}</text>
+        </view>
+      </view>
+    </view>
     
-    <!-- 体重信息 - 直接紧接在个人信息后面 -->
-    <view class="weight-overview">
+    <!-- 体重信息 - 直接紧接在减肥情况后面 -->
+    <view class="weight-overview" style="margin-top:0 !important; padding-top:0 !important;">
       <view class="weight-item">
         <text class="weight-label">初始体重</text>
         <text class="weight-value">{{customer.initial_weight || '-'}} kg</text>
@@ -71,7 +98,7 @@
         <text>还需减重: {{customer.needs_to_lose || 0}} kg</text>
       </view>
       <view class="goal-achieved" wx:if="{{customer.progress >= 100}}">
-        <image class="goal-icon" src="/images/icon-success.png"></image>
+        <text class="goal-icon">🎯</text>
         <text>恭喜您已达成减重目标！</text>
       </view>
     </view>
@@ -209,18 +236,20 @@
         </view>
         
         <block wx:if="{{weightRecords.length > 0}}">
-          <view class="record-item" wx:for="{{weightRecords}}" wx:key="id">
-            <text class="record-date">{{item.record_date}}</text>
-            <text class="record-weight">{{item.weight}}
-              <text class="record-percent" wx:if="{{item.lossPercentage && item.lossPercentage != '0.0'}}">
-                ({{item.lossPercentage}}%)
-              </text>
-            </text>
-            <text class="record-change {{item.change < 0 ? 'positive' : (item.change > 0 ? 'negative' : '')}}">
-              {{item.change < 0 ? '' : (item.change > 0 ? '+' : '')}}{{item.change || 0}}
-            </text>
-            <view class="record-actions">
-              <view class="record-delete" catchtap="deleteWeightRecord" data-id="{{item.id}}" wx:if="{{item.id !== 'initial' && item.id !== 'current'}}">删除</view>
+          <view class="weight-item" wx:for="{{weightRecords}}" wx:key="id">
+            <view class="weight-date">
+              <text class="date">{{item.record_date}}</text>
+              <text class="time-type">{{item.time_type === 'morning' ? '早称' : '晚称'}}</text>
+            </view>
+            <view class="weight-value">
+              <text class="value">{{item.weight}} kg</text>
+              <view class="weight-change {{item.change > 0 ? 'weight-up' : (item.change < 0 ? 'weight-down' : 'weight-same')}}">
+                {{item.change > 0 ? '+' + item.change : item.change}} kg
+              </view>
+            </view>
+            <view class="weight-actions">
+              <text class="weight-note" wx:if="{{item.notes}}">{{item.notes}}</text>
+              <view class="weight-delete" data-id="{{item.id}}" bindtap="deleteWeightRecord">删除</view>
             </view>
           </view>
         </block>
@@ -429,11 +458,11 @@
   <!-- 悬浮按钮区域 -->
   <view class="floating-buttons">
     <view class="floating-button weight-button" bindtap="addWeightRecord">
-      <image class="button-icon" src="/images/icon-weight.png"></image>
+      <text class="button-icon">⚖️</text>
       <text class="button-text">记录体重</text>
     </view>
     <view class="floating-button product-button" bindtap="addProductUsage">
-      <image class="button-icon" src="/images/icon-product.png"></image>
+      <text class="button-icon">📋</text>
       <text class="button-text">记录产品</text>
     </view>
   </view>
