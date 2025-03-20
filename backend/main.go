@@ -1,6 +1,7 @@
 package main
 
 import (
+	"account/backend/handlers"
 	"account/backend/middleware"
 	"log"
 	"net/http"
@@ -20,6 +21,17 @@ func init() {
 }
 
 func main() {
+	log.SetFlags(log.LstdFlags | log.Lshortfile)
+
+	// 检查命令行参数，看是否要重置数据库
+	if len(os.Args) > 1 && os.Args[1] == "reset" {
+		log.Println("准备重置数据库...")
+		// 关闭并删除数据库
+		if err := database.CloseAndReset(); err != nil {
+			log.Printf("重置数据库时发生错误: %v", err)
+		}
+	}
+
 	router := mux.NewRouter()
 
 	// 应用日志中间件
@@ -151,6 +163,8 @@ func main() {
 	router.HandleFunc("/api/customers/delete", api.CORSMiddleware(api.DeleteCustomer)).Methods("GET", "DELETE", "OPTIONS")
 	router.HandleFunc("/api/customers/weight-records", api.CORSMiddleware(api.GetWeightRecords)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/weight-records/add", api.CORSMiddleware(api.AddWeightRecord)).Methods("POST", "OPTIONS")
+	// 添加删除体重记录接口路由
+	router.HandleFunc("/api/customers/delete-weight-record", api.CORSMiddleware(api.DeleteWeightRecord)).Methods("POST", "OPTIONS")
 	// 添加新的体重记录接口路由
 	router.HandleFunc("/api/customers/add-weight-record", api.CORSMiddleware(api.AddWeightRecord)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/product-usage", api.CORSMiddleware(api.GetProductUsage)).Methods("GET", "OPTIONS")
@@ -160,6 +174,12 @@ func main() {
 	router.HandleFunc("/api/customers/products", api.CORSMiddleware(api.GetProducts)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/records", api.CORSMiddleware(api.GetCustomerRecords)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/export-report", api.CORSMiddleware(api.ExportCustomerReport)).Methods("GET", "OPTIONS")
+
+	// 产品管理相关API
+	router.HandleFunc("/api/products/list", api.CORSMiddleware(handlers.GetProductList)).Methods("GET", "OPTIONS")
+	router.HandleFunc("/api/products/add", api.CORSMiddleware(handlers.AddProduct)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/products/delete", api.CORSMiddleware(handlers.DeleteProduct)).Methods("POST", "OPTIONS")
+	router.HandleFunc("/api/customer/products", api.CORSMiddleware(handlers.GetCustomerProducts)).Methods("GET", "OPTIONS")
 
 	// 添加下载报告的路由
 	router.HandleFunc("/api/download/reports/{filename}", api.CORSMiddleware(api.DownloadReport)).Methods("GET", "OPTIONS")

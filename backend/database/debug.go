@@ -17,6 +17,10 @@ func CheckDatabaseTables() error {
 		"accounts",
 		"user_store_permissions",
 		"user_default_settings",
+		"customers",
+		"weight_records",
+		"products",
+		"product_usages",
 	}
 
 	missingTables := []string{}
@@ -67,6 +71,18 @@ func EnsureDatabaseTables() error {
 		if err := ResetDatabase(); err != nil {
 			return fmt.Errorf("重置数据库失败: %w", err)
 		}
+	}
+
+	// 初始化产品数据
+	if err := initProducts(); err != nil {
+		log.Printf("初始化产品数据失败: %v", err)
+		// 继续执行，不要因为这个错误而终止整个程序
+	}
+
+	// 初始化客户数据
+	if err := initCustomers(); err != nil {
+		log.Printf("初始化客户数据失败: %v", err)
+		// 继续执行，不要因为这个错误而终止整个程序
 	}
 
 	// 检查默认管理员用户

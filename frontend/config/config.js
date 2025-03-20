@@ -1,7 +1,9 @@
 // 环境配置
 const env = {
   development: {
-    apiBaseUrl: 'http://10.100.7.4:8080'
+    // apiBaseUrl: 'http://10.100.7.4:8080'
+    apiBaseUrl: 'http://127.0.0.1:8080'
+
   },
   production: {
     // apiBaseUrl: 'http://8.152.197.192:8080' // 生产环境地址
@@ -74,13 +76,13 @@ const config = {
       productUsage: '/api/customers/product-usage', // 产品使用记录
       addProductUsage: '/api/customers/add-product-usage', // 添加产品使用记录
       records: '/api/customers/records',
-      exportReport: '/api/customers/export-report'
+      exportReport: '/api/customers/export-report',
+      products: '/api/customer/products'
     },
     products: {
-      list: '/api/products/list', // 产品列表
-      add: '/api/products/create', // (可选)添加产品
-      update: '/api/products/update', // (可选)更新产品信息
-      delete: '/api/products/delete' // (可选)删除产品
+      list: '/api/products/list',
+      add: '/api/products/add',
+      delete: '/api/products/delete'
     },
     report: {
       generate: '/api/report/generate' // 生成报表

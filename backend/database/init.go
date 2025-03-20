@@ -33,9 +33,14 @@ func ResetDatabase() error {
 
 	// 删除现有表（按照依赖关系的反向顺序）
 	dropTablesSQL := `
+	DROP TABLE IF EXISTS product_usages;
+	DROP TABLE IF EXISTS weight_records;
+	DROP TABLE IF EXISTS products;
+	DROP TABLE IF EXISTS customers;
 	DROP TABLE IF EXISTS user_default_settings;
 	DROP TABLE IF EXISTS accounts;
 	DROP TABLE IF EXISTS account_types;
+	DROP TABLE IF EXISTS user_store_permissions;
 	DROP TABLE IF EXISTS user_store;
 	DROP TABLE IF EXISTS stores;
 	DROP TABLE IF EXISTS users;
@@ -230,6 +235,82 @@ func CreateTables() error {
 		return fmt.Errorf("创建账务记录表失败: %w", err)
 	}
 
+	// 创建客户表
+	_, err = DB.Exec(`
+	CREATE TABLE IF NOT EXISTS customers (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		phone TEXT,
+		gender INTEGER DEFAULT 1, -- 1男, 2女
+		age INTEGER,
+		height REAL,
+		initial_weight REAL,
+		current_weight REAL,
+		target_weight REAL,
+		store_id INTEGER,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)
+	`)
+
+	if err != nil {
+		return fmt.Errorf("创建客户表失败: %w", err)
+	}
+
+	// 创建体重记录表
+	_, err = DB.Exec(`
+	CREATE TABLE IF NOT EXISTS weight_records (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		customer_id INTEGER NOT NULL,
+		weight REAL NOT NULL,
+		record_date TEXT NOT NULL,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (customer_id) REFERENCES customers(id)
+	)
+	`)
+
+	if err != nil {
+		return fmt.Errorf("创建体重记录表失败: %w", err)
+	}
+
+	// 创建产品表
+	_, err = DB.Exec(`
+	CREATE TABLE IF NOT EXISTS products (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL,
+		description TEXT,
+		price REAL DEFAULT 0,
+		stock INTEGER DEFAULT 0,
+		store_id INTEGER,
+		create_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		update_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+	)
+	`)
+
+	if err != nil {
+		return fmt.Errorf("创建产品表失败: %w", err)
+	}
+
+	// 创建产品使用记录表
+	_, err = DB.Exec(`
+	CREATE TABLE IF NOT EXISTS product_usages (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		customer_id INTEGER NOT NULL,
+		product_id INTEGER NOT NULL,
+		usage_date TEXT NOT NULL,
+		quantity REAL DEFAULT 1,
+		notes TEXT,
+		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (customer_id) REFERENCES customers(id),
+		FOREIGN KEY (product_id) REFERENCES products(id)
+	)
+	`)
+
+	if err != nil {
+		return fmt.Errorf("创建产品使用记录表失败: %w", err)
+	}
+
 	// 检查accounts表中是否存在user_id列
 	var columnExists bool
 	err = DB.QueryRow(`
@@ -323,5 +404,96 @@ func CreateTables() error {
 
 // 	return nil
 // }
+
+// 添加初始化products表的函数
+func initProducts() error {
+	// 检查是否已有产品数据
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM products").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("检查产品数据失败: %v", err)
+	}
+
+	// 如果已有数据，则跳过
+	if count > 0 {
+		return nil
+	}
+
+	// 插入默认产品数据
+	_, err = DB.Exec(`
+		INSERT INTO products (id, name, description, price, stock) VALUES 
+		(1, '减脂套餐A', '标准减脂套餐', 199.00, 100),
+		(2, '减脂套餐B', '高级减脂套餐', 299.00, 100),
+		(3, '全身按摩', '舒缓减压全身按摩', 159.00, 100),
+		(4, '排毒养颜', '排毒养颜护理', 259.00, 100),
+		(5, '塑形护理', '专业塑形护理', 359.00, 100)
+	`)
+	if err != nil {
+		return fmt.Errorf("初始化产品数据失败: %v", err)
+	}
+
+	log.Println("产品数据初始化成功")
+	return nil
+}
+
+// 添加初始化客户数据的函数
+func initCustomers() error {
+	// 检查是否已有客户数据
+	var count int
+	err := DB.QueryRow("SELECT COUNT(*) FROM customers").Scan(&count)
+	if err != nil {
+		return fmt.Errorf("检查客户数据失败: %v", err)
+	}
+
+	// 如果已有数据，则跳过
+	if count > 0 {
+		return nil
+	}
+
+	// 插入测试客户数据
+	_, err = DB.Exec(`
+		INSERT INTO customers (id, name, phone, gender, age, height, initial_weight, current_weight, target_weight) VALUES 
+		(1, '张三', '13800138001', 1, 30, 175, 80, 75, 65),
+		(2, '李四', '13800138002', 1, 28, 170, 75, 72, 65),
+		(3, '王五', '13800138003', 1, 35, 180, 90, 85, 75),
+		(4, '赵六', '13800138004', 1, 40, 178, 85, 80, 70),
+		(5, '钱七', '13800138005', 1, 25, 172, 70, 68, 60),
+		(6, '孙八', '13800138006', 1, 32, 176, 82, 80, 72)
+	`)
+	if err != nil {
+		return fmt.Errorf("初始化客户数据失败: %v", err)
+	}
+
+	log.Println("客户数据初始化成功")
+	return nil
+}
+
+// InitDB 初始化数据库
+// 注意：此函数与db.go中的InitDB重复，需要保留db.go中的函数，移除此处的函数
+/*
+func InitDB() error {
+	// 创建必要的数据表
+	err := CreateTables()
+	if err != nil {
+		return fmt.Errorf("创建数据表失败: %v", err)
+	}
+
+	// 初始化产品数据
+	err = initProducts()
+	if err != nil {
+		log.Printf("初始化产品数据失败: %v", err)
+		// 继续执行，不要因为这个错误而终止整个程序
+	}
+
+	// 初始化客户数据
+	err = initCustomers()
+	if err != nil {
+		log.Printf("初始化客户数据失败: %v", err)
+		// 继续执行，不要因为这个错误而终止整个程序
+	}
+
+	return nil
+}
+*/
 
 // 其余函数保持不变

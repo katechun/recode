@@ -12,7 +12,8 @@
     "pages/accountList/accountList",
     "pages/customer/customer",
     "pages/customerDetail/customerDetail",
-    "pages/addCustomer/addCustomer"
+    "pages/addCustomer/addCustomer",
+    "pages/products/index"
   ],
   "useExtendedLib": {
     "weui": true

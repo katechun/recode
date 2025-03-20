@@ -19,6 +19,29 @@ var (
 	dbPath string
 )
 
+// CloseAndReset 关闭数据库连接并删除数据库文件
+func CloseAndReset() error {
+	// 先关闭数据库连接
+	if DB != nil {
+		err := DB.Close()
+		if err != nil {
+			return fmt.Errorf("关闭数据库连接失败: %v", err)
+		}
+		DB = nil
+	}
+
+	// 删除数据库文件
+	if dbPath != "" {
+		err := os.Remove(dbPath)
+		if err != nil && !os.IsNotExist(err) {
+			return fmt.Errorf("删除数据库文件失败: %v", err)
+		}
+	}
+
+	log.Println("数据库连接已关闭，数据库文件已删除")
+	return nil
+}
+
 // InitDB 初始化数据库连接
 func InitDB() {
 	// 确保data目录存在
@@ -43,7 +66,13 @@ func InitDB() {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 
-	log.Println("数据库连接成功")
+	// 显式启用外键约束
+	_, err = DB.Exec("PRAGMA foreign_keys = ON")
+	if err != nil {
+		log.Printf("启用外键约束失败: %v", err)
+	}
+
+	log.Println("数据库连接成功，外键约束已启用")
 
 	// 设置数据库连接池参数
 	DB.SetMaxOpenConns(10)

@@ -248,37 +248,27 @@ Page({
                         customerDetail.lost_weight = (customerDetail.initial_weight - customerDetail.current_weight).toFixed(1);
 
                         // 计算还需减重
-                        if (customerDetail.current_weight > customerDetail.target_weight) {
-                            customerDetail.needs_to_lose = (customerDetail.current_weight - customerDetail.target_weight).toFixed(1);
-                        } else {
-                            customerDetail.needs_to_lose = '0';
-                        }
-                    } else {
-                        customerDetail.progress = 0;
-                        customerDetail.lost_weight = 0;
-                        customerDetail.needs_to_lose = 0;
+                        customerDetail.needs_to_lose = Math.max(0, (customerDetail.current_weight - customerDetail.target_weight)).toFixed(1);
                     }
 
-                    self.setData({
+                    // 设置客户详情
+                    this.setData({
                         customer: customerDetail
                     });
 
-                    // 如果有身高数据，计算当前BMI
+                    // 计算BMI
                     if (customerDetail.height && customerDetail.current_weight) {
-                        const currentBmi = self.calculateBmi(customerDetail.current_weight, customerDetail.height);
-                        const bmiCategory = self.getBmiCategory(currentBmi);
-
-                        // 计算体脂率（估算）
-                        const bodyFatPercentage = self.calculateBodyFat(currentBmi, customerDetail.age, customerDetail.gender);
-                        const bodyFatCategory = self.getBodyFatCategory(bodyFatPercentage, customerDetail.gender);
-
-                        self.setData({
-                            currentBmi: currentBmi,
-                            bmiCategory: bmiCategory,
-                            bodyFatPercentage: bodyFatPercentage,
-                            bodyFatCategory: bodyFatCategory
-                        });
+                        this.calculateBMI(customerDetail.current_weight, customerDetail.height);
                     }
+
+                    // 计算体脂率估算
+                    if (customerDetail.height && customerDetail.current_weight && customerDetail.age && customerDetail.gender) {
+                        this.calculateBodyFatPercentage(customerDetail);
+                    }
+                    
+                    // 客户详情加载成功后，主动加载体重记录和产品使用记录
+                    this.loadWeightRecords();
+                    this.loadProductUsages();
                 } else {
                     // API请求失败，但HTTP状态成功时的处理
                     console.error('API返回错误:', res);
@@ -295,12 +285,12 @@ Page({
 
                         // 如果有身高数据，计算当前BMI
                         if (localCustomer.height && localCustomer.current_weight) {
-                            const currentBmi = self.calculateBmi(localCustomer.current_weight, localCustomer.height);
-                            const bmiCategory = self.getBmiCategory(currentBmi);
-                            const bodyFatPercentage = self.calculateBodyFat(currentBmi, localCustomer.age, localCustomer.gender);
-                            const bodyFatCategory = self.getBodyFatCategory(bodyFatPercentage, localCustomer.gender);
+                            const currentBmi = this.calculateBmi(localCustomer.current_weight, localCustomer.height);
+                            const bmiCategory = this.getBmiCategory(currentBmi);
+                            const bodyFatPercentage = this.calculateBodyFat(currentBmi, localCustomer.age, localCustomer.gender);
+                            const bodyFatCategory = this.getBodyFatCategory(bodyFatPercentage, localCustomer.gender);
 
-                            self.setData({
+                            this.setData({
                                 currentBmi: currentBmi,
                                 bmiCategory: bmiCategory,
                                 bodyFatPercentage: bodyFatPercentage,
@@ -338,12 +328,12 @@ Page({
 
                     // 如果有身高数据，计算当前BMI
                     if (localCustomer.height && localCustomer.current_weight) {
-                        const currentBmi = self.calculateBmi(localCustomer.current_weight, localCustomer.height);
-                        const bmiCategory = self.getBmiCategory(currentBmi);
-                        const bodyFatPercentage = self.calculateBodyFat(currentBmi, localCustomer.age, localCustomer.gender);
-                        const bodyFatCategory = self.getBodyFatCategory(bodyFatPercentage, localCustomer.gender);
+                        const currentBmi = this.calculateBmi(localCustomer.current_weight, localCustomer.height);
+                        const bmiCategory = this.getBmiCategory(currentBmi);
+                        const bodyFatPercentage = this.calculateBodyFat(currentBmi, localCustomer.age, localCustomer.gender);
+                        const bodyFatCategory = this.getBodyFatCategory(bodyFatPercentage, localCustomer.gender);
 
-                        self.setData({
+                        this.setData({
                             currentBmi: currentBmi,
                             bmiCategory: bmiCategory,
                             bodyFatPercentage: bodyFatPercentage,
@@ -358,8 +348,8 @@ Page({
                     });
                 } else {
                     // 如果没有本地数据，创建默认客户数据
-                    const defaultCustomer = self.createDefaultCustomer();
-                    self.setData({
+                    const defaultCustomer = this.createDefaultCustomer();
+                    this.setData({
                         customer: defaultCustomer
                     });
 
@@ -428,31 +418,47 @@ Page({
                     if (records.length === 0 && this.data.customer) {
                         console.log('无记录，尝试创建初始记录');
                         const { initial_weight, current_weight } = this.data.customer;
-                        if (initial_weight) {
-                            // 为了图表显示，增加两个点：初始体重和当前体重
-                            const initialDate = new Date();
-                            initialDate.setMonth(initialDate.getMonth() - 1);
+                        
+                        // 修改这里：确保即使initial_weight为空也能添加一条当前体重记录
+                        const initialWeight = initial_weight || current_weight || 0;
+                        
+                        // 为了图表显示，增加两个点：初始体重和当前体重
+                        const initialDate = new Date();
+                        initialDate.setMonth(initialDate.getMonth() - 1);
 
-                            records = [
-                                {
-                                    id: 'initial',
-                                    weight: initial_weight,
-                                    record_date: this.formatDate(initialDate),
-                                    notes: '初始体重',
-                                    time_type: 'morning'
-                                }
-                            ];
-
-                            if (current_weight && current_weight !== initial_weight) {
-                                records.push({
-                                    id: 'current',
-                                    weight: current_weight,
-                                    record_date: this.formatDate(new Date()),
-                                    notes: '当前体重',
-                                    time_type: 'morning'
-                                });
+                        records = [
+                            {
+                                id: 'initial',
+                                weight: initialWeight,
+                                record_date: this.formatDate(initialDate),
+                                notes: '初始体重',
+                                time_type: 'morning'
                             }
+                        ];
+
+                        if (current_weight && current_weight !== initialWeight) {
+                            records.push({
+                                id: 'current',
+                                weight: current_weight,
+                                record_date: this.formatDate(new Date()),
+                                notes: '当前体重',
+                                time_type: 'morning'
+                            });
+                        } else if (!current_weight) {
+                            // 如果没有当前体重，添加一条空记录用于显示
+                            records.push({
+                                id: 'current',
+                                weight: initialWeight, // 使用初始体重作为默认值
+                                record_date: this.formatDate(new Date()),
+                                notes: '当前体重',
+                                time_type: 'morning'
+                            });
                         }
+                        
+                        // 有了初始记录后，创建一个添加体重记录的按钮
+                        this.setData({
+                            showAddWeightBtn: true
+                        });
                     } else {
                         console.log('成功获取到体重记录');
                     }
@@ -885,12 +891,21 @@ Page({
             activeTab: tab
         });
 
-        // 如果切换到体重记录标签，重新绘制图表
-        if (tab === 'record' && this.data.weightRecords && this.data.weightRecords.length > 0) {
-            setTimeout(() => {
-                // 使用createWeightTrendData替代drawWeightChart
-                this.createWeightTrendData(this.data.weightRecords);
-            }, 300);
+        // 如果切换到体重记录标签，加载体重记录并重新绘制图表
+        if (tab === 'record') {
+            // 加载体重记录数据
+            this.loadWeightRecords();
+            
+            // 如果已有记录，重新绘制图表
+            if (this.data.weightRecords && this.data.weightRecords.length > 0) {
+                setTimeout(() => {
+                    // 使用createWeightTrendData替代drawWeightChart
+                    this.createWeightTrendData(this.data.weightRecords);
+                }, 300);
+            }
+        } else if (tab === 'product') {
+            // 加载产品使用记录
+            this.loadProductUsages();
         }
     },
 
@@ -1040,7 +1055,7 @@ Page({
             customer_id: customerId,
             weight: parseFloat(this.data.weightValue),
             record_date: this.data.weightDate,
-            notes: `${this.data.weightTimeType === 'morning' ? '晨称' : '晚称'} ${this.data.weightDropValue !== null ? `掉秤量: ${this.data.weightDropValue.toFixed(1)}kg` : ''} ${this.data.metabolismValue !== null ? `代谢量: ${this.data.metabolismValue.toFixed(1)}kg` : ''}`
+            notes: `${this.data.weightTimeType === 'morning' ? '晨称' : '晚称'} ${this.data.weightDropValue !== null ? `掉秤量: ${this.data.weightDropValue}kg` : ''} ${this.data.metabolismValue !== null ? `代谢量: ${this.data.metabolismValue}kg` : ''}`
         };
 
         // 调用API保存体重记录
@@ -1211,21 +1226,47 @@ Page({
     },
 
     // 加载产品列表
-    loadProductList: function () {
+    loadProductList: function() {
+        console.log('加载产品列表 - 从API获取数据');
         const { userInfo } = this.data;
-
-        // 由于API未实现，这里直接提供模拟数据而非尝试调用API
+        
+        // 调用API获取真实产品数据
+        request.get(config.apis.customer.products, {
+            data: {
+                user_id: userInfo.id
+            }
+        })
+        .then(res => {
+            if (res && res.code === 200) {
+                this.setData({
+                    productList: res.data || []
+                });
+                console.log('成功获取产品列表:', this.data.productList);
+            } else {
+                console.log('获取产品列表失败:', res);
+                // 如果API失败，使用默认数据
+                this.loadDefaultProductList();
+            }
+        })
+        .catch(err => {
+            console.error('获取产品列表错误:', err);
+            // 如果API调用出错，使用默认数据
+            this.loadDefaultProductList();
+        });
+    },
+    
+    // 加载默认产品列表（当API调用失败时使用）
+    loadDefaultProductList: function() {
+        console.log('使用默认产品数据');
         this.setData({
             productList: [
-                { id: 1, name: '减脂套餐A' },
-                { id: 2, name: '减脂套餐B' },
-                { id: 3, name: '全身按摩' },
-                { id: 4, name: '排毒养颜' },
-                { id: 5, name: '塑形护理' }
+                { id: 1, name: '减脂套餐A', description: '标准减脂套餐', price: 199 },
+                { id: 2, name: '减脂套餐B', description: '高级减脂套餐', price: 299 },
+                { id: 3, name: '全身按摩', description: '舒缓减压全身按摩', price: 159 },
+                { id: 4, name: '排毒养颜', description: '排毒养颜护理', price: 259 },
+                { id: 5, name: '塑形护理', description: '专业塑形护理', price: 359 }
             ]
         });
-
-        console.log('加载产品列表 - 使用模拟数据');
     },
 
     // 关闭产品记录弹窗
@@ -1773,11 +1814,38 @@ Page({
         };
     },
 
-    // 计算BMI
+    // 计算BMI基础函数
     calculateBmi: function (weight, height) {
         if (!weight || !height) return 0;
         const heightInMeters = height / 100;
         return (weight / (heightInMeters * heightInMeters)).toFixed(1);
+    },
+
+    // 计算BMI
+    calculateBMI: function (weight, height) {
+        const currentBmi = this.calculateBmi(weight, height);
+        const bmiCategory = this.getBmiCategory(currentBmi);
+        
+        this.setData({
+            currentBmi: currentBmi,
+            bmiCategory: bmiCategory
+        });
+        
+        return currentBmi;
+    },
+
+    // 计算体脂率
+    calculateBodyFatPercentage: function (customerDetail) {
+        const currentBmi = this.calculateBmi(customerDetail.current_weight, customerDetail.height);
+        const bodyFatPercentage = this.calculateBodyFat(currentBmi, customerDetail.age, customerDetail.gender);
+        const bodyFatCategory = this.getBodyFatCategory(bodyFatPercentage, customerDetail.gender);
+        
+        this.setData({
+            bodyFatPercentage: bodyFatPercentage,
+            bodyFatCategory: bodyFatCategory
+        });
+        
+        return bodyFatPercentage;
     },
 
     // 计算体脂率（估算）

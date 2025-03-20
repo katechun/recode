@@ -489,23 +489,32 @@ func AddProductUsage(usage *models.ProductUsage) (int, error) {
 }
 
 // GetProducts 获取产品列表
-func GetProducts(storeID string) ([]map[string]interface{}, error) {
+func GetProducts(storeIDs string) ([]map[string]interface{}, error) {
 	var query string
 	var args []interface{}
 
-	if storeID != "" {
-		query = `
-			SELECT id, name, description, price, stock 
-			FROM products 
-			WHERE store_id = ?
-			ORDER BY name
-		`
-		args = append(args, storeID)
+	if storeIDs != "" {
+		// 将店铺ID字符串转换为切片
+		storeIDList := strings.Split(storeIDs, ",")
+		placeholders := make([]string, len(storeIDList))
+		for i := range storeIDList {
+			placeholders[i] = "?"
+			args = append(args, storeIDList[i])
+		}
+
+		query = fmt.Sprintf(`
+			SELECT p.id, p.name, p.notes as description, p.price, p.stock, s.name as store_name
+			FROM products p
+			LEFT JOIN stores s ON p.store_id = s.id
+			WHERE p.store_id IN (%s)
+			ORDER BY p.name
+		`, strings.Join(placeholders, ","))
 	} else {
 		query = `
-			SELECT id, name, description, price, stock 
-			FROM products 
-			ORDER BY name
+			SELECT p.id, p.name, p.notes as description, p.price, p.stock, s.name as store_name
+			FROM products p
+			LEFT JOIN stores s ON p.store_id = s.id
+			ORDER BY p.name
 		`
 	}
 
@@ -518,10 +527,10 @@ func GetProducts(storeID string) ([]map[string]interface{}, error) {
 	var products []map[string]interface{}
 	for rows.Next() {
 		var id int
-		var name, description string
+		var name, description, storeName string
 		var price, stock float64
 
-		err := rows.Scan(&id, &name, &description, &price, &stock)
+		err := rows.Scan(&id, &name, &description, &price, &stock, &storeName)
 		if err != nil {
 			return nil, fmt.Errorf("扫描产品数据失败: %v", err)
 		}
@@ -532,6 +541,7 @@ func GetProducts(storeID string) ([]map[string]interface{}, error) {
 			"description": description,
 			"price":       price,
 			"stock":       stock,
+			"store_name":  storeName,
 		}
 
 		products = append(products, product)
@@ -806,4 +816,72 @@ func calculateProgress(customer models.Customer) float64 {
 	progress := math.Min(100, (currentLoss/totalNeedLoss)*100)
 
 	return progress
+}
+
+// GetWeightRecordByID 根据ID获取体重记录
+func GetWeightRecordByID(recordID int) (*models.WeightRecord, error) {
+	var record models.WeightRecord
+	err := DB.QueryRow(`
+		SELECT id, customer_id, weight, record_date, notes, created_at
+		FROM weight_records
+		WHERE id = ?
+	`, recordID).Scan(
+		&record.ID,
+		&record.CustomerID,
+		&record.Weight,
+		&record.RecordDate,
+		&record.Notes,
+		&record.CreatedAt,
+	)
+
+	if err != nil {
+		return nil, fmt.Errorf("查询体重记录失败: %v", err)
+	}
+
+	return &record, nil
+}
+
+// DeleteWeightRecord 删除体重记录
+func DeleteWeightRecord(recordID int) error {
+	// 获取记录信息（用于更新客户当前体重）
+	record, err := GetWeightRecordByID(recordID)
+	if err != nil {
+		return fmt.Errorf("获取体重记录失败: %v", err)
+	}
+
+	// 删除记录
+	_, err = DB.Exec(`DELETE FROM weight_records WHERE id = ?`, recordID)
+	if err != nil {
+		return fmt.Errorf("删除体重记录失败: %v", err)
+	}
+
+	// 查询该客户最新的体重记录
+	var latestWeight float64
+	var hasLatestRecord bool
+
+	err = DB.QueryRow(`
+		SELECT weight FROM weight_records 
+		WHERE customer_id = ? 
+		ORDER BY record_date DESC LIMIT 1
+	`, record.CustomerID).Scan(&latestWeight)
+
+	if err == nil {
+		hasLatestRecord = true
+	}
+
+	// 如果有最新记录，更新客户当前体重
+	if hasLatestRecord {
+		_, err = DB.Exec(`
+			UPDATE customers 
+			SET current_weight = ?, updated_at = ?
+			WHERE id = ?
+		`, latestWeight, time.Now(), record.CustomerID)
+
+		if err != nil {
+			log.Printf("更新客户当前体重失败: %v", err)
+			// 继续执行，不要因为这个错误而终止整个流程
+		}
+	}
+
+	return nil
 }

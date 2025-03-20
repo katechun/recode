@@ -577,6 +577,28 @@ func AddProductUsage(w http.ResponseWriter, r *http.Request) {
 		CreatedAt:  time.Now(),
 	}
 
+	// 检查客户ID是否存在
+	customerExists := false
+	err = database.DB.QueryRow("SELECT COUNT(*) > 0 FROM customers WHERE id = ?", usage.CustomerID).Scan(&customerExists)
+	if err != nil {
+		log.Printf("检查客户ID失败: %v", err)
+	} else if !customerExists {
+		log.Printf("错误: 客户ID %d 不存在", usage.CustomerID)
+		SendResponse(w, http.StatusBadRequest, 400, fmt.Sprintf("客户ID %d 不存在", usage.CustomerID), nil)
+		return
+	}
+
+	// 检查产品ID是否存在
+	productExists := false
+	err = database.DB.QueryRow("SELECT COUNT(*) > 0 FROM products WHERE id = ?", usage.ProductID).Scan(&productExists)
+	if err != nil {
+		log.Printf("检查产品ID失败: %v", err)
+	} else if !productExists {
+		log.Printf("错误: 产品ID %d 不存在", usage.ProductID)
+		SendResponse(w, http.StatusBadRequest, 400, fmt.Sprintf("产品ID %d 不存在", usage.ProductID), nil)
+		return
+	}
+
 	usageID, err := database.AddProductUsage(usage)
 	if err != nil {
 		log.Printf("添加产品使用记录失败: %v", err)
@@ -765,4 +787,58 @@ func DownloadReport(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.Printf("写入响应失败: %v", err)
 	}
+}
+
+// DeleteWeightRecord 删除体重记录接口
+func DeleteWeightRecord(w http.ResponseWriter, r *http.Request) {
+	// 解析请求体
+	var requestData struct {
+		UserID   int `json:"user_id"`
+		RecordID int `json:"record_id"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		log.Printf("解析请求体失败: %v", err)
+		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
+		return
+	}
+
+	// 校验数据
+	if requestData.UserID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+
+	if requestData.RecordID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的记录ID", nil)
+		return
+	}
+
+	// 获取体重记录信息
+	record, err := database.GetWeightRecordByID(requestData.RecordID)
+	if err != nil {
+		log.Printf("获取体重记录失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, fmt.Sprintf("获取体重记录失败: %v", err), nil)
+		return
+	}
+
+	// 检查用户是否有权限删除该记录
+	_, err = database.GetCustomerByID(requestData.UserID, record.CustomerID)
+	if err != nil {
+		log.Printf("权限验证失败: %v", err)
+		SendResponse(w, http.StatusForbidden, 403, "无权删除此记录", nil)
+		return
+	}
+
+	// 删除体重记录
+	err = database.DeleteWeightRecord(requestData.RecordID)
+	if err != nil {
+		log.Printf("删除体重记录失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, fmt.Sprintf("删除体重记录失败: %v", err), nil)
+		return
+	}
+
+	// 返回响应
+	SendResponse(w, http.StatusOK, 200, "删除体重记录成功", nil)
 }

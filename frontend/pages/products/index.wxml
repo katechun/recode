@@ -1,0 +1,56 @@
+<view class="container">
+  <view class="header">
+    <view class="title">产品列表</view>
+    <button class="add-btn" bindtap="showAddModal">添加产品</button>
+  </view>
+  
+  <view class="product-list" wx:if="{{!loading}}">
+    <view class="empty-container" wx:if="{{products.length === 0}}">
+      <text class="empty-text">暂无产品，请点击"添加产品"按钮创建</text>
+    </view>
+    
+    <view class="product-item" wx:for="{{products}}" wx:key="id">
+      <view class="product-info">
+        <view class="product-name">{{item.name}}</view>
+        <view class="product-description">{{item.description || '暂无描述'}}</view>
+        <view class="product-details">
+          <text>价格: ¥{{item.price}}</text>
+          <text>库存: {{item.stock}}</text>
+          <text>所属店铺: {{item.store_name || '默认店铺'}}</text>
+        </view>
+      </view>
+      <view class="delete-btn" bindtap="handleDelete" data-id="{{item.id}}">删除</view>
+    </view>
+  </view>
+  
+  <view class="loading-container" wx:if="{{loading}}">
+    <text>加载中...</text>
+  </view>
+  
+  <!-- 添加产品弹窗 -->
+  <view class="modal-mask" wx:if="{{showModal}}" bindtap="hideModal"></view>
+  <view class="modal-container" wx:if="{{showModal}}">
+    <view class="modal-title">添加产品</view>
+    
+    <view class="form-item">
+      <input class="input" placeholder="产品名称 *" value="{{productForm.name}}" bindinput="inputName" />
+    </view>
+    
+    <view class="form-item">
+      <textarea class="input textarea" placeholder="产品描述" value="{{productForm.description}}" bindinput="inputDescription"></textarea>
+    </view>
+    
+    <view class="form-item">
+      <input class="input" placeholder="产品价格 *" type="digit" value="{{productForm.price}}" bindinput="inputPrice" />
+    </view>
+    
+    <view class="form-item">
+      <input class="input" placeholder="库存数量 *" type="number" value="{{productForm.stock}}" bindinput="inputStock" />
+    </view>
+    
+    <view class="button-group">
+      <view class="btn cancel-btn" bindtap="hideModal">取消</view>
+      <view class="btn confirm-btn" bindtap="handleAddProduct">确认添加</view>
+    </view>
+  </view>
+</view> 

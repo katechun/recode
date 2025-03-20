@@ -235,7 +235,7 @@
           <text class="record-action-header"></text>
         </view>
         
-        <block wx:if="{{weightRecords.length > 0}}">
+        <block wx:if="{{weightRecords && weightRecords.length > 0}}">
           <view class="weight-item" wx:for="{{weightRecords}}" wx:key="id">
             <view class="weight-date">
               <text class="date">{{item.record_date}}</text>
@@ -244,17 +244,18 @@
             <view class="weight-value">
               <text class="value">{{item.weight}} kg</text>
               <view class="weight-change {{item.change > 0 ? 'weight-up' : (item.change < 0 ? 'weight-down' : 'weight-same')}}">
-                {{item.change > 0 ? '+' + item.change : item.change}} kg
+                {{item.change !== undefined ? (item.change > 0 ? '+' + item.change : item.change) : '0.0'}} kg
               </view>
             </view>
             <view class="weight-actions">
               <text class="weight-note" wx:if="{{item.notes}}">{{item.notes}}</text>
-              <view class="weight-delete" data-id="{{item.id}}" bindtap="deleteWeightRecord">删除</view>
+              <view class="weight-delete" wx:if="{{item.id !== 'initial' && item.id !== 'current'}}" data-id="{{item.id}}" bindtap="deleteWeightRecord">删除</view>
             </view>
           </view>
         </block>
         <view wx:else class="empty-tip">
           <text>暂无体重记录</text>
+          <view class="add-first-record" bindtap="addWeightRecord">点击添加第一条记录</view>
         </view>
       </view>
       

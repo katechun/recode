@@ -1,0 +1,64 @@
+<!-- pages/productManage/productManage.wxml -->
+<view class="container">
+  <view class="header">
+    <view class="title">产品管理</view>
+    <button class="add-btn" bindtap="showAddProductModal">添加产品</button>
+  </view>
+
+  <!-- 产品列表 -->
+  <view class="product-list" wx:if="{{products.length > 0}}">
+    <view class="product-item" wx:for="{{products}}" wx:key="id">
+      <view class="product-info">
+        <view class="product-name">{{item.name}}</view>
+        <view class="product-desc">{{item.description || '暂无描述'}}</view>
+        <view class="product-price">价格: ¥{{item.price}}</view>
+        <view class="product-stock">库存: {{item.stock}}</view>
+      </view>
+      <view class="product-actions">
+        <view class="delete-btn" data-id="{{item.id}}" data-name="{{item.name}}" bindtap="deleteProduct">删除</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 空状态 -->
+  <view class="empty-state" wx:else>
+    <image class="empty-image" src="../../assets/images/empty.png" mode="aspectFit"></image>
+    <text class="empty-text">暂无产品，请添加新产品</text>
+  </view>
+
+  <!-- 加载中 -->
+  <view class="loading-container" wx:if="{{isLoading}}">
+    <view class="loading"></view>
+  </view>
+
+  <!-- 添加产品弹窗 -->
+  <view class="modal-mask" wx:if="{{showAddModal}}" bindtap="hideAddProductModal"></view>
+  <view class="modal" wx:if="{{showAddModal}}">
+    <view class="modal-title">添加产品</view>
+    <view class="modal-content">
+      <view class="input-group">
+        <text class="input-label">产品名称</text>
+        <input class="input" type="text" placeholder="请输入产品名称" data-field="name" bindinput="handleInputChange" value="{{newProduct.name}}"/>
+      </view>
+      
+      <view class="input-group">
+        <text class="input-label">产品描述</text>
+        <textarea class="textarea" placeholder="请输入产品描述" data-field="description" bindinput="handleInputChange" value="{{newProduct.description}}"></textarea>
+      </view>
+      
+      <view class="input-group">
+        <text class="input-label">价格</text>
+        <input class="input" type="digit" placeholder="请输入价格" data-field="price" bindinput="handleInputChange" value="{{newProduct.price}}"/>
+      </view>
+      
+      <view class="input-group">
+        <text class="input-label">库存</text>
+        <input class="input" type="number" placeholder="请输入库存" data-field="stock" bindinput="handleInputChange" value="{{newProduct.stock}}"/>
+      </view>
+    </view>
+    <view class="modal-footer">
+      <button class="cancel-btn" bindtap="hideAddProductModal">取消</button>
+      <button class="confirm-btn" bindtap="addProduct">确定</button>
+    </view>
+  </view>
+</view> 
