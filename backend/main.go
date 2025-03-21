@@ -171,6 +171,10 @@ func main() {
 	// 添加新的产品使用记录接口路由
 	router.HandleFunc("/api/customers/add-product-usage", api.CORSMiddleware(api.AddProductUsage)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/product-usage/add", api.CORSMiddleware(api.AddProductUsage)).Methods("POST", "OPTIONS")
+	// 添加更新产品使用记录接口路由
+	router.HandleFunc("/api/customers/update-product-usage", api.CORSMiddleware(api.UpdateProductUsage)).Methods("POST", "OPTIONS")
+	// 添加删除产品使用记录接口路由
+	router.HandleFunc("/api/customers/delete-product-usage", api.CORSMiddleware(api.DeleteProductUsage)).Methods("POST", "OPTIONS")
 	router.HandleFunc("/api/customers/products", api.CORSMiddleware(api.GetProducts)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/records", api.CORSMiddleware(api.GetCustomerRecords)).Methods("GET", "OPTIONS")
 	router.HandleFunc("/api/customers/export-report", api.CORSMiddleware(api.ExportCustomerReport)).Methods("GET", "OPTIONS")
@@ -192,5 +196,8 @@ func main() {
 	router.HandleFunc("/api/debug/permissions", api.CORSMiddleware(api.CheckPermissions)).Methods("GET", "OPTIONS")
 
 	log.Printf("服务器启动在 :8080")
-	log.Fatal(http.ListenAndServe(":8080", router))
+	err := http.ListenAndServe(":8080", router)
+	if err != nil {
+		log.Fatal("服务器启动失败: ", err)
+	}
 }

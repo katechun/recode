@@ -507,55 +507,153 @@ ec-canvas {
 
 /* 产品使用列表 */
 .product-list {
-  margin-bottom: 30rpx;
+  margin: 20rpx 0;
+  border-radius: 12rpx;
+  box-shadow: 0 2rpx 10rpx rgba(0, 0, 0, 0.1);
+  background-color: #fff;
+  overflow: hidden;
 }
 
+/* 产品使用记录列表样式 */
 .product-header {
   display: flex;
-  padding: 20rpx 0;
-  border-bottom: 1rpx solid #eee;
+  padding: 20rpx 30rpx;
   font-size: 28rpx;
-  color: #999;
+  color: #333;
+  background-color: #f7f7f7;
   font-weight: 500;
+  border-bottom: 1rpx solid #eee;
+  align-items: center;
+  border-radius: 12rpx 12rpx 0 0;
 }
 
 .product-name-header {
   flex: 2;
+  padding-left: 10rpx;
 }
 
-.product-date-header {
-  flex: 1;
+.product-date-header,
+.product-update-header {
+  flex: 1.5;
+  text-align: center;
+}
+
+.product-purchase-header {
+  flex: 0.8;
   text-align: center;
 }
 
 .product-count-header {
-  flex: 1;
+  flex: 1.2;
   text-align: center;
+}
+
+.product-action-header {
+  flex: 0.5;
 }
 
 .product-item {
   display: flex;
+  padding: 25rpx 30rpx;
+  font-size: 26rpx;
+  border-bottom: 1rpx solid #f2f2f2;
   align-items: center;
-  padding: 24rpx 0;
-  border-bottom: 1rpx solid #f5f5f5;
-  font-size: 28rpx;
-  color: #333;
+}
+
+.product-item:last-child {
+  border-bottom: none;
+}
+
+.product-item:nth-child(odd) {
+  background-color: #f9f9f9;
 }
 
 .product-name {
   flex: 2;
-  padding-right: 20rpx;
+  color: #333;
+  font-weight: 500;
+  padding-left: 10rpx;
 }
 
-.product-date {
-  flex: 1;
+.product-date,
+.product-update {
+  flex: 1.5;
+  color: #666;
   text-align: center;
+}
+
+.product-purchase {
+  flex: 0.8;
+  color: #4CAF50;
+  font-weight: 500;
+  text-align: center;
+}
+
+.product-count-control {
+  flex: 1.2;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.count-decrease,
+.count-increase,
+.product-count {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.count-decrease,
+.count-increase {
+  width: 40rpx;
+  height: 40rpx;
+  background-color: #f5f5f5;
+  border-radius: 50%;
+  font-size: 24rpx;
+  font-weight: bold;
+  transition: all 0.3s;
+}
+
+.count-decrease:active,
+.count-increase:active {
+  transform: scale(0.9);
+  opacity: 0.8;
 }
 
 .product-count {
-  flex: 1;
-  text-align: center;
-  color: #409eff;
+  margin: 0 20rpx;
+  color: #ff6b6b;
+  font-weight: 500;
+  min-width: 60rpx;
+}
+
+.product-action {
+  flex: 0.5;
+  display: flex;
+  justify-content: center;
+}
+
+.product-delete {
+  width: 40rpx;
+  height: 40rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #ff6b6b;
+  font-size: 32rpx;
+  font-weight: bold;
+  transition: all 0.3s;
+}
+
+.product-delete:active {
+  transform: scale(0.9);
+  opacity: 0.8;
+}
+
+.delete-icon {
+  font-size: 28rpx;
+  line-height: 28rpx;
 }
 
 /* 空提示 */
@@ -1853,4 +1951,9 @@ ec-canvas {
 .trend-date {
   font-size: 20rpx;
   color: #999;
+}
+
+.delete-icon {
+  font-size: 28rpx;
+  line-height: 28rpx;
 } 

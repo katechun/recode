@@ -5,9 +5,11 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"math/rand"
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"account/backend/database"
@@ -517,12 +519,14 @@ func GetProductUsage(w http.ResponseWriter, r *http.Request) {
 func AddProductUsage(w http.ResponseWriter, r *http.Request) {
 	// 解析请求体
 	var requestData struct {
-		UserID     int     `json:"user_id"`
-		CustomerID int     `json:"customer_id"`
-		ProductID  int     `json:"product_id"`
-		UsageDate  string  `json:"usage_date"`
-		Quantity   float64 `json:"quantity"`
-		Notes      string  `json:"notes"`
+		UserID        int     `json:"user_id"`
+		CustomerID    int     `json:"customer_id"`
+		ProductID     int     `json:"product_id"`
+		ProductName   string  `json:"product_name"`
+		Quantity      float64 `json:"quantity"`
+		UsageDate     string  `json:"usage_date"`
+		UpdateDate    string  `json:"update_date"`
+		PurchaseCount int     `json:"purchase_count"`
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&requestData)
@@ -548,15 +552,39 @@ func AddProductUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if requestData.Quantity <= 0 {
-		SendResponse(w, http.StatusBadRequest, 400, "无效的使用数量", nil)
+	if requestData.ProductName == "" {
+		SendResponse(w, http.StatusBadRequest, 400, "产品名称不能为空", nil)
 		return
 	}
 
-	_, err = time.Parse("2006-01-02", requestData.UsageDate)
-	if err != nil {
-		SendResponse(w, http.StatusBadRequest, 400, "无效的日期格式，应为YYYY-MM-DD", nil)
+	if requestData.Quantity < 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的剩余次数", nil)
 		return
+	}
+
+	if requestData.UsageDate != "" {
+		_, err = time.Parse("2006-01-02", requestData.UsageDate)
+		if err != nil {
+			SendResponse(w, http.StatusBadRequest, 400, "无效的日期格式，应为YYYY-MM-DD", nil)
+			return
+		}
+	} else {
+		// 使用当前日期
+		now := time.Now()
+		requestData.UsageDate = now.Format("2006-01-02")
+	}
+
+	// 验证更新日期格式
+	if requestData.UpdateDate != "" {
+		_, err = time.Parse("2006-01-02", requestData.UpdateDate)
+		if err != nil {
+			SendResponse(w, http.StatusBadRequest, 400, "无效的更新日期格式，应为YYYY-MM-DD", nil)
+			return
+		}
+	} else {
+		// 使用当前日期作为更新日期
+		now := time.Now()
+		requestData.UpdateDate = now.Format("2006-01-02")
 	}
 
 	// 检查用户是否有权限访问该客户
@@ -567,49 +595,214 @@ func AddProductUsage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 添加产品使用记录
-	usage := &models.ProductUsage{
-		CustomerID: requestData.CustomerID,
-		ProductID:  requestData.ProductID,
-		UsageDate:  requestData.UsageDate,
-		Quantity:   requestData.Quantity,
-		Notes:      requestData.Notes,
-		CreatedAt:  time.Now(),
+	// 添加产品使用记录（添加重试逻辑）
+	insertQuery := `INSERT INTO product_usages (customer_id, product_id, product_name, quantity, usage_date, update_date, purchase_count, created_at) 
+		VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'))`
+
+	// 重试次数和延迟设置
+	maxRetries := 3
+	retryDelay := 100 * time.Millisecond
+
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		_, err = database.DB.Exec(insertQuery, requestData.CustomerID, requestData.ProductID, requestData.ProductName,
+			requestData.Quantity, requestData.UsageDate, requestData.UpdateDate, requestData.PurchaseCount)
+
+		if err == nil {
+			// 添加成功
+			break
+		}
+
+		lastErr = err
+
+		// 检查是否是数据库锁定错误
+		if strings.Contains(err.Error(), "database is locked") ||
+			strings.Contains(err.Error(), "SQLITE_BUSY") {
+			log.Printf("数据库锁定，重试添加产品使用记录 (尝试 %d/%d): %v", i+1, maxRetries, err)
+
+			// 增加随机延迟，避免多个客户端同时重试造成持续冲突
+			jitter := time.Duration(rand.Intn(50)) * time.Millisecond
+			time.Sleep(retryDelay + jitter)
+
+			// 指数退避
+			retryDelay *= 2
+			continue
+		}
+
+		// 如果不是数据库锁定错误，直接退出重试循环
+		break
 	}
 
-	// 检查客户ID是否存在
-	customerExists := false
-	err = database.DB.QueryRow("SELECT COUNT(*) > 0 FROM customers WHERE id = ?", usage.CustomerID).Scan(&customerExists)
-	if err != nil {
-		log.Printf("检查客户ID失败: %v", err)
-	} else if !customerExists {
-		log.Printf("错误: 客户ID %d 不存在", usage.CustomerID)
-		SendResponse(w, http.StatusBadRequest, 400, fmt.Sprintf("客户ID %d 不存在", usage.CustomerID), nil)
-		return
-	}
-
-	// 检查产品ID是否存在
-	productExists := false
-	err = database.DB.QueryRow("SELECT COUNT(*) > 0 FROM products WHERE id = ?", usage.ProductID).Scan(&productExists)
-	if err != nil {
-		log.Printf("检查产品ID失败: %v", err)
-	} else if !productExists {
-		log.Printf("错误: 产品ID %d 不存在", usage.ProductID)
-		SendResponse(w, http.StatusBadRequest, 400, fmt.Sprintf("产品ID %d 不存在", usage.ProductID), nil)
-		return
-	}
-
-	usageID, err := database.AddProductUsage(usage)
-	if err != nil {
-		log.Printf("添加产品使用记录失败: %v", err)
-		SendResponse(w, http.StatusInternalServerError, 500, fmt.Sprintf("添加产品使用记录失败: %v", err), nil)
+	if lastErr != nil {
+		log.Printf("添加产品使用记录失败: %v", lastErr)
+		SendResponse(w, http.StatusInternalServerError, 500, "添加产品使用记录失败，请稍后重试", nil)
 		return
 	}
 
 	// 返回响应
-	SendResponse(w, http.StatusOK, 200, "添加产品使用记录成功", map[string]interface{}{
-		"usage_id": usageID,
-	})
+	SendResponse(w, http.StatusOK, 200, "添加产品使用记录成功", nil)
+}
+
+// UpdateProductUsage 更新产品使用记录接口
+func UpdateProductUsage(w http.ResponseWriter, r *http.Request) {
+	// 解析请求体
+	var requestData struct {
+		UserID        int     `json:"user_id"`
+		CustomerID    int     `json:"customer_id"`
+		ProductID     int     `json:"product_id"`
+		UsageID       int     `json:"usage_id"` // 添加记录ID
+		Quantity      float64 `json:"quantity"`
+		UsageDate     string  `json:"usage_date"`
+		UpdateDate    string  `json:"update_date"`
+		PurchaseCount int     `json:"purchase_count"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		log.Printf("解析请求体失败: %v", err)
+		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
+		return
+	}
+
+	// 校验数据
+	if requestData.UserID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+
+	if requestData.CustomerID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的客户ID", nil)
+		return
+	}
+
+	// 如果提供了UsageID，则使用它，否则使用客户ID和产品ID的组合
+	if requestData.UsageID <= 0 && requestData.ProductID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "必须提供产品ID或使用记录ID", nil)
+		return
+	}
+
+	if requestData.Quantity < 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的剩余次数", nil)
+		return
+	}
+
+	if requestData.UsageDate != "" {
+		_, err = time.Parse("2006-01-02", requestData.UsageDate)
+		if err != nil {
+			SendResponse(w, http.StatusBadRequest, 400, "无效的日期格式，应为YYYY-MM-DD", nil)
+			return
+		}
+	} else {
+		// 使用当前日期
+		now := time.Now()
+		requestData.UsageDate = now.Format("2006-01-02")
+	}
+
+	// 验证更新日期格式
+	if requestData.UpdateDate != "" {
+		_, err = time.Parse("2006-01-02", requestData.UpdateDate)
+		if err != nil {
+			SendResponse(w, http.StatusBadRequest, 400, "无效的更新日期格式，应为YYYY-MM-DD", nil)
+			return
+		}
+	} else {
+		// 使用当前日期作为更新日期
+		now := time.Now()
+		requestData.UpdateDate = now.Format("2006-01-02")
+	}
+
+	// 检查用户是否有权限访问该客户
+	_, err = database.GetCustomerByID(requestData.UserID, requestData.CustomerID)
+	if err != nil {
+		log.Printf("获取客户信息失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, fmt.Sprintf("获取客户信息失败: %v", err), nil)
+		return
+	}
+
+	// 构建更新查询
+	var updateQuery string
+	var queryArgs []interface{}
+
+	if requestData.UsageID > 0 {
+		// 使用记录ID更新特定记录
+		updateQuery = `UPDATE product_usages SET quantity = ?, usage_date = ?, update_date = ? WHERE id = ? AND customer_id = ?`
+		queryArgs = []interface{}{
+			requestData.Quantity,
+			requestData.UsageDate,
+			requestData.UpdateDate,
+			requestData.UsageID,
+			requestData.CustomerID,
+		}
+	} else {
+		// 使用客户ID和产品ID组合
+		// 检查产品使用记录是否存在
+		exists := false
+		err = database.DB.QueryRow("SELECT COUNT(*) > 0 FROM product_usages WHERE customer_id = ? AND product_id = ?",
+			requestData.CustomerID, requestData.ProductID).Scan(&exists)
+
+		if err != nil {
+			log.Printf("检查产品使用记录失败: %v", err)
+			SendResponse(w, http.StatusInternalServerError, 500, "检查产品使用记录失败", nil)
+			return
+		}
+
+		if !exists {
+			log.Printf("产品使用记录不存在: 客户ID=%d, 产品ID=%d", requestData.CustomerID, requestData.ProductID)
+			SendResponse(w, http.StatusBadRequest, 400, "产品使用记录不存在", nil)
+			return
+		}
+
+		updateQuery = `UPDATE product_usages SET quantity = ?, usage_date = ?, update_date = ? WHERE customer_id = ? AND product_id = ?`
+		queryArgs = []interface{}{
+			requestData.Quantity,
+			requestData.UsageDate,
+			requestData.UpdateDate,
+			requestData.CustomerID,
+			requestData.ProductID,
+		}
+	}
+
+	// 重试次数和延迟设置
+	maxRetries := 3
+	retryDelay := 100 * time.Millisecond
+
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		_, err = database.DB.Exec(updateQuery, queryArgs...)
+
+		if err == nil {
+			// 更新成功
+			break
+		}
+
+		lastErr = err
+
+		// 检查是否是数据库锁定错误
+		if strings.Contains(err.Error(), "database is locked") ||
+			strings.Contains(err.Error(), "SQLITE_BUSY") {
+			log.Printf("数据库锁定，重试更新产品使用记录 (尝试 %d/%d): %v", i+1, maxRetries, err)
+
+			// 增加随机延迟，避免多个客户端同时重试造成持续冲突
+			jitter := time.Duration(rand.Intn(50)) * time.Millisecond
+			time.Sleep(retryDelay + jitter)
+
+			// 指数退避
+			retryDelay *= 2
+			continue
+		}
+
+		// 如果不是数据库锁定错误，直接退出重试循环
+		break
+	}
+
+	if lastErr != nil {
+		log.Printf("更新产品使用记录失败: %v", lastErr)
+		SendResponse(w, http.StatusInternalServerError, 500, "更新产品使用记录失败，请稍后重试", nil)
+		return
+	}
+
+	// 返回响应
+	SendResponse(w, http.StatusOK, 200, "更新产品使用记录成功", nil)
 }
 
 // GetProducts 获取产品列表接口
@@ -841,4 +1034,91 @@ func DeleteWeightRecord(w http.ResponseWriter, r *http.Request) {
 
 	// 返回响应
 	SendResponse(w, http.StatusOK, 200, "删除体重记录成功", nil)
+}
+
+// DeleteProductUsage 删除产品使用记录接口
+func DeleteProductUsage(w http.ResponseWriter, r *http.Request) {
+	// 解析请求体
+	var requestData struct {
+		UserID  int `json:"user_id"`
+		UsageID int `json:"usage_id"`
+	}
+
+	err := json.NewDecoder(r.Body).Decode(&requestData)
+	if err != nil {
+		log.Printf("解析请求体失败: %v", err)
+		SendResponse(w, http.StatusBadRequest, 400, "无效的请求数据", nil)
+		return
+	}
+
+	// 校验数据
+	if requestData.UserID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的用户ID", nil)
+		return
+	}
+
+	if requestData.UsageID <= 0 {
+		SendResponse(w, http.StatusBadRequest, 400, "无效的记录ID", nil)
+		return
+	}
+
+	// 获取产品使用记录
+	var customerID int
+	err = database.DB.QueryRow("SELECT customer_id FROM product_usages WHERE id = ?", requestData.UsageID).Scan(&customerID)
+	if err != nil {
+		log.Printf("获取产品使用记录失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, "获取产品使用记录失败", nil)
+		return
+	}
+
+	// 检查用户是否有权限访问该客户
+	_, err = database.GetCustomerByID(requestData.UserID, customerID)
+	if err != nil {
+		log.Printf("获取客户信息失败: %v", err)
+		SendResponse(w, http.StatusInternalServerError, 500, fmt.Sprintf("获取客户信息失败: %v", err), nil)
+		return
+	}
+
+	// 删除产品使用记录（添加重试逻辑）
+	// 重试次数和延迟设置
+	maxRetries := 3
+	retryDelay := 100 * time.Millisecond
+
+	var lastErr error
+	for i := 0; i < maxRetries; i++ {
+		_, err = database.DB.Exec("DELETE FROM product_usages WHERE id = ?", requestData.UsageID)
+
+		if err == nil {
+			// 删除成功
+			break
+		}
+
+		lastErr = err
+
+		// 检查是否是数据库锁定错误
+		if strings.Contains(err.Error(), "database is locked") ||
+			strings.Contains(err.Error(), "SQLITE_BUSY") {
+			log.Printf("数据库锁定，重试删除产品使用记录 (尝试 %d/%d): %v", i+1, maxRetries, err)
+
+			// 增加随机延迟，避免多个客户端同时重试造成持续冲突
+			jitter := time.Duration(rand.Intn(50)) * time.Millisecond
+			time.Sleep(retryDelay + jitter)
+
+			// 指数退避
+			retryDelay *= 2
+			continue
+		}
+
+		// 如果不是数据库锁定错误，直接退出重试循环
+		break
+	}
+
+	if lastErr != nil {
+		log.Printf("删除产品使用记录失败: %v", lastErr)
+		SendResponse(w, http.StatusInternalServerError, 500, "删除产品使用记录失败，请稍后重试", nil)
+		return
+	}
+
+	// 返回响应
+	SendResponse(w, http.StatusOK, 200, "删除产品使用记录成功", nil)
 }

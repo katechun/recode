@@ -20,7 +20,7 @@ Page({
     }
   },
 
-  onLoad: function() {
+  onLoad: function () {
     // 确保API基础URL已设置
     console.log('当前API基础URL:', API_BASE_URL);
     // 检查用户是否已登录
@@ -41,19 +41,19 @@ Page({
     this.loadProducts();
   },
 
-  onShow: function() {
+  onShow: function () {
     this.loadProducts();
   },
 
   // 下拉刷新
-  onPullDownRefresh: function() {
+  onPullDownRefresh: function () {
     this.loadProducts(() => {
       wx.stopPullDownRefresh();
     });
   },
 
   // 加载店铺列表
-  loadStoreList: function() {
+  loadStoreList: function () {
     const userInfo = wx.getStorageSync('userInfo');
     if (!userInfo || !userInfo.id) {
       wx.showToast({
@@ -62,12 +62,12 @@ Page({
       });
       return;
     }
-    
+
     wx.showLoading({
       title: '加载中...',
       mask: true
     });
-    
+
     wx.request({
       url: `${API_BASE_URL}/api/stores`,
       method: 'GET',
@@ -105,7 +105,7 @@ Page({
   },
 
   // 加载产品列表
-  loadProducts: function(callback) {
+  loadProducts: function (callback) {
     const userInfo = wx.getStorageSync('userInfo');
     if (!userInfo || !userInfo.id) {
       wx.showToast({
@@ -116,7 +116,7 @@ Page({
     }
 
     this.setData({ loading: true });
-    
+
     wx.request({
       url: `${API_BASE_URL}/api/products/list`,
       method: 'GET',
@@ -127,7 +127,7 @@ Page({
       },
       success: (res) => {
         if (res.statusCode === 200 && res.data && res.data.code === 200) {
-          this.setData({ 
+          this.setData({
             products: res.data.data || [],
             loading: false
           });
@@ -156,7 +156,7 @@ Page({
   },
 
   // 显示添加产品弹窗
-  showAddModal: function() {
+  showAddModal: function () {
     // 重置表单状态
     this.setData({
       showModal: true,
@@ -171,42 +171,42 @@ Page({
   },
 
   // 隐藏弹窗
-  hideModal: function() {
+  hideModal: function () {
     this.setData({
       showModal: false
     });
   },
 
   // 表单输入处理函数
-  inputName: function(e) {
+  inputName: function (e) {
     this.setData({
       'productForm.name': e.detail.value
     });
   },
 
-  inputDescription: function(e) {
+  inputDescription: function (e) {
     this.setData({
       'productForm.description': e.detail.value
     });
   },
 
-  inputPrice: function(e) {
+  inputPrice: function (e) {
     this.setData({
       'productForm.price': e.detail.value
     });
   },
 
-  inputStock: function(e) {
+  inputStock: function (e) {
     this.setData({
       'productForm.stock': e.detail.value
     });
   },
 
   // 选择店铺
-  changeStore: function(e) {
+  changeStore: function (e) {
     const index = e.detail.value;
     const storeId = this.data.storeList[index].id;
-    
+
     this.setData({
       selectedStoreId: storeId,
       'productForm.store_id': storeId
@@ -214,7 +214,7 @@ Page({
   },
 
   // 添加产品
-  handleAddProduct: function() {
+  handleAddProduct: function () {
     const userInfo = wx.getStorageSync('userInfo');
     if (!userInfo || !userInfo.id) {
       wx.showToast({
@@ -225,7 +225,7 @@ Page({
     }
 
     const { name, price, stock, store_id } = this.data.productForm;
-    
+
     // 表单验证
     if (!name.trim()) {
       wx.showToast({
@@ -234,7 +234,7 @@ Page({
       });
       return;
     }
-    
+
     if (!price.trim() || isNaN(Number(price)) || Number(price) <= 0) {
       wx.showToast({
         title: '请输入有效的价格',
@@ -242,7 +242,7 @@ Page({
       });
       return;
     }
-    
+
     if (!stock.trim() || isNaN(Number(stock)) || Number(stock) < 0) {
       wx.showToast({
         title: '请输入有效的库存数量',
@@ -258,17 +258,17 @@ Page({
       });
       return;
     }
-    
+
     wx.showLoading({
       title: '添加中...',
       mask: true
     });
-    
+
     wx.request({
       url: `${API_BASE_URL}/api/products/add`,
       method: 'POST',
       data: {
-        user_id: userInfo.id,
+        user_id: Number(userInfo.id),
         name: name,
         description: this.data.productForm.description,
         price: Number(price),
@@ -308,9 +308,9 @@ Page({
   },
 
   // 删除产品
-  handleDelete: function(e) {
+  handleDelete: function (e) {
     const productId = e.currentTarget.dataset.id;
-    
+
     wx.showModal({
       title: '确认删除',
       content: '确定要删除此产品吗？此操作不可恢复。',
@@ -323,7 +323,7 @@ Page({
   },
 
   // 执行删除产品操作
-  deleteProduct: function(productId) {
+  deleteProduct: function (productId) {
     const userInfo = wx.getStorageSync('userInfo');
     if (!userInfo || !userInfo.id) {
       wx.showToast({
@@ -332,12 +332,12 @@ Page({
       });
       return;
     }
-    
+
     wx.showLoading({
       title: '删除中...',
       mask: true
     });
-    
+
     wx.request({
       url: `${API_BASE_URL}/api/products/delete`,
       method: 'POST',

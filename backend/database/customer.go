@@ -380,31 +380,19 @@ func AddWeightRecord(record *models.WeightRecord) (int, error) {
 
 // GetProductUsages 获取客户的产品使用记录
 func GetProductUsages(customerID int, page int, pageSize int) (map[string]interface{}, error) {
-	// 计算偏移量
-	offset := (page - 1) * pageSize
-
-	// 获取总数
-	var totalCount int
-	err := DB.QueryRow(`
-		SELECT COUNT(*) 
-		FROM product_usages 
-		WHERE customer_id = ?
-	`, customerID).Scan(&totalCount)
-
-	if err != nil {
-		return nil, fmt.Errorf("获取产品使用记录总数失败: %v", err)
-	}
-
-	// 查询产品使用记录
+	// 查询所有产品使用记录，不再按产品ID分组
 	rows, err := DB.Query(`
-		SELECT pu.id, pu.customer_id, pu.product_id, p.name as product_name, 
-		pu.usage_date, pu.quantity, pu.notes, pu.created_at
+		SELECT pu.id, p.id as product_id, COALESCE(pu.product_name, p.name) as product_name, 
+		pu.usage_date, 
+		pu.update_date,
+		pu.quantity,
+		COALESCE(pu.purchase_count, 1) as purchase_count
 		FROM product_usages pu
 		LEFT JOIN products p ON pu.product_id = p.id
 		WHERE pu.customer_id = ?
-		ORDER BY pu.usage_date DESC, pu.created_at DESC
+		ORDER BY pu.usage_date DESC, pu.id DESC
 		LIMIT ? OFFSET ?
-	`, customerID, pageSize, offset)
+	`, customerID, pageSize, (page-1)*pageSize)
 
 	if err != nil {
 		return nil, fmt.Errorf("查询产品使用记录失败: %v", err)
@@ -413,34 +401,31 @@ func GetProductUsages(customerID int, page int, pageSize int) (map[string]interf
 
 	var usages []map[string]interface{}
 	for rows.Next() {
-		var id, customerId, productId int
-		var productName, usageDate, notes string
+		var id, productId, purchaseCount int
+		var productName, usageDate, updateDate string
 		var quantity float64
-		var createdAt time.Time
 
 		err := rows.Scan(
 			&id,
-			&customerId,
 			&productId,
 			&productName,
 			&usageDate,
+			&updateDate,
 			&quantity,
-			&notes,
-			&createdAt,
+			&purchaseCount,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描产品使用记录失败: %v", err)
 		}
 
 		usage := map[string]interface{}{
-			"id":           id,
-			"customer_id":  customerId,
-			"product_id":   productId,
-			"product_name": productName,
-			"usage_date":   usageDate,
-			"quantity":     quantity,
-			"notes":        notes,
-			"created_at":   createdAt.Format("2006-01-02 15:04:05"),
+			"id":             id,
+			"product_id":     productId,
+			"product_name":   productName,
+			"usage_date":     usageDate,
+			"update_date":    updateDate,
+			"quantity":       quantity,
+			"purchase_count": purchaseCount,
 		}
 
 		usages = append(usages, usage)
@@ -448,6 +433,18 @@ func GetProductUsages(customerID int, page int, pageSize int) (map[string]interf
 
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("遍历产品使用记录结果集失败: %v", err)
+	}
+
+	// 获取总数
+	var totalCount int
+	err = DB.QueryRow(`
+		SELECT COUNT(*) 
+		FROM product_usages 
+		WHERE customer_id = ?
+	`, customerID).Scan(&totalCount)
+
+	if err != nil {
+		return nil, fmt.Errorf("获取产品使用记录总数失败: %v", err)
 	}
 
 	// 构建返回结果
@@ -465,13 +462,16 @@ func GetProductUsages(customerID int, page int, pageSize int) (map[string]interf
 // AddProductUsage 添加产品使用记录
 func AddProductUsage(usage *models.ProductUsage) (int, error) {
 	result, err := DB.Exec(`
-		INSERT INTO product_usages (customer_id, product_id, usage_date, quantity, notes, created_at)
-		VALUES (?, ?, ?, ?, ?, ?)
+		INSERT INTO product_usages (customer_id, product_id, product_name, usage_date, update_date, quantity, purchase_count, notes, created_at)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		usage.CustomerID,
 		usage.ProductID,
+		usage.ProductName,
 		usage.UsageDate,
+		usage.UpdateDate,
 		usage.Quantity,
+		usage.PurchaseCount,
 		usage.Notes,
 		usage.CreatedAt,
 	)

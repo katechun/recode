@@ -75,6 +75,8 @@ const config = {
       deleteWeightRecord: '/api/customers/delete-weight-record', // 删除体重记录
       productUsage: '/api/customers/product-usage', // 产品使用记录
       addProductUsage: '/api/customers/add-product-usage', // 添加产品使用记录
+      updateProductUsage: '/api/customers/update-product-usage', // 更新产品使用记录
+      deleteProductUsage: '/api/customers/delete-product-usage', // 删除产品使用记录
       records: '/api/customers/records',
       exportReport: '/api/customers/export-report',
       products: '/api/customer/products'

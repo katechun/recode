@@ -32,14 +32,16 @@ type WeightRecord struct {
 
 // ProductUsage 产品使用记录
 type ProductUsage struct {
-	ID          int       `json:"id" db:"id"`
-	CustomerID  int       `json:"customer_id" db:"customer_id"`   // 客户ID
-	ProductID   int       `json:"product_id" db:"product_id"`     // 产品ID
-	ProductName string    `json:"product_name" db:"product_name"` // 产品名称
-	UsageDate   string    `json:"usage_date" db:"usage_date"`     // 使用日期
-	Quantity    float64   `json:"quantity" db:"quantity"`         // 使用数量
-	Notes       string    `json:"notes" db:"notes"`               // 备注信息
-	CreatedAt   time.Time `json:"created_at" db:"created_at"`     // 创建时间
+	ID            int       `json:"id" db:"id"`
+	CustomerID    int       `json:"customer_id" db:"customer_id"`       // 客户ID
+	ProductID     int       `json:"product_id" db:"product_id"`         // 产品ID
+	ProductName   string    `json:"product_name" db:"product_name"`     // 产品名称
+	UsageDate     string    `json:"usage_date" db:"usage_date"`         // 使用日期
+	UpdateDate    string    `json:"update_date" db:"update_date"`       // 更新日期
+	Quantity      float64   `json:"quantity" db:"quantity"`             // 使用数量
+	PurchaseCount int       `json:"purchase_count" db:"purchase_count"` // 购买次数
+	Notes         string    `json:"notes" db:"notes"`                   // 备注信息
+	CreatedAt     time.Time `json:"created_at" db:"created_at"`         // 创建时间
 }
 
 // Product 产品模型

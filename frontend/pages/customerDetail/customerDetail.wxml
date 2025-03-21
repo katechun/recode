@@ -269,20 +269,34 @@
     <view class="content-section" wx:if="{{activeTab === 'product'}}">
       <view class="product-list">
         <view class="product-header">
-          <text class="product-name-header">产品名称</text>
-          <text class="product-date-header">使用日期</text>
-          <text class="product-count-header">剩余次数</text>
+          <text class="product-name-header">名称</text>
+          <text class="product-date-header">首购</text>
+          <text class="product-update-header">更新</text>
+          <text class="product-purchase-header">次数</text>
+          <text class="product-count-header">剩余</text>
+          <text class="product-action-header"></text>
         </view>
         
-        <block wx:if="{{productUsageList.length > 0}}">
+        <block wx:if="{{productUsageList && productUsageList.length > 0}}">
           <view class="product-item" wx:for="{{productUsageList}}" wx:key="id">
-            <text class="product-name">{{item.product_name}}</text>
-            <text class="product-date">{{item.usage_date}}</text>
-            <text class="product-count">{{item.remaining_count || 0}}次</text>
+            <text class="product-name">{{item.product_name || '未知产品'}}</text>
+            <text class="product-date">{{item.usage_date || '未知日期'}}</text>
+            <text class="product-update">{{item.update_date || '-'}}</text>
+            <text class="product-purchase">{{item.purchase_count || 1}}次</text>
+            <view class="product-count-control">
+              <view class="count-decrease" data-index="{{index}}" bindtap="decreaseProductCount">-</view>
+              <text class="product-count">{{item.quantity || 0}}次</text>
+              <view class="count-increase" data-index="{{index}}" bindtap="increaseProductCount">+</view>
+            </view>
+            <view class="product-action">
+              <view class="product-delete" data-id="{{item.id}}" data-index="{{index}}" bindtap="deleteProductUsage">
+                <text class="delete-icon">×</text>
+              </view>
+            </view>
           </view>
         </block>
         <view wx:else class="empty-tip">
-          <text>暂无产品使用记录</text>
+          <text>{{isLoading ? '加载中...' : '暂无产品使用记录'}}</text>
         </view>
       </view>
       
@@ -538,7 +552,7 @@
   <view class="modal-mask" wx:if="{{showProductModal}}" bindtap="closeProductModal">
     <view class="modal-content product-usage-modal" catchtap="stopPropagation">
       <view class="modal-header">
-        <text class="modal-title">记录产品使用</text>
+        <text class="modal-title">{{modalTitle || '记录产品购买'}}</text>
         <view class="modal-close" bindtap="closeProductModal">×</view>
       </view>
       
@@ -565,11 +579,11 @@
           </picker>
         </view>
         
-        <!-- 剩余次数输入 -->
+        <!-- 使用次数输入 -->
         <view class="form-item">
           <text class="form-label">剩余次数</text>
-          <input class="form-input" type="number" value="{{remainingCount}}" 
-                 placeholder="请输入剩余次数" bindinput="onRemainingCountInput" />
+          <input class="form-input" type="number" value="{{quantity}}" 
+                 placeholder="请输入剩余次数" bindinput="onQuantityInput" />
         </view>
       </view>
       

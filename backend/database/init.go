@@ -298,17 +298,142 @@ func CreateTables() error {
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
 		customer_id INTEGER NOT NULL,
 		product_id INTEGER NOT NULL,
+		product_name TEXT,
 		usage_date TEXT NOT NULL,
-		quantity REAL DEFAULT 1,
+		update_date TEXT,
+		quantity REAL NOT NULL,
+		purchase_count INTEGER DEFAULT 1,
 		notes TEXT,
-		created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+		created_at TIMESTAMP NOT NULL,
 		FOREIGN KEY (customer_id) REFERENCES customers(id),
 		FOREIGN KEY (product_id) REFERENCES products(id)
 	)
 	`)
 
 	if err != nil {
-		return fmt.Errorf("创建产品使用记录表失败: %w", err)
+		log.Printf("创建产品使用记录表失败: %v", err)
+	}
+
+	// 检查并添加update_date列
+	// 首先检查update_date列是否存在
+	var updateDateColumnExists bool
+	err = DB.QueryRow(`
+		SELECT COUNT(*) > 0 
+		FROM pragma_table_info('product_usages') 
+		WHERE name = 'update_date'
+	`).Scan(&updateDateColumnExists)
+
+	if err != nil {
+		log.Printf("检查update_date列是否存在失败: %v", err)
+	} else if !updateDateColumnExists {
+		// 列不存在时才添加
+		_, err = DB.Exec(`
+		PRAGMA foreign_keys=off;
+		BEGIN TRANSACTION;
+			
+		-- 添加update_date列
+		ALTER TABLE product_usages ADD COLUMN update_date TEXT;
+		
+		-- 更新现有记录的update_date
+		UPDATE product_usages 
+		SET update_date = usage_date 
+		WHERE update_date IS NULL OR update_date = '';
+			
+		COMMIT;
+		PRAGMA foreign_keys=on;
+		`)
+
+		if err != nil {
+			log.Printf("添加update_date列失败: %v", err)
+		} else {
+			log.Println("成功添加update_date列并更新现有数据")
+		}
+	} else {
+		// 列已存在，只更新空值
+		_, err = DB.Exec(`
+		UPDATE product_usages 
+		SET update_date = usage_date 
+		WHERE update_date IS NULL OR update_date = ''
+		`)
+
+		if err != nil {
+			// 数据库锁定错误(SQLITE_BUSY)是常见的，可以忽略
+			// 这通常意味着另一个连接正在使用数据库
+			if strings.Contains(err.Error(), "database is locked") ||
+				strings.Contains(err.Error(), "SQLITE_BUSY") {
+				log.Println("数据库锁定，跳过更新空的update_date值，稍后会自动重试")
+			} else {
+				log.Printf("更新空的update_date值失败: %v", err)
+			}
+		}
+	}
+
+	// 检查product_name列是否存在
+	var productNameColumnExists bool
+	err = DB.QueryRow(`
+		SELECT COUNT(*) > 0 
+		FROM pragma_table_info('product_usages') 
+		WHERE name = 'product_name'
+	`).Scan(&productNameColumnExists)
+
+	if err != nil {
+		log.Printf("检查product_name列是否存在失败: %v", err)
+	} else if !productNameColumnExists {
+		// 列不存在时才添加
+		_, err = DB.Exec(`
+		PRAGMA foreign_keys=off;
+		BEGIN TRANSACTION;
+			
+		-- 添加product_name列
+		ALTER TABLE product_usages ADD COLUMN product_name TEXT;
+		
+		-- 尝试从products表获取产品名称更新product_usages表
+		UPDATE product_usages 
+		SET product_name = (
+			SELECT name FROM products 
+			WHERE products.id = product_usages.product_id
+		)
+		WHERE product_name IS NULL;
+			
+		COMMIT;
+		PRAGMA foreign_keys=on;
+		`)
+
+		if err != nil {
+			log.Printf("添加product_name列失败: %v", err)
+		} else {
+			log.Println("成功添加product_name列并尝试更新现有数据")
+		}
+	}
+
+	// 检查purchase_count列是否存在
+	var purchaseCountColumnExists bool
+	err = DB.QueryRow(`
+		SELECT COUNT(*) > 0 
+		FROM pragma_table_info('product_usages') 
+		WHERE name = 'purchase_count'
+	`).Scan(&purchaseCountColumnExists)
+
+	if err != nil {
+		log.Printf("检查purchase_count列是否存在失败: %v", err)
+	} else if !purchaseCountColumnExists {
+		// 列不存在时才添加
+		_, err = DB.Exec(`
+		PRAGMA foreign_keys=off;
+		BEGIN TRANSACTION;
+			
+		-- 添加purchase_count列，默认值为1
+		ALTER TABLE product_usages ADD COLUMN purchase_count INTEGER DEFAULT 1;
+			
+		COMMIT;
+		PRAGMA foreign_keys=on;
+		`)
+
+		if err != nil {
+			log.Printf("添加purchase_count列失败: %v", err)
+		} else {
+			log.Println("成功添加purchase_count列并设置默认值为1")
+		}
 	}
 
 	// 检查accounts表中是否存在user_id列

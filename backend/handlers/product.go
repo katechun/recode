@@ -83,30 +83,43 @@ func GetProductList(w http.ResponseWriter, r *http.Request) {
 func AddProduct(w http.ResponseWriter, r *http.Request) {
 	// 解析请求体
 	var productReq struct {
-		UserID      string  `json:"user_id"`
-		Name        string  `json:"name"`
-		Description string  `json:"description"`
-		Price       float64 `json:"price"`
-		Stock       int     `json:"stock"`
-		StoreID     int     `json:"store_id"`
+		UserID      interface{} `json:"user_id"`
+		Name        string      `json:"name"`
+		Description string      `json:"description"`
+		Price       float64     `json:"price"`
+		Stock       int         `json:"stock"`
+		StoreID     int         `json:"store_id"`
 	}
 
 	err := json.NewDecoder(r.Body).Decode(&productReq)
 	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid request payload")
+		log.Printf("解析JSON错误: %v\n", err)
+		utils.RespondWithError(w, http.StatusBadRequest, "无效的请求数据")
 		return
 	}
 
 	// 验证必填字段
-	if productReq.UserID == "" || productReq.Name == "" || productReq.Price <= 0 {
-		utils.RespondWithError(w, http.StatusBadRequest, "Missing required fields")
+	if productReq.UserID == nil || productReq.Name == "" || productReq.Price <= 0 {
+		utils.RespondWithError(w, http.StatusBadRequest, "缺少必要的字段")
 		return
 	}
 
 	// 获取用户ID
-	userID, err := strconv.Atoi(productReq.UserID)
-	if err != nil {
-		utils.RespondWithError(w, http.StatusBadRequest, "Invalid user ID")
+	var userID int
+	switch v := productReq.UserID.(type) {
+	case float64:
+		userID = int(v)
+	case int:
+		userID = v
+	case string:
+		var err error
+		userID, err = strconv.Atoi(v)
+		if err != nil {
+			utils.RespondWithError(w, http.StatusBadRequest, "无效的用户ID")
+			return
+		}
+	default:
+		utils.RespondWithError(w, http.StatusBadRequest, "无效的用户ID类型")
 		return
 	}
 

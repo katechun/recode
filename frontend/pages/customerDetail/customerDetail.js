@@ -116,7 +116,7 @@ Page({
         showProductModal: false,
         productDate: '',
         productName: '',
-        remainingCount: '',
+        quantity: '',
         productList: [],
         showMemberInfo: false,
         membershipId: '',
@@ -166,6 +166,12 @@ Page({
 
             // 加载客户详情
             this.loadCustomerDetail();
+
+            // 计算今日掉秤量和代谢量
+            this.calculateTodayWeightMetrics();
+
+            // 主动加载产品使用记录
+            this.loadProductUsages();
         } else {
             wx.showToast({
                 title: '客户ID不存在',
@@ -265,7 +271,7 @@ Page({
                     if (customerDetail.height && customerDetail.current_weight && customerDetail.age && customerDetail.gender) {
                         this.calculateBodyFatPercentage(customerDetail);
                     }
-                    
+
                     // 客户详情加载成功后，主动加载体重记录和产品使用记录
                     this.loadWeightRecords();
                     this.loadProductUsages();
@@ -418,10 +424,10 @@ Page({
                     if (records.length === 0 && this.data.customer) {
                         console.log('无记录，尝试创建初始记录');
                         const { initial_weight, current_weight } = this.data.customer;
-                        
+
                         // 修改这里：确保即使initial_weight为空也能添加一条当前体重记录
                         const initialWeight = initial_weight || current_weight || 0;
-                        
+
                         // 为了图表显示，增加两个点：初始体重和当前体重
                         const initialDate = new Date();
                         initialDate.setMonth(initialDate.getMonth() - 1);
@@ -454,7 +460,7 @@ Page({
                                 time_type: 'morning'
                             });
                         }
-                        
+
                         // 有了初始记录后，创建一个添加体重记录的按钮
                         this.setData({
                             showAddWeightBtn: true
@@ -588,49 +594,70 @@ Page({
 
     // 加载产品使用记录
     loadProductUsages: function () {
-        this.setData({ isLoading: true });
+        const customerId = this.data.customerId;
+        const { userInfo } = this.data;
 
-        const { userInfo, customerId } = this.data;
-
-        // 尝试从本地存储加载记录
-        const storageKey = `product_usage_${customerId}`;
-        const localUsage = wx.getStorageSync(storageKey);
-
-        // 如果有本地记录，直接使用
-        if (localUsage && localUsage.length > 0) {
-            this.setData({
-                productUsageList: localUsage,
-                isLoading: false
-            });
-
-            console.log('从本地加载产品使用记录:', localUsage.length, '条');
+        if (!customerId || !userInfo) {
+            console.error('缺少客户ID或用户信息，无法加载产品使用记录');
             return;
         }
 
-        // 如果没有本地记录，尝试从API加载
+        this.setData({ isLoading: true });
+
+        console.log('正在加载产品使用记录，客户ID:', customerId, '用户ID:', userInfo?.id);
+
+        // 构建API请求参数
+        const requestParams = {
+            user_id: userInfo.id,
+            customer_id: customerId,
+            page: 1,
+            page_size: 999 // 一次性加载所有
+        };
+        console.log('API请求参数:', requestParams);
+
+        // 从API加载最新数据
+        console.log('从API加载产品使用记录');
         // 使用Promise方式发送请求
         request.get(config.apis.customer.productUsage, {
-            data: {
-                user_id: userInfo.id,
-                customer_id: customerId,
-                page: 1,
-                page_size: 999 // 一次性加载所有
-            }
+            data: requestParams
         })
             .then(res => {
                 this.setData({ isLoading: false });
 
                 if (res && res.code === 200) {
-                    const productUsage = res.data || [];
+                    console.log('产品使用记录API响应:', res.data);
+                    const productUsages = res.data.list || [];
+
+                    // 确保每条记录都有完整的字段
+                    const formattedUsages = productUsages.map(usage => {
+                        // 确保有更新日期，如果没有则使用首购日期或当前日期
+                        const updateDate = usage.update_date && usage.update_date !== '-' ?
+                            usage.update_date :
+                            (usage.usage_date || this.getCurrentDate());
+
+                        return {
+                            id: usage.id || 0,
+                            product_id: usage.product_id || 0,
+                            product_name: usage.product_name || '未知产品',
+                            usage_date: usage.usage_date || this.getCurrentDate(),
+                            update_date: updateDate,
+                            quantity: usage.quantity || 0,            // 剩余次数
+                            purchase_count: usage.purchase_count || 1 // 购买次数
+                        };
+                    });
+
+                    console.log('格式化后的产品使用记录:', formattedUsages);
 
                     this.setData({
-                        productUsageList: productUsage
+                        productUsageList: formattedUsages
                     });
 
                     // 保存到本地存储
-                    wx.setStorageSync(storageKey, productUsage);
+                    const storageKey = `product_usage_${customerId}`;
+                    wx.setStorageSync(storageKey, formattedUsages);
                 } else {
                     // API加载失败，创建空列表
+                    console.log('API获取产品使用记录失败:', res);
                     this.setData({
                         productUsageList: []
                     });
@@ -641,6 +668,12 @@ Page({
                 this.setData({
                     isLoading: false,
                     productUsageList: []
+                });
+
+                wx.showToast({
+                    title: '加载产品记录失败',
+                    icon: 'none',
+                    duration: 2000
                 });
             });
     },
@@ -895,7 +928,7 @@ Page({
         if (tab === 'record') {
             // 加载体重记录数据
             this.loadWeightRecords();
-            
+
             // 如果已有记录，重新绘制图表
             if (this.data.weightRecords && this.data.weightRecords.length > 0) {
                 setTimeout(() => {
@@ -905,6 +938,7 @@ Page({
             }
         } else if (tab === 'product') {
             // 加载产品使用记录
+            console.log("切换到产品使用标签，加载产品使用记录");
             this.loadProductUsages();
         }
     },
@@ -1221,42 +1255,44 @@ Page({
             showProductModal: true,
             productDate: dateString,
             productName: '',
-            remainingCount: ''
+            selectedProductId: null,
+            quantity: '',
+            modalTitle: '添加产品记录'
         });
     },
 
     // 加载产品列表
-    loadProductList: function() {
+    loadProductList: function () {
         console.log('加载产品列表 - 从API获取数据');
         const { userInfo } = this.data;
-        
+
         // 调用API获取真实产品数据
         request.get(config.apis.customer.products, {
             data: {
                 user_id: userInfo.id
             }
         })
-        .then(res => {
-            if (res && res.code === 200) {
-                this.setData({
-                    productList: res.data || []
-                });
-                console.log('成功获取产品列表:', this.data.productList);
-            } else {
-                console.log('获取产品列表失败:', res);
-                // 如果API失败，使用默认数据
+            .then(res => {
+                if (res && res.code === 200) {
+                    this.setData({
+                        productList: res.data || []
+                    });
+                    console.log('成功获取产品列表:', this.data.productList);
+                } else {
+                    console.log('获取产品列表失败:', res);
+                    // 如果API失败，使用默认数据
+                    this.loadDefaultProductList();
+                }
+            })
+            .catch(err => {
+                console.error('获取产品列表错误:', err);
+                // 如果API调用出错，使用默认数据
                 this.loadDefaultProductList();
-            }
-        })
-        .catch(err => {
-            console.error('获取产品列表错误:', err);
-            // 如果API调用出错，使用默认数据
-            this.loadDefaultProductList();
-        });
+            });
     },
-    
+
     // 加载默认产品列表（当API调用失败时使用）
-    loadDefaultProductList: function() {
+    loadDefaultProductList: function () {
         console.log('使用默认产品数据');
         this.setData({
             productList: [
@@ -1285,85 +1321,92 @@ Page({
 
     // 产品选择变化
     onProductSelect: function (e) {
-        const index = e.detail.value;
+        const index = parseInt(e.detail.value);
         const selectedProduct = this.data.productList[index];
+
+        if (!selectedProduct) {
+            console.error('无法找到选择的产品', index, this.data.productList);
+            return;
+        }
+
+        // 设置选中的产品信息
         this.setData({
-            productName: selectedProduct.name
+            selectedProductId: selectedProduct.id,
+            productName: selectedProduct.name,
+            modalTitle: '添加产品记录'
         });
     },
 
     // 剩余次数输入值变化
-    onRemainingCountInput: function (e) {
+    onQuantityInput: function (e) {
         this.setData({
-            remainingCount: e.detail.value
+            quantity: e.detail.value
         });
     },
 
     // 保存产品使用记录
     saveProductUsage: function () {
-        if (!this.data.productName) {
+        // 检查输入
+        if (!this.data.selectedProductId || !this.data.quantity) {
             wx.showToast({
-                title: '请选择产品',
+                title: '请填写完整信息',
                 icon: 'none'
             });
             return;
         }
 
-        if (!this.data.remainingCount || parseInt(this.data.remainingCount) < 0) {
-            wx.showToast({
-                title: '请输入有效的剩余次数',
-                icon: 'none'
-            });
-            return;
-        }
-
+        // 显示加载
         wx.showLoading({
             title: '保存中...',
         });
 
-        // 获取当前客户ID
-        const customerId = this.data.customer.id;
-        const { userInfo } = this.data;
+        const { userInfo, customerId, selectedProductId, productName, productDate, quantity } = this.data;
 
-        // 获取选中产品的ID
-        const selectedIndex = this.data.productList.findIndex(product => product.name === this.data.productName);
-        const productId = selectedIndex !== -1 ? this.data.productList[selectedIndex].id : 0;
+        // 确保ID和数量是数字类型
+        const customerIdNum = parseInt(customerId);
+        const productIdNum = parseInt(selectedProductId);
+        const quantityNum = parseFloat(quantity);
 
-        if (productId === 0) {
+        if (isNaN(customerIdNum) || isNaN(productIdNum) || isNaN(quantityNum)) {
             wx.hideLoading();
             wx.showToast({
-                title: '产品信息无效',
+                title: '数据格式错误',
                 icon: 'none'
             });
             return;
         }
 
-        // 准备请求数据
-        const usageData = {
+        // 获取当前日期作为更新日期
+        const currentDate = this.getCurrentDate();
+
+        // 创建新产品使用记录
+        const productData = {
             user_id: userInfo.id,
-            customer_id: customerId,
-            product_id: productId,
-            usage_date: this.data.productDate,
-            quantity: parseFloat(this.data.remainingCount),
-            notes: ''
+            customer_id: customerIdNum,
+            product_id: productIdNum,
+            product_name: productName,
+            usage_date: productDate,
+            update_date: currentDate,     // 添加更新日期
+            quantity: quantityNum,        // 剩余次数
+            purchase_count: parseInt(quantity)  // 设置购买次数与输入的剩余次数一致
         };
 
-        // 调用API保存产品使用记录
-        request.post(config.apis.customer.addProductUsage, usageData)
+        // 调用API保存
+        request.post(config.apis.customer.addProductUsage, productData)
             .then(res => {
                 wx.hideLoading();
 
                 if (res && res.code === 200) {
+                    // 关闭弹窗并提示
+                    this.closeProductModal();
+
+                    // 成功后重新加载列表，确保显示最新数据
+                    this.loadProductUsages();
+
                     wx.showToast({
                         title: '添加成功',
                         icon: 'success'
                     });
-
-                    // 关闭弹窗
-                    this.closeProductModal();
-
-                    // 重新加载产品使用记录
-                    this.loadProductUsages();
                 } else {
                     wx.showToast({
                         title: res?.message || '添加失败',
@@ -1373,8 +1416,7 @@ Page({
             })
             .catch(err => {
                 wx.hideLoading();
-                console.error('保存产品使用记录失败:', err);
-
+                console.error('保存产品记录失败:', err);
                 wx.showToast({
                     title: '添加失败',
                     icon: 'none'
@@ -1825,12 +1867,12 @@ Page({
     calculateBMI: function (weight, height) {
         const currentBmi = this.calculateBmi(weight, height);
         const bmiCategory = this.getBmiCategory(currentBmi);
-        
+
         this.setData({
             currentBmi: currentBmi,
             bmiCategory: bmiCategory
         });
-        
+
         return currentBmi;
     },
 
@@ -1839,12 +1881,12 @@ Page({
         const currentBmi = this.calculateBmi(customerDetail.current_weight, customerDetail.height);
         const bodyFatPercentage = this.calculateBodyFat(currentBmi, customerDetail.age, customerDetail.gender);
         const bodyFatCategory = this.getBodyFatCategory(bodyFatPercentage, customerDetail.gender);
-        
+
         this.setData({
             bodyFatPercentage: bodyFatPercentage,
             bodyFatCategory: bodyFatCategory
         });
-        
+
         return bodyFatPercentage;
     },
 
@@ -2115,5 +2157,278 @@ Page({
         this.setData({
             weeklyWeightTrend: trend
         });
+    },
+
+    // 增加产品剩余次数
+    increaseProductCount: function (e) {
+        const index = e.currentTarget.dataset.index;
+        const productUsageList = this.data.productUsageList;
+
+        if (productUsageList[index]) {
+            // 确保使用整数进行计算
+            productUsageList[index].quantity = (parseInt(productUsageList[index].quantity) || 0) + 1;
+            productUsageList[index].update_date = this.getCurrentDate();
+
+            this.setData({
+                productUsageList: productUsageList
+            });
+
+            this.updateProductUsage(productUsageList[index]);
+        }
+    },
+
+    // 减少产品剩余次数
+    decreaseProductCount: function (e) {
+        const index = e.currentTarget.dataset.index;
+        const productUsageList = this.data.productUsageList;
+
+        if (productUsageList[index] && parseInt(productUsageList[index].quantity) > 0) {
+            // 确保使用整数进行计算
+            productUsageList[index].quantity = (parseInt(productUsageList[index].quantity) || 0) - 1;
+            productUsageList[index].update_date = this.getCurrentDate();
+
+            this.setData({
+                productUsageList: productUsageList
+            });
+
+            this.updateProductUsage(productUsageList[index]);
+        }
+    },
+
+    // 更新产品使用记录
+    updateProductUsage: function (productRecord) {
+        const { userInfo, customerId } = this.data;
+
+        // 确保customerID是数字类型
+        const customerIdNum = parseInt(customerId);
+        // 确保productID是数字类型 
+        const productIdNum = parseInt(productRecord.product_id);
+        // 确保quantity是数字类型
+        const quantityNum = parseFloat(productRecord.quantity);
+
+        if (isNaN(customerIdNum)) {
+            console.error('客户ID无效:', customerId);
+            wx.showToast({
+                title: '客户ID无效',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
+
+        if (isNaN(productIdNum)) {
+            console.error('产品ID无效:', productRecord.product_id);
+            wx.showToast({
+                title: '产品ID无效',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
+
+        if (isNaN(quantityNum)) {
+            console.error('数量无效:', productRecord.quantity);
+            wx.showToast({
+                title: '数量无效',
+                icon: 'none',
+                duration: 2000
+            });
+            return;
+        }
+
+        // 获取当前日期作为更新日期
+        const updateDate = this.getCurrentDate();
+
+        // 准备要更新的数据
+        const updateData = {
+            user_id: userInfo.id,
+            customer_id: customerIdNum,
+            product_id: productIdNum,
+            quantity: quantityNum,
+            usage_date: productRecord.usage_date || this.getCurrentDate(),
+            update_date: updateDate
+        };
+
+        console.log('发送更新产品使用请求:', updateData);
+
+        // 调用API更新产品使用记录
+        request.post(config.apis.customer.updateProductUsage, updateData)
+            .then(res => {
+                if (res && res.code === 200) {
+                    wx.showToast({
+                        title: '更新成功',
+                        icon: 'success',
+                        duration: 1000
+                    });
+                } else {
+                    wx.showToast({
+                        title: '更新失败',
+                        icon: 'none',
+                        duration: 2000
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('更新产品使用记录失败:', err);
+                wx.showToast({
+                    title: '更新失败',
+                    icon: 'none',
+                    duration: 2000
+                });
+            });
+    },
+
+    // 获取当前日期
+    getCurrentDate: function () {
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    // 加载产品使用记录
+    loadProductUsageRecords: function () {
+        if (this.data.isLoading) return;
+
+        this.setData({ isLoading: true });
+
+        const { userInfo, customerId } = this.data;
+
+        console.log('加载产品使用记录', '客户ID:', customerId, '用户ID:', userInfo.id);
+
+        const requestParams = {
+            user_id: userInfo.id,
+            customer_id: customerId,
+            page: 1,
+            page_size: 999 // 一次性加载所有
+        };
+        console.log('API请求参数:', requestParams);
+
+        // 从API加载最新数据
+        console.log('从API加载产品使用记录');
+        // 使用Promise方式发送请求
+        request.get(config.apis.customer.productUsage, {
+            data: requestParams
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
+                if (res && res.code === 200) {
+                    console.log('产品使用记录API响应:', res.data);
+                    let productUsages = res.data.list || [];
+
+                    // 确保每个记录都有所需字段
+                    productUsages = productUsages.map(item => {
+                        return {
+                            ...item,
+                            purchase_count: item.purchase_count !== undefined ? item.purchase_count : 1,
+                            update_date: item.update_date || item.usage_date || this.getCurrentDate()
+                        };
+                    });
+
+                    console.log('解析后的产品使用记录:', productUsages);
+
+                    this.setData({
+                        productUsageList: productUsages
+                    });
+
+                    // 保存到本地存储
+                    const storageKey = `product_usage_${customerId}`;
+                    wx.setStorageSync(storageKey, productUsages);
+                } else {
+                    // API加载失败，创建空列表
+                    console.log('API获取产品使用记录失败:', res);
+                    this.setData({
+                        productUsageList: []
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('加载产品使用记录失败:', err);
+                this.setData({
+                    isLoading: false,
+                    productUsageList: []
+                });
+
+                wx.showToast({
+                    title: '加载产品记录失败',
+                    icon: 'none',
+                    duration: 2000
+                });
+            });
+    },
+
+    // 删除产品使用记录
+    deleteProductUsage: function (e) {
+        const usageId = e.currentTarget.dataset.id;
+        const index = e.currentTarget.dataset.index;
+
+        if (!usageId) {
+            wx.showToast({
+                title: '记录ID无效',
+                icon: 'none'
+            });
+            return;
+        }
+
+        // 显示确认对话框
+        wx.showModal({
+            title: '确认删除',
+            content: '确定要删除这条产品使用记录吗？',
+            success: (res) => {
+                if (res.confirm) {
+                    this.doDeleteProductUsage(usageId, index);
+                }
+            }
+        });
+    },
+
+    // 执行删除产品使用记录操作
+    doDeleteProductUsage: function (usageId, index) {
+        const { userInfo } = this.data;
+
+        wx.showLoading({
+            title: '删除中...',
+        });
+
+        const deleteData = {
+            user_id: userInfo.id,
+            usage_id: usageId
+        };
+
+        // 调用API删除记录
+        request.post(config.apis.customer.deleteProductUsage, deleteData)
+            .then(res => {
+                wx.hideLoading();
+
+                if (res && res.code === 200) {
+                    // 成功后从本地列表移除
+                    const updatedList = [...this.data.productUsageList];
+                    updatedList.splice(index, 1);
+
+                    this.setData({
+                        productUsageList: updatedList
+                    });
+
+                    wx.showToast({
+                        title: '删除成功',
+                        icon: 'success'
+                    });
+                } else {
+                    wx.showToast({
+                        title: res?.message || '删除失败',
+                        icon: 'none'
+                    });
+                }
+            })
+            .catch(err => {
+                wx.hideLoading();
+                console.error('删除产品使用记录失败:', err);
+                wx.showToast({
+                    title: '删除失败',
+                    icon: 'none'
+                });
+            });
     },
 }); 

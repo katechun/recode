@@ -54,7 +54,8 @@ func InitDB() {
 
 	// 使用纯 Go 实现的 SQLite 驱动
 	// 连接字符串格式略有不同，但基本兼容
-	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)", dbPath)
+	// 增加 busy_timeout 参数，设置为5000毫秒(5秒)，解决数据库锁定问题
+	dsn := fmt.Sprintf("file:%s?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)&_txlock=immediate", dbPath)
 	var err error
 	DB, err = sql.Open("sqlite", dsn) // 注意驱动名称从 sqlite3 改为 sqlite
 	if err != nil {
@@ -66,10 +67,15 @@ func InitDB() {
 		log.Fatalf("数据库连接失败: %v", err)
 	}
 
-	// 显式启用外键约束
-	_, err = DB.Exec("PRAGMA foreign_keys = ON")
+	// 显式启用外键约束和设置忙等待超时
+	_, err = DB.Exec(`
+		PRAGMA foreign_keys = ON;
+		PRAGMA busy_timeout = 5000;
+		PRAGMA journal_mode = WAL;
+		PRAGMA synchronous = NORMAL;
+	`)
 	if err != nil {
-		log.Printf("启用外键约束失败: %v", err)
+		log.Printf("设置SQLite PRAGMA参数失败: %v", err)
 	}
 
 	log.Println("数据库连接成功，外键约束已启用")
@@ -77,6 +83,8 @@ func InitDB() {
 	// 设置数据库连接池参数
 	DB.SetMaxOpenConns(10)
 	DB.SetMaxIdleConns(5)
+	DB.SetConnMaxLifetime(0) // 连接不过期
+	DB.SetConnMaxIdleTime(0) // 空闲连接不过期
 
 	// 检查并确保数据库表结构正确
 	if err := EnsureDatabaseTables(); err != nil {
