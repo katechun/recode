@@ -13,8 +13,8 @@ const env = {
 };
 
 // 当前环境，可以通过编译时配置
-const currentEnv = 'development';
-// const currentEnv = 'production';
+// const currentEnv = 'development';
+const currentEnv = 'production';
 
 const config = {
   // API基础地址
