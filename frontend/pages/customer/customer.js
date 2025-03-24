@@ -441,5 +441,71 @@ Page({
         wx.navigateTo({
             url: '/pages/addCustomer/addCustomer'
         });
+    },
+
+    // 删除客户
+    deleteCustomer: function (e) {
+        const customerId = e.currentTarget.dataset.id;
+        const customerName = e.currentTarget.dataset.name;
+
+        // 显示确认对话框
+        wx.showModal({
+            title: '确认删除',
+            content: `确定要删除客户"${customerName}"吗？此操作不可恢复，该客户的所有记录将被删除。`,
+            confirmColor: '#f56c6c',
+            success: (res) => {
+                if (res.confirm) {
+                    this.performDeleteCustomer(customerId);
+                }
+            }
+        });
+    },
+
+    // 执行删除客户操作
+    performDeleteCustomer: function (customerId) {
+        const { userInfo } = this.data;
+
+        // 显示加载提示
+        wx.showLoading({
+            title: '删除中...',
+            mask: true
+        });
+
+        // 构建API请求URL
+        const url = `${config.apis.customer.delete}?user_id=${userInfo.id}&customer_id=${customerId}`;
+
+        // 发送删除请求
+        request.get(url)
+            .then(res => {
+                wx.hideLoading();
+
+                if (res && res.code === 200) {
+                    wx.showToast({
+                        title: '删除成功',
+                        icon: 'success'
+                    });
+
+                    // 刷新客户列表
+                    this.setData({
+                        pageNum: 1,
+                        customers: []
+                    });
+                    this.loadCustomers(true);
+                } else {
+                    wx.showToast({
+                        title: res?.message || '删除失败',
+                        icon: 'none'
+                    });
+                }
+            })
+            .catch(err => {
+                wx.hideLoading();
+                console.error('删除客户失败:', err);
+
+                wx.showToast({
+                    title: '删除失败',
+                    icon: 'none'
+                });
+            });
     }
 }); 

@@ -306,168 +306,86 @@
     </view>
   </view>
   
-  <!-- 导出报表选项 -->
-  <view class="export-options-mask" wx:if="{{showExportOptions}}" bindtap="hideExportOptions">
-    <view class="export-options-container" catchtap="stopPropagation">
-      <view class="export-options-header">
-        <text class="export-options-title">导出减肥报表</text>
-        <view class="export-options-close" bindtap="hideExportOptions">×</view>
+  <!-- 新的报表预览模态框 -->
+  <view class="report-modal" wx:if="{{showReportModal}}">
+    <view class="report-modal-mask" bindtap="closeReportModal"></view>
+    <view class="report-modal-content">
+      <view class="report-modal-header">
+        <text class="report-modal-title">减肥报表预览</text>
+        <icon class="report-modal-close" type="clear" size="20" bindtap="closeReportModal"></icon>
       </view>
-      
-      <view class="export-options-content">
-        <view class="export-option-group">
-          <text class="export-option-label">报表格式</text>
-          <view class="export-option-buttons">
-            <view class="export-option-btn {{reportType === 'pdf' ? 'active' : ''}}" bindtap="selectReportType" data-type="pdf">
-              PDF
-            </view>
-            <view class="export-option-btn {{reportType === 'excel' ? 'active' : ''}}" bindtap="selectReportType" data-type="excel">
-              Excel
-            </view>
-            <view class="export-option-btn {{reportType === 'word' ? 'active' : ''}}" bindtap="selectReportType" data-type="word">
-              Word
-            </view>
-          </view>
-        </view>
-        
-        <view class="export-option-group">
-          <text class="export-option-label">日期范围</text>
-          <view class="export-option-buttons">
-            <view class="export-option-btn {{dateRange === '30' ? 'active' : ''}}" bindtap="selectDateRange" data-range="30">
-              近30天
-            </view>
-            <view class="export-option-btn {{dateRange === '90' ? 'active' : ''}}" bindtap="selectDateRange" data-range="90">
-              近3个月
-            </view>
-            <view class="export-option-btn {{dateRange === 'all' ? 'active' : ''}}" bindtap="selectDateRange" data-range="all">
-              全部
-            </view>
-          </view>
-        </view>
+      <view class="report-modal-body">
+        <image mode="widthFix" src="{{reportImageUrl}}" class="report-image"></image>
       </view>
-      
-      <view class="export-options-footer">
-        <button class="export-cancel-btn" bindtap="hideExportOptions">取消</button>
-        <button class="export-confirm-btn" bindtap="exportWeightReport">导出</button>
+      <view class="report-modal-footer">
+        <button class="report-modal-btn" bindtap="saveReportImage">保存图片</button>
       </view>
     </view>
   </view>
-  
-  <!-- 减重数据分析模态框 -->
-  <view class="modal-mask" wx:if="{{showWeightAnalysisModal}}" bindtap="hideWeightAnalysis">
-    <view class="modal-content analysis-modal" catchtap="stopPropagation">
-      <view class="modal-header">
-        <text class="modal-title">减重数据分析</text>
-        <view class="modal-close" bindtap="hideWeightAnalysis">×</view>
-      </view>
-      
-      <scroll-view scroll-y class="modal-body">
-        <!-- 总体减重情况 -->
-        <view class="analysis-section">
-          <view class="analysis-title">总体减重情况</view>
-          <view class="analysis-cards">
-            <view class="analysis-card">
-              <text class="analysis-value">{{weightAnalysis.totalLoss}}kg</text>
-              <text class="analysis-label">总减重</text>
-            </view>
-            <view class="analysis-card">
-              <text class="analysis-value">{{weightAnalysis.totalDays}}天</text>
-              <text class="analysis-label">总时长</text>
-            </view>
-            <view class="analysis-card">
-              <text class="analysis-value">{{weightAnalysis.weeklyAvgLoss}}kg</text>
-              <text class="analysis-label">周平均</text>
-            </view>
-          </view>
-        </view>
-        
-        <!-- 最佳减重期 -->
-        <view class="analysis-section" wx:if="{{weightAnalysis.bestPeriod}}">
-          <view class="analysis-title">最佳减重期</view>
-          <view class="best-period">
-            <view class="best-period-dates">
-              <text>{{weightAnalysis.bestPeriod.startDate}} 至 {{weightAnalysis.bestPeriod.endDate}}</text>
-              <text class="best-period-days">({{weightAnalysis.bestPeriod.days}}天)</text>
-            </view>
-            <view class="best-period-stats">
-              <text>减重: {{weightAnalysis.bestPeriod.loss}}kg</text>
-              <text>日均: {{weightAnalysis.bestPeriod.dailyRate}}kg/天</text>
-            </view>
-          </view>
-        </view>
-        
-        <!-- 目标达成预测 -->
-        <view class="analysis-section" wx:if="{{weightAnalysis.targetReachEstimate}}">
-          <view class="analysis-title">目标达成预测</view>
-          <view class="target-estimate">
-            <view class="target-date">
-              <text class="target-date-label">预计达成日期:</text>
-              <text class="target-date-value">{{weightAnalysis.targetReachEstimate.date}}</text>
-            </view>
-            <view class="target-time">
-              <text>还需约 {{weightAnalysis.targetReachEstimate.weeks}} 周 ({{weightAnalysis.targetReachEstimate.days}} 天)</text>
-            </view>
-          </view>
-        </view>
-        
-        <!-- 月度减重进度 -->
-        <view class="analysis-section" wx:if="{{weightAnalysis.monthlyData.length > 0}}">
-          <view class="analysis-title">月度减重进度</view>
-          <view class="monthly-progress">
-            <view class="monthly-item" wx:for="{{weightAnalysis.monthlyData}}" wx:key="month">
-              <text class="monthly-month">{{item.month}}</text>
-              <view class="monthly-bar-container">
-                <view class="monthly-bar" style="width: {{item.loss > 0 ? (item.loss * 20) : 0}}%"></view>
-              </view>
-              <text class="monthly-value {{item.loss > 0 ? 'positive' : (item.loss < 0 ? 'negative' : '')}}">
-                {{item.loss > 0 ? '-' : ''}}{{item.loss}}kg
-              </text>
-            </view>
-          </view>
-        </view>
-        
-        <!-- BMI变化趋势 -->
-        <view class="analysis-section" wx:if="{{weightAnalysis.bmiTrend}}">
-          <view class="analysis-title">BMI变化趋势</view>
-          <view class="bmi-trend">
-            <view class="bmi-trend-values">
-              <view class="bmi-trend-item">
-                <text class="bmi-trend-label">初始BMI:</text>
-                <text class="bmi-trend-value">{{weightAnalysis.bmiTrend.initial}}</text>
-                <text class="bmi-trend-category">({{weightAnalysis.bmiTrend.initialCategory}})</text>
-              </view>
-              <view class="bmi-trend-arrow">→</view>
-              <view class="bmi-trend-item">
-                <text class="bmi-trend-label">当前BMI:</text>
-                <text class="bmi-trend-value">{{weightAnalysis.bmiTrend.current}}</text>
-                <text class="bmi-trend-category">({{weightAnalysis.bmiTrend.currentCategory}})</text>
-              </view>
-            </view>
-            <view class="bmi-trend-change {{weightAnalysis.bmiTrend.change < 0 ? 'positive' : (weightAnalysis.bmiTrend.change > 0 ? 'negative' : '')}}">
-              <text>变化: {{weightAnalysis.bmiTrend.change < 0 ? '' : '+'}}{{weightAnalysis.bmiTrend.change}}</text>
-              <text class="bmi-trend-status" wx:if="{{weightAnalysis.bmiTrend.improved}}">（改善）</text>
-            </view>
-          </view>
-        </view>
-        
-        <view class="analysis-tips">
-          <text class="analysis-tips-title">健康提示</text>
-          <text class="analysis-tip-item">• 健康减重速度应控制在每周0.5-1公斤</text>
-          <text class="analysis-tip-item">• 快速减重可能导致反弹，建议保持稳定减重节奏</text>
-          <text class="analysis-tip-item">• 结合饮食控制和适量运动效果最佳</text>
-        </view>
-      </scroll-view>
-      
-      <view class="modal-footer">
-        <button class="modal-btn" bindtap="hideWeightAnalysis">关闭</button>
-      </view>
-    </view>
-  </view>
+
+  <!-- Canvas用于生成报表 -->
+  <canvas type="2d" id="reportCanvas" class="report-canvas"></canvas>
   
   <!-- 加载中 -->
   <view class="loading-mask" wx:if="{{isLoading || isExporting}}">
     <view class="loading-spinner"></view>
     <text class="loading-text">{{isExporting ? '生成报表中...' : '加载中...'}}</text>
+  </view>
+
+  <!-- 导出选项对话框 -->
+  <view class="export-report-modal {{showExportOptions ? 'show' : ''}}">
+    <view class="modal-mask" bindtap="hideExportOptions"></view>
+    <view class="modal-content">
+      <view class="modal-header">
+        <text>导出减肥报表</text>
+        <view class="close-button" bindtap="hideExportOptions">×</view>
+      </view>
+      <view class="modal-body">
+        <view class="export-option-section">
+          <view class="option-title">报表格式</view>
+          <view class="option-list">
+            <view class="option-item {{reportType === 'pdf' ? 'active' : ''}}" bindtap="selectReportType" data-type="pdf">
+              <view class="option-icon pdf-icon"></view>
+              <view class="option-name">PDF文档</view>
+            </view>
+            <view class="option-item {{reportType === 'excel' ? 'active' : ''}}" bindtap="selectReportType" data-type="excel">
+              <view class="option-icon excel-icon"></view>
+              <view class="option-name">Excel表格</view>
+            </view>
+            <view class="option-item {{reportType === 'word' ? 'active' : ''}}" bindtap="selectReportType" data-type="word">
+              <view class="option-icon word-icon"></view>
+              <view class="option-name">Word文档</view>
+            </view>
+            <view class="option-item {{reportType === 'image' ? 'active' : ''}}" bindtap="selectReportType" data-type="image">
+              <view class="option-icon image-icon"></view>
+              <view class="option-name">图片格式</view>
+            </view>
+          </view>
+        </view>
+        <view class="export-option-section">
+          <view class="option-title">时间范围</view>
+          <view class="option-list">
+            <view class="option-item {{dateRange === '30' ? 'active' : ''}}" bindtap="selectDateRange" data-range="30">
+              <view class="option-icon date-icon"></view>
+              <view class="option-name">最近30天</view>
+            </view>
+            <view class="option-item {{dateRange === '90' ? 'active' : ''}}" bindtap="selectDateRange" data-range="90">
+              <view class="option-icon date-icon"></view>
+              <view class="option-name">最近3个月</view>
+            </view>
+            <view class="option-item {{dateRange === 'all' ? 'active' : ''}}" bindtap="selectDateRange" data-range="all">
+              <view class="option-icon date-icon"></view>
+              <view class="option-name">全部记录</view>
+            </view>
+          </view>
+        </view>
+        <view class="export-button-area">
+          <button class="export-button" bindtap="exportWeightReport" loading="{{isExporting}}">
+            生成报表
+          </button>
+        </view>
+      </view>
+    </view>
   </view>
 
   <!-- 悬浮按钮区域 -->
@@ -479,6 +397,10 @@
     <view class="floating-button product-button" bindtap="addProductUsage">
       <text class="button-icon">📋</text>
       <text class="button-text">记录产品</text>
+    </view>
+    <view class="floating-button report-button" bindtap="showExportOptions">
+      <text class="button-icon">📊</text>
+      <text class="button-text">生成报表</text>
     </view>
   </view>
   

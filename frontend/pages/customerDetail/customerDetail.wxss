@@ -918,29 +918,29 @@ ec-canvas {
   margin-right: 10rpx;
 }
 
-/* 模态框基础样式 */
+/* 模态框通用样式 */
 .modal-mask {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.6);
-  z-index: 999;
+  background-color: rgba(0, 0, 0, 0.5);
+  z-index: 1000;
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: center;
 }
 
 .modal-content {
+  position: relative;
   width: 90%;
-  max-width: 600rpx;
-  background: #fff;
+  max-height: 90vh;
+  background-color: #fff;
   border-radius: 12rpx;
   overflow: hidden;
-  max-height: 80vh;
-  display: flex;
-  flex-direction: column;
+  z-index: 1001;
+  box-shadow: 0 4rpx 12rpx rgba(0, 0, 0, 0.15);
 }
 
 .modal-header {
@@ -1681,6 +1681,10 @@ ec-canvas {
   background-color: #2196F3;
 }
 
+.report-button {
+  background-color: #9C27B0;
+}
+
 .button-icon {
   font-size: 50rpx;
   margin-bottom: 6rpx;
@@ -1956,4 +1960,329 @@ ec-canvas {
 .delete-icon {
   font-size: 28rpx;
   line-height: 28rpx;
+}
+
+/* 导出报表弹出层样式 */
+.export-report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1000;
+  visibility: hidden;
+  opacity: 0;
+  transition: all 0.3s ease;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.export-report-modal.show {
+  visibility: visible;
+  opacity: 1;
+}
+
+.export-report-modal .modal-content {
+  position: relative;
+  width: 90%;
+  max-height: 80vh;
+  background-color: #fff;
+  border-radius: 12rpx;
+  transform: none;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.modal-header {
+  padding: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1rpx solid #eee;
+}
+
+.modal-header text {
+  font-size: 32rpx;
+  font-weight: 500;
+}
+
+.close-button {
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40rpx;
+  color: #999;
+}
+
+.modal-body {
+  padding: 30rpx;
+  max-height: 70vh;
+  overflow-y: auto;
+}
+
+.export-option-section {
+  margin-bottom: 40rpx;
+}
+
+.option-title {
+  font-size: 28rpx;
+  color: #666;
+  margin-bottom: 20rpx;
+}
+
+.option-list {
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.option-item {
+  width: 150rpx;
+  height: 150rpx;
+  margin-right: 20rpx;
+  margin-bottom: 20rpx;
+  border-radius: 12rpx;
+  border: 2rpx solid #eee;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  transition: all 0.2s ease;
+}
+
+.option-item.active {
+  border-color: #4CAF50;
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.option-icon {
+  width: 64rpx;
+  height: 64rpx;
+  margin-bottom: 10rpx;
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.pdf-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M20 22H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1zm-1-2V4H5v16h14zM8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z' fill='%23E53935'/%3E%3C/svg%3E");
+}
+
+.excel-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M20 22H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1zm-1-2V4H5v16h14zM8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z' fill='%234CAF50'/%3E%3C/svg%3E");
+}
+
+.word-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M20 22H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1zm-1-2V4H5v16h14zM8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z' fill='%232196F3'/%3E%3C/svg%3E");
+}
+
+.image-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M20 22H4a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1h16a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1zm-1-2V4H5v16h14zM8 7h8v2H8V7zm0 4h8v2H8v-2zm0 4h5v2H8v-2z' fill='%239C27B0'/%3E%3C/svg%3E");
+}
+
+.date-icon {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' width='24' height='24'%3E%3Cpath fill='none' d='M0 0h24v24H0z'/%3E%3Cpath d='M17 3h4a1 1 0 0 1 1 1v16a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h4V1h2v2h6V1h2v2zm-2 2H9v2H7V5H4v4h16V5h-3v2h-2V5zm5 6H4v8h16v-8z' fill='%23FF9800'/%3E%3C/svg%3E");
+}
+
+.option-name {
+  font-size: 24rpx;
+  color: #333;
+}
+
+.export-button-area {
+  margin-top: 40rpx;
+  display: flex;
+  justify-content: center;
+}
+
+.export-button {
+  width: 80%;
+  height: 80rpx;
+  background-color: #4CAF50;
+  color: white;
+  border-radius: 40rpx;
+  font-size: 30rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* 报表预览样式 */
+.report-preview {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  background-color: rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.report-image {
+  max-width: 90%;
+  max-height: 80%;
+  border-radius: 12rpx;
+}
+
+.report-actions {
+  margin-top: 40rpx;
+  display: flex;
+  gap: 30rpx;
+}
+
+.report-action-button {
+  padding: 20rpx 40rpx;
+  background-color: rgba(255, 255, 255, 0.2);
+  color: white;
+  border-radius: 40rpx;
+  font-size: 28rpx;
+  display: flex;
+  align-items: center;
+}
+
+.report-action-icon {
+  width: 36rpx;
+  height: 36rpx;
+  margin-right: 10rpx;
+}
+
+/* 报表canvas样式 */
+.report-canvas {
+  position: fixed;
+  top: -9999px;
+  left: -9999px;
+  width: 750px;
+  height: 1800px;
+  visibility: hidden;
+  z-index: -1;
+}
+
+/* 报表预览模态框样式 */
+.report-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background-color: rgba(0, 0, 0, 0.6);
+}
+
+.report-modal-mask {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+}
+
+.report-modal-content {
+  position: relative;
+  width: 90%;
+  max-height: 90vh;
+  background-color: #fff;
+  border-radius: 12rpx;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 4rpx 20rpx rgba(0, 0, 0, 0.2);
+}
+
+.report-modal-header {
+  padding: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1rpx solid #eee;
+}
+
+.report-modal-title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.report-modal-body {
+  flex: 1;
+  padding: 0;
+  overflow-y: auto;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  background-color: #f5f5f5;
+}
+
+.report-image {
+  width: 100%;
+  max-height: 70vh;
+}
+
+.report-modal-footer {
+  padding: 20rpx;
+  border-top: 1rpx solid #eee;
+  display: flex;
+  justify-content: center;
+}
+
+.report-modal-btn {
+  width: 80%;
+  height: 80rpx;
+  line-height: 80rpx;
+  background-color: #4CAF50;
+  color: #fff;
+  font-size: 30rpx;
+  border-radius: 40rpx;
+}
+
+/* 为不同类型的模态框添加特定样式 */
+.weight-record-modal {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.product-usage-modal {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+/* 确保模态框内容超出时可滚动 */
+.modal-body {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 20rpx 30rpx;
+}
+
+/* 确保模态框标题居中 */
+.modal-header {
+  padding: 30rpx;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 1rpx solid #eee;
+}
+
+.modal-title {
+  font-size: 32rpx;
+  font-weight: 500;
+  color: #333;
+}
+
+.modal-close {
+  width: 60rpx;
+  height: 60rpx;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 40rpx;
+  color: #999;
 } 

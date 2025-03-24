@@ -123,8 +123,9 @@
 }
 
 .progress-text {
-  font-size: 24rpx;
-  color: #666;
+  font-size: 22rpx;
+  color: #999;
+  margin-top: 6rpx;
   text-align: right;
 }
 
@@ -241,4 +242,24 @@
 .store-item.active {
   color: #1890ff;
   background-color: rgba(24, 144, 255, 0.1);
+}
+
+/* 客户操作按钮 */
+.customer-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10rpx;
+}
+
+.customer-delete {
+  background-color: #f56c6c;
+  color: #fff;
+  font-size: 24rpx;
+  padding: 8rpx 20rpx;
+  border-radius: 6rpx;
+  text-align: center;
+}
+
+.delete-icon {
+  font-size: 24rpx;
 } 

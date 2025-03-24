@@ -19,7 +19,7 @@
             <text class="phone">{{item.phone}}</text>
           </view>
         </view>
-        <view class="customer-stats">
+        <view class="customer-stats" bindtap="navigateToDetail" data-id="{{item.id}}">
           <view class="stat-item">
             <text class="stat-label">当前体重</text>
             <text class="stat-value">{{item.current_weight || '-'}} kg</text>
@@ -33,10 +33,15 @@
             <text class="stat-value {{item.weight_loss > 0 ? 'positive' : ''}}">{{item.weight_loss || '0'}} kg</text>
           </view>
         </view>
-        <view class="progress-bar-container">
+        <view class="progress-bar-container" bindtap="navigateToDetail" data-id="{{item.id}}">
           <view class="progress-bar" style="width: {{item.progress || 0}}%"></view>
         </view>
-        <view class="progress-text">完成进度: {{item.progress || 0}}%</view>
+        <view class="progress-text" bindtap="navigateToDetail" data-id="{{item.id}}">完成进度: {{item.progress || 0}}%</view>
+        <view class="customer-actions">
+          <view class="customer-delete" catchtap="deleteCustomer" data-id="{{item.id}}" data-name="{{item.name}}">
+            <text class="delete-icon">删除</text>
+          </view>
+        </view>
       </view>
     </block>
     <view wx:else class="empty-tip">

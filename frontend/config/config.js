@@ -13,8 +13,8 @@ const env = {
 };
 
 // 当前环境，可以通过编译时配置
-// const currentEnv = 'development';
-const currentEnv = 'production';
+const currentEnv = 'development';
+// const currentEnv = 'production';
 
 const config = {
   // API基础地址
@@ -68,6 +68,7 @@ const config = {
       detail: '/api/customers/detail',
       add: '/api/customers/create',
       update: '/api/customers/update',
+      delete: '/api/customers/delete',
       weight: '/api/customers/weight',  // 添加体重记录
       updateCurrentWeight: '/api/customers/update-current-weight', // 更新当前体重
       weightRecords: '/api/customers/weight-records', // 获取体重记录
