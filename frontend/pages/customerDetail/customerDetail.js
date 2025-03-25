@@ -1437,12 +1437,22 @@ Page({
         });
     },
 
-    // 选择报表类型
+    // 选择报表类型（仅图片格式可用）
     selectReportType: function (e) {
         const type = e.currentTarget.dataset.type;
-        this.setData({
-            reportType: type
-        });
+        // 只接受图片格式，其他格式暂未实现
+        if (type === 'image') {
+            this.setData({
+                reportType: type
+            });
+        } else {
+            // 显示提示，其他格式暂未实现
+            wx.showToast({
+                title: '暂只支持图片格式',
+                icon: 'none',
+                duration: 2000
+            });
+        }
     },
 
     // 选择日期范围
@@ -1493,154 +1503,15 @@ Page({
         return `${year}-${month}-${day}`;
     },
 
-    // 导出减肥报表
+    // 导出体重报表
     exportWeightReport: function () {
-        const { reportType, dateRange, userInfo, customer } = this.data;
+        // 始终使用图片格式
+        this.setData({
+            reportType: 'image'
+        });
 
-        if (!customer || !userInfo) {
-            wx.showToast({
-                title: '缺少客户数据',
-                icon: 'none'
-            });
-            return;
-        }
-
-        this.setData({ isExporting: true });
-
-        // 获取需要导出的体重记录
-        let targetRecords = [];
-
-        if (dateRange === 'all') {
-            targetRecords = this.data.weightRecords;
-        } else {
-            const days = parseInt(dateRange);
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - days);
-
-            targetRecords = this.data.weightRecords.filter(record => {
-                const recordDate = new Date(record.record_date);
-                return recordDate >= cutoffDate;
-            });
-        }
-
-        if (targetRecords.length === 0) {
-            this.setData({ isExporting: false });
-            wx.showToast({
-                title: '所选时间范围内无记录',
-                icon: 'none'
-            });
-            return;
-        }
-
-        // 计算减重统计数据
-        const firstRecord = [...targetRecords].sort((a, b) => new Date(a.record_date) - new Date(b.record_date))[0];
-        const lastRecord = [...targetRecords].sort((a, b) => new Date(b.record_date) - new Date(a.record_date))[0];
-        const weightLoss = firstRecord.weight - lastRecord.weight;
-        const lossPercentage = ((weightLoss / firstRecord.weight) * 100).toFixed(1);
-
-        // 添加BMI变化数据
-        let bmiData = null;
-        if (customer.height) {
-            try {
-                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
-                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
-
-                // 确保BMI数据是有效的数字
-                if (!isNaN(initialBmi) && !isNaN(currentBmi)) {
-                    bmiData = {
-                        initial: initialBmi,
-                        current: currentBmi,
-                        change: (currentBmi - initialBmi).toFixed(1)
-                    };
-                }
-            } catch (error) {
-                console.error('计算BMI数据错误:', error);
-            }
-        }
-
-        // 添加体脂率估算数据
-        let bodyFatData = null;
-        if (customer.height && customer.age && customer.gender) {
-            try {
-                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
-                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
-
-                const initialBodyFat = this.calculateBodyFat(initialBmi, customer.age, customer.gender);
-                const currentBodyFat = this.calculateBodyFat(currentBmi, customer.age, customer.gender);
-
-                // 确保体脂率数据是有效的数字
-                if (!isNaN(initialBodyFat) && !isNaN(currentBodyFat)) {
-                    bodyFatData = {
-                        initial: initialBodyFat,
-                        current: currentBodyFat,
-                        change: (currentBodyFat - initialBodyFat).toFixed(1)
-                    };
-                }
-            } catch (error) {
-                console.error('计算体脂率数据错误:', error);
-            }
-        }
-
-        // 获取产品使用数据
-        let productUsageData = [];
-        try {
-            // 创建临时对象以便处理
-            const tempProductData = {};
-
-            if (Array.isArray(this.data.productUsageList)) {
-                this.data.productUsageList.forEach(usage => {
-                    if (!usage) return; // 跳过无效数据
-
-                    const productName = usage.product_name || '未知产品';
-                    if (!tempProductData[productName]) {
-                        tempProductData[productName] = {
-                            product_name: productName,
-                            usage_date: usage.usage_date || '未知日期',
-                            purchase_count: 0,
-                            update_date: ''
-                        };
-                    }
-
-                    tempProductData[productName].purchase_count += usage.purchase_count || 1;
-
-                    // 更新最近使用日期
-                    const usageDate = usage.usage_date;
-                    if (!tempProductData[productName].update_date ||
-                        new Date(usageDate) > new Date(tempProductData[productName].update_date)) {
-                        tempProductData[productName].update_date = usageDate;
-                    }
-                });
-
-                // 将对象转换为数组格式
-                productUsageData = Object.values(tempProductData);
-            }
-        } catch (error) {
-            console.error('处理产品使用数据出错:', error);
-            productUsageData = []; // 确保为有效数组
-        }
-
-        // 准备绘制Canvas的数据
-        const reportData = {
-            customer: customer,
-            startDate: firstRecord.record_date,
-            endDate: lastRecord.record_date,
-            startWeight: firstRecord.weight,
-            currentWeight: lastRecord.weight,
-            weightLoss: parseFloat(weightLoss.toFixed(1)), // 确保weightLoss是数字而不是字符串
-            lossPercentage: parseFloat(lossPercentage),    // 确保lossPercentage是数字
-            bmiData: bmiData,
-            bodyFatData: bodyFatData,
-            productUsageData: Array.isArray(productUsageData) ? productUsageData : [], // 确保是数组
-            weightRecords: targetRecords.sort((a, b) => new Date(a.record_date) - new Date(b.record_date))
-        };
-
-        console.log('报表数据:', reportData);
-
-        // 设置延迟以确保UI更新完成
-        setTimeout(() => {
-            // 创建Canvas绘制报表
-            this.drawReportOnCanvas(reportData);
-        }, 500);
+        // 准备导出数据
+        this.prepareReportData();
     },
 
     // 在Canvas上绘制报表
@@ -5406,5 +5277,121 @@ Page({
             console.error('生成减肥数据分析失败:', error);
             return null;
         }
+    },
+
+    // 准备报表数据
+    prepareReportData: function () {
+        const { dateRange, userInfo, customer } = this.data;
+
+        if (!customer || !userInfo) {
+            wx.showToast({
+                title: '缺少客户数据',
+                icon: 'none'
+            });
+            return;
+        }
+
+        this.setData({ isExporting: true });
+
+        // 获取需要导出的体重记录
+        let targetRecords = [];
+
+        if (dateRange === 'all') {
+            targetRecords = this.data.weightRecords;
+        } else {
+            const days = parseInt(dateRange);
+            const cutoffDate = new Date();
+            cutoffDate.setDate(cutoffDate.getDate() - days);
+
+            targetRecords = this.data.weightRecords.filter(record => {
+                const recordDate = new Date(record.record_date);
+                return recordDate >= cutoffDate;
+            });
+        }
+
+        if (targetRecords.length === 0) {
+            this.setData({ isExporting: false });
+            wx.showToast({
+                title: '所选时间范围内无记录',
+                icon: 'none'
+            });
+            return;
+        }
+
+        // 计算减重统计数据
+        const firstRecord = [...targetRecords].sort((a, b) => new Date(a.record_date) - new Date(b.record_date))[0];
+        const lastRecord = [...targetRecords].sort((a, b) => new Date(b.record_date) - new Date(a.record_date))[0];
+        const weightLoss = firstRecord.weight - lastRecord.weight;
+        const lossPercentage = ((weightLoss / firstRecord.weight) * 100).toFixed(1);
+
+        // 添加BMI变化数据
+        let bmiData = null;
+        if (customer.height) {
+            try {
+                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
+                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
+
+                // 确保BMI数据是有效的数字
+                if (!isNaN(initialBmi) && !isNaN(currentBmi)) {
+                    bmiData = {
+                        initial: initialBmi,
+                        current: currentBmi,
+                        change: (currentBmi - initialBmi).toFixed(1)
+                    };
+                }
+            } catch (error) {
+                console.error('计算BMI数据错误:', error);
+            }
+        }
+
+        // 添加体脂率估算数据
+        let bodyFatData = null;
+        if (customer.height && customer.age && customer.gender) {
+            try {
+                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
+                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
+
+                const initialBodyFat = this.calculateBodyFat(initialBmi, customer.age, customer.gender);
+                const currentBodyFat = this.calculateBodyFat(currentBmi, customer.age, customer.gender);
+
+                // 确保体脂率数据是有效的数字
+                if (!isNaN(initialBodyFat) && !isNaN(currentBodyFat)) {
+                    bodyFatData = {
+                        initial: initialBodyFat,
+                        current: currentBodyFat,
+                        change: (currentBodyFat - initialBodyFat).toFixed(1)
+                    };
+                }
+            } catch (error) {
+                console.error('计算体脂率数据错误:', error);
+            }
+        }
+
+        // 获取处理过的产品使用数据
+        const productUsageData = this.processProductDataForReport();
+
+        // 准备绘制Canvas的数据
+        const reportData = {
+            customer: customer,
+            startDate: firstRecord.record_date,
+            endDate: lastRecord.record_date,
+            startWeight: firstRecord.weight,
+            currentWeight: lastRecord.weight,
+            weightLoss: parseFloat(weightLoss.toFixed(1)), // 确保weightLoss是数字而不是字符串
+            lossPercentage: parseFloat(lossPercentage),    // 确保lossPercentage是数字
+            bmiData: bmiData,
+            bodyFatData: bodyFatData,
+            productUsageData: Array.isArray(productUsageData) ? productUsageData : [], // 确保是数组
+            weightRecords: targetRecords.sort((a, b) => new Date(a.record_date) - new Date(b.record_date)),
+            totalDays: Math.ceil((new Date(lastRecord.record_date) - new Date(firstRecord.record_date)) / (1000 * 60 * 60 * 24)) || 30
+        };
+
+        console.log('报表数据:', reportData);
+
+        // 设置延迟以确保UI更新完成
+        setTimeout(() => {
+            // 创建Canvas绘制报表
+            this.drawReportOnCanvas(reportData);
+        }, 500);
     },
 }); 

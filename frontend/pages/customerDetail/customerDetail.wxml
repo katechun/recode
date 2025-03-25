@@ -344,19 +344,7 @@
         <view class="export-option-section">
           <view class="option-title">报表格式</view>
           <view class="option-list">
-            <view class="option-item {{reportType === 'pdf' ? 'active' : ''}}" bindtap="selectReportType" data-type="pdf">
-              <view class="option-icon pdf-icon"></view>
-              <view class="option-name">PDF文档</view>
-            </view>
-            <view class="option-item {{reportType === 'excel' ? 'active' : ''}}" bindtap="selectReportType" data-type="excel">
-              <view class="option-icon excel-icon"></view>
-              <view class="option-name">Excel表格</view>
-            </view>
-            <view class="option-item {{reportType === 'word' ? 'active' : ''}}" bindtap="selectReportType" data-type="word">
-              <view class="option-icon word-icon"></view>
-              <view class="option-name">Word文档</view>
-            </view>
-            <view class="option-item {{reportType === 'image' ? 'active' : ''}}" bindtap="selectReportType" data-type="image">
+            <view class="option-item active" bindtap="selectReportType" data-type="image">
               <view class="option-icon image-icon"></view>
               <view class="option-name">图片格式</view>
             </view>

@@ -1,0 +1,662 @@
+import request from '../../utils/request';
+import config from '../../config/config';
+import * as echarts from '../../components/ec-canvas/echarts';
+
+// 创建一个工具方法，用于将数据保存到本地存储
+function saveToLocalStorage(key, data) {
+    try {
+        wx.setStorageSync(key, data);
+        return true;
+    } catch (error) {
+        console.error('保存到本地存储失败:', error);
+        return false;
+    }
+}
+
+// 创建一个工具方法，用于同步模拟的本地数据更新
+function syncToLocal(customerId, recordType, data) {
+    if (!customerId) return false;
+
+    // 记录类型到存储键的映射
+    const keyMap = {
+        'customer': `customer_${customerId}`,
+        'weightRecords': `weight_records_${customerId}`,
+        'productUsage': `product_usage_${customerId}`
+    };
+
+    const storageKey = keyMap[recordType];
+    if (!storageKey) return false;
+
+    return saveToLocalStorage(storageKey, data);
+}
+
+// 格式化短日期 (MM-DD)
+function formatShortDate(dateString) {
+    if (!dateString) return '-';
+    try {
+        const date = new Date(dateString);
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${month}-${day}`;
+    } catch (e) {
+        console.error('日期格式化错误:', e);
+        return dateString;
+    }
+}
+
+let chartOption = {
+    color: ['#1890ff'],
+    grid: {
+        left: '3%',
+        right: '4%',
+        bottom: '3%',
+        top: '13%',
+        containLabel: true
+    },
+    tooltip: {
+        trigger: 'axis'
+    },
+    xAxis: {
+        type: 'category',
+        boundaryGap: false,
+        data: []
+    },
+    yAxis: {
+        type: 'value',
+        name: '体重(kg)'
+    },
+    series: [{
+        name: '体重',
+        type: 'line',
+        smooth: true,
+        data: []
+    }]
+};
+
+function initChart(canvas, width, height, dpr) {
+    const chart = echarts.init(canvas, null, {
+        width: width,
+        height: height,
+        devicePixelRatio: dpr
+    });
+    canvas.setChart(chart);
+    chart.setOption(chartOption);
+    return chart;
+}
+
+Page({
+    data: {
+        userInfo: null,
+        customer: null,
+        recordList: [],
+        productUsageList: [],
+        isLoading: false,
+        customerId: '',
+        activeTab: 'info',
+        weightRecords: [],
+        weeklyWeightData: null,
+        showBmi: false,
+        showWeightDetail: false,
+        showWeightModal: false,
+        showProductUsageModal: false,
+
+        // 导出报表相关数据
+        showExportOptions: false,
+        isExporting: false,
+        reportType: 'image', // 默认导出为图片格式
+        dateRange: '30',    // 默认最近30天
+        showReportPreview: false,
+        reportImageUrl: '',
+        pageNum: 1,
+        pageSize: 10,
+        hasMore: true,
+        isFormatterLoaded: false,
+        bmiCategories: [
+            { min: 0, max: 18.5, label: '偏瘦', color: '#909399' },
+            { min: 18.5, max: 24, label: '正常', color: '#67c23a' },
+            { min: 24, max: 28, label: '超重', color: '#e6a23c' },
+            { min: 28, max: 32, label: '肥胖', color: '#f56c6c' },
+            { min: 32, max: 100, label: '重度肥胖', color: '#c03639' }
+        ],
+        // 减重数据分析相关数据
+        weightAnalysis: null,
+        showWeightAnalysisModal: false,
+        // 添加体脂率相关数据
+        bodyFatPercentage: null,
+        bodyFatCategory: null,
+        weightTimeType: 'morning', // 早称或晚称
+        weightDate: '',
+        weightValue: '',
+        weightDropValue: null, // 掉秤量
+        metabolismValue: null, // 代谢量
+        previousMorningWeight: null,
+        previousEveningWeight: null,
+        showProductModal: false,
+        productDate: '',
+        productName: '',
+        quantity: '',
+        productList: [],
+        showMemberInfo: false,
+        membershipId: '',
+        memberStatus: '',
+        // 添加周掉秤趋势测试数据
+        weeklyWeightTrend: [
+            { date: '周一', value: 0.5, height: 50 },
+            { date: '周二', value: 0.7, height: 70 },
+            { date: '周三', value: 0.4, height: 40 },
+            { date: '周四', value: -0.1, height: 10 },
+            { date: '周五', value: 0.6, height: 60 },
+            { date: '周六', value: 0.8, height: 80 },
+            { date: '周日', value: 0.3, height: 30 }
+        ]
+    },
+
+    onLoad: function (options) {
+        if (options.id) {
+            const customerId = options.id;
+
+            // 获取用户信息
+            const userInfo = wx.getStorageSync('userInfo') || {};
+
+            // 设置初始状态
+            this.setData({
+                customerId: customerId,
+                userInfo: userInfo,
+                activeTab: 'info',
+                reportType: 'pdf',
+                dateRange: '30',
+                // 完全移除会员相关数据
+                showMemberInfo: false,
+                membershipId: '',
+                memberStatus: '',
+                // 默认掉秤量和代谢量为0
+                weightDropValue: '0.0',
+                metabolismValue: '0.0',
+                // 设置图表配置
+                ec: {
+                    onInit: initChart,
+                    lazyLoad: false  // 设置为非懒加载模式，确保图表立即初始化
+                }
+            });
+
+            // 初始化BMI分类
+            this.initBmiCategories();
+
+            // 加载客户详情
+            this.loadCustomerDetail();
+
+            // 计算今日掉秤量和代谢量
+            this.calculateTodayWeightMetrics();
+
+            // 主动加载产品使用记录
+            this.loadProductUsages();
+        } else {
+            wx.showToast({
+                title: '客户ID不存在',
+                icon: 'none'
+            });
+            setTimeout(() => {
+                wx.navigateBack();
+            }, 1500);
+        }
+    },
+
+    onShow: function () {
+        // 检查是否需要刷新
+        if (wx.getStorageSync('customerDetailNeedRefresh')) {
+            // 重新加载数据
+            this.loadCustomerDetail();
+            this.loadWeightRecords();
+            this.loadProductUsages();
+            wx.removeStorageSync('customerDetailNeedRefresh');
+        }
+
+        // 计算今日掉秤量和代谢量
+        this.calculateTodayWeightMetrics();
+    },
+
+    onPullDownRefresh: function () {
+        // 下拉刷新，重新加载数据
+        this.loadCustomerDetail();
+        this.loadWeightRecords();
+        this.loadProductUsages();
+    },
+
+    onReachBottom: function () {
+        // 如果正在查看记录，并且有更多数据，就加载更多
+        if (this.data.activeTab === 'record' && this.data.hasMore && !this.data.isLoading) {
+            this.loadMoreRecords();
+        }
+    },
+    
+    // 处理产品数据 - 增强版
+    processProductData: function () {
+        let productUsageData = [];
+
+        try {
+            // 创建临时对象以便处理
+            const tempProductData = {};
+
+            if (Array.isArray(this.data.productUsageList)) {
+                this.data.productUsageList.forEach(usage => {
+                    if (!usage) return; // 跳过无效数据
+
+                    const productName = usage.product_name || '未知产品';
+                    if (!tempProductData[productName]) {
+                        tempProductData[productName] = {
+                            product_name: productName,
+                            usage_date: usage.usage_date || '未知日期',
+                            purchase_count: 0,
+                            quantity: usage.quantity || 0,
+                            update_date: ''
+                        };
+                    }
+
+                    tempProductData[productName].purchase_count += usage.purchase_count || 1;
+
+                    // 更新最近使用日期
+                    const usageDate = usage.usage_date;
+                    if (!tempProductData[productName].update_date ||
+                        new Date(usageDate) > new Date(tempProductData[productName].update_date)) {
+                        tempProductData[productName].update_date = usageDate;
+                    }
+                });
+
+                // 将对象转换为数组格式
+                productUsageData = Object.values(tempProductData);
+
+                // 计算进度比例，确保不超过100%
+                productUsageData.forEach(product => {
+                    if (product.quantity > product.purchase_count) {
+                        product.quantity = product.purchase_count;
+                    }
+                    product.progress = Math.floor((product.quantity / product.purchase_count) * 100);
+                });
+
+                // 按更新日期排序，最近的在前
+                productUsageData.sort((a, b) => new Date(b.update_date) - new Date(a.update_date));
+            }
+
+            this.setData({
+                productUsageList: productUsageData
+            });
+
+        } catch (error) {
+            console.error('处理产品使用数据出错:', error);
+            this.setData({
+                productUsageList: []
+            });
+        }
+    },
+
+    // 获取客户产品使用记录
+    getProductUsage: function () {
+        const { customerId } = this.data;
+
+        // 确认有效的客户ID
+        if (!customerId) {
+            console.error('客户ID未提供');
+            return;
+        }
+
+        this.setData({ isLoading: true });
+
+        request.get(`${config.apis.customer.getProductUsage}?customer_id=${customerId}`)
+            .then(res => {
+                if (res && res.code === 200 && res.data) {
+                    console.log('产品使用记录:', res.data);
+
+                    // 设置产品使用记录
+                    this.setData({
+                        productUsageList: res.data.list || [],
+                        isLoading: false
+                    });
+
+                    // 处理产品数据
+                    this.processProductData();
+                } else {
+                    this.setData({
+                        productUsageList: [],
+                        isLoading: false
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('获取产品使用记录失败:', err);
+                this.setData({
+                    productUsageList: [],
+                    isLoading: false
+                });
+            });
+    },
+    
+    // 加载产品使用记录
+    loadProductUsages: function () {
+        const customerId = this.data.customerId;
+        const { userInfo } = this.data;
+
+        if (!customerId || !userInfo) {
+            console.error('缺少客户ID或用户信息，无法加载产品使用记录');
+            return;
+        }
+
+        this.setData({ isLoading: true });
+
+        console.log('正在加载产品使用记录，客户ID:', customerId, '用户ID:', userInfo?.id);
+
+        // 构建API请求参数
+        const requestParams = {
+            user_id: userInfo.id,
+            customer_id: customerId,
+            page: 1,
+            page_size: 999 // 一次性加载所有
+        };
+        console.log('API请求参数:', requestParams);
+
+        // 从API加载最新数据
+        console.log('从API加载产品使用记录');
+        // 使用Promise方式发送请求
+        request.get(config.apis.customer.productUsage, {
+            data: requestParams
+        })
+            .then(res => {
+                this.setData({ isLoading: false });
+
+                if (res && res.code === 200) {
+                    console.log('产品使用记录API响应:', res.data);
+                    const productUsages = res.data.list || [];
+
+                    // 确保每条记录都有完整的字段
+                    const formattedUsages = productUsages.map(usage => {
+                        // 确保有更新日期，如果没有则使用首购日期或当前日期
+                        const updateDate = usage.update_date && usage.update_date !== '-' ?
+                            usage.update_date :
+                            (usage.usage_date || this.getCurrentDate());
+
+                        return {
+                            id: usage.id || 0,
+                            product_id: usage.product_id || 0,
+                            product_name: usage.product_name || '未知产品',
+                            usage_date: usage.usage_date || this.getCurrentDate(),
+                            update_date: updateDate,
+                            quantity: usage.quantity || 0,            // 剩余次数
+                            purchase_count: usage.purchase_count || 1 // 购买次数
+                        };
+                    });
+
+                    console.log('格式化后的产品使用记录:', formattedUsages);
+
+                    this.setData({
+                        productUsageList: formattedUsages
+                    });
+
+                    // Process product data after loading
+                    this.processProductData();
+
+                    // 保存到本地存储
+                    const storageKey = `product_usage_${customerId}`;
+                    wx.setStorageSync(storageKey, formattedUsages);
+                } else {
+                    // API加载失败，创建空列表
+                    console.log('API获取产品使用记录失败:', res);
+                    this.setData({
+                        productUsageList: []
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('加载产品使用记录失败:', err);
+                this.setData({
+                    isLoading: false,
+                    productUsageList: []
+                });
+
+                wx.showToast({
+                    title: '加载产品记录失败',
+                    icon: 'none',
+                    duration: 2000
+                });
+            });
+    },
+    
+    // 保存产品使用记录
+    saveProductUsage: function () {
+        // 确保数据有效
+        if (!this.data.productId) {
+            wx.showToast({
+                title: '请选择产品',
+                icon: 'none'
+            });
+            return;
+        }
+
+        const { userInfo, customerId, productId, productDate, productName, quantity } = this.data;
+
+        // 数据验证
+        if (!customerId || !productId) {
+            wx.showToast({
+                title: '缺少必要数据',
+                icon: 'none'
+            });
+            return;
+        }
+
+        // 准备要提交的数据
+        const data = {
+            user_id: userInfo.id,
+            customer_id: parseInt(customerId),
+            product_id: parseInt(productId),
+            product_name: productName,
+            usage_date: productDate,
+            update_date: this.getCurrentDate(),
+            quantity: quantity ? parseFloat(quantity) : 0,
+            purchase_count: 1  // 默认为1次
+        };
+
+        // 提交请求
+        wx.showLoading({
+            title: '保存中...',
+        });
+
+        request.post(config.apis.customer.addProductUsage, data)
+            .then(res => {
+                if (res && res.code === 200) {
+                    wx.showToast({
+                        title: '添加成功',
+                        icon: 'success'
+                    });
+
+                    // 关闭弹窗
+                    this.setData({
+                        showProductModal: false,
+                        productId: '',
+                        productName: '',
+                        quantity: ''
+                    });
+
+                    // 重新获取产品使用记录
+                    this.loadProductUsages();
+                } else {
+                    wx.showToast({
+                        title: res.message || '添加失败',
+                        icon: 'none'
+                    });
+                }
+            })
+            .catch(err => {
+                console.error('添加产品使用记录失败:', err);
+                wx.showToast({
+                    title: '添加失败',
+                    icon: 'none'
+                });
+            })
+            .finally(() => {
+                wx.hideLoading();
+            });
+    },
+    
+    // 格式化日期为 YYYY-MM-DD
+    formatDate: function (date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    },
+
+    // 获取当前日期 YYYY-MM-DD
+    getCurrentDate: function() {
+        const now = new Date();
+        return this.formatDate(now);
+    },
+
+    // 初始化BMI分类
+    initBmiCategories: function() {
+        // BMI categories are already set in data
+    },
+
+    // 计算今日掉秤量和代谢量
+    calculateTodayWeightMetrics: function() {
+        // 实现计算掉秤量和代谢量的功能
+    },
+    
+    // 加载客户详情
+    loadCustomerDetail: function() {
+        // 加载客户详情的代码
+    },
+    
+    // 加载体重记录
+    loadWeightRecords: function() {
+        // 实现加载体重记录功能
+    },
+    
+    // 加载更多记录
+    loadMoreRecords: function() {
+        // 实现加载更多记录功能
+    },
+    
+    // 绘制产品表格 - 只保留一个实现
+    drawProductTable: function (ctx, options) {
+        const { x, y, width, height, products, colors } = options;
+
+        // 绘制表格背景
+        ctx.fillStyle = "#FFFFFF";
+        ctx.beginPath();
+        this.roundRect(ctx, x, y, width, height, 8);
+        ctx.fill();
+
+        // 绘制表格边框
+        ctx.strokeStyle = colors.secondary;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        this.roundRect(ctx, x, y, width, height, 8);
+        ctx.stroke();
+
+        // 绘制表头
+        const col1Width = width * 0.4;
+        const col2Width = width * 0.2;
+        const col3Width = width * 0.2;
+        const col4Width = width * 0.1;
+        const col5Width = width * 0.1;
+
+        // 绘制表头背景
+        ctx.fillStyle = colors.secondary;
+        ctx.beginPath();
+        ctx.rect(x, y, width, 40);
+        ctx.fill();
+
+        // 绘制表头文字
+        ctx.fillStyle = "#FFFFFF";
+        ctx.font = "bold 16px sans-serif";
+        ctx.textAlign = "center";
+
+        ctx.fillText("产品名称", x + col1Width / 2, y + 25);
+        ctx.fillText("首购", x + col1Width + col2Width / 2, y + 25);
+        ctx.fillText("更新", x + col1Width + col2Width + col3Width / 2, y + 25);
+        ctx.fillText("次数", x + col1Width + col2Width + col3Width + col4Width / 2, y + 25);
+        ctx.fillText("剩余", x + col1Width + col2Width + col3Width + col4Width + col5Width / 2, y + 25);
+
+        // 绘制数据行
+        const rowHeight = 40;
+        // 最多显示5条记录，如果有更多则在底部显示信息
+        const maxItems = Math.min(5, products.length);
+        const displayProducts = products.slice(0, maxItems);
+
+        displayProducts.forEach((product, index) => {
+            const rowY = y + 40 + index * rowHeight;
+
+            // 绘制行背景（所有行使用浅灰色背景 #F9FAFB）
+            ctx.fillStyle = '#F9FAFB';
+            ctx.fillRect(x, rowY, width, rowHeight);
+
+            // 绘制边框线
+            ctx.strokeStyle = '#E5E7EB';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(x, rowY);
+            ctx.lineTo(x + width, rowY);
+            ctx.stroke();
+
+            // 设置文本样式
+            ctx.fillStyle = '#374151'; // 深灰色文本
+            ctx.font = '16px sans-serif';
+
+            // 产品名称
+            ctx.textAlign = 'center';
+            const productName = product.product_name || '未知产品';
+            ctx.fillText(productName, x + col1Width / 2, rowY + 25);
+
+            // 首购日期 - 使用外部函数格式化日期
+            const firstPurchaseDate = product.first_purchase_date || product.usage_date || '';
+            const formattedFirstDate = formatShortDate(firstPurchaseDate);
+            ctx.fillText(formattedFirstDate, x + col1Width + col2Width / 2, rowY + 25);
+
+            // 更新日期 - 使用外部函数格式化日期
+            const updateDate = product.update_date || product.usage_date || '';
+            const formattedUpdateDate = formatShortDate(updateDate);
+            ctx.fillText(formattedUpdateDate, x + col1Width + col2Width + col3Width / 2, rowY + 25);
+
+            // 购买次数
+            ctx.fillStyle = '#3B82F6'; // 蓝色
+            ctx.font = 'bold 16px sans-serif';
+            ctx.fillText(product.purchase_count || 0, x + col1Width + col2Width + col3Width + col4Width / 2, rowY + 25);
+
+            // 剩余次数
+            ctx.fillStyle = '#10B981'; // 绿色
+            ctx.fillText(product.remaining_count || 0, x + col1Width + col2Width + col3Width + col4Width + col5Width / 2, rowY + 25);
+        });
+
+        // 如果有更多记录，显示信息
+        if (products.length > maxItems) {
+            ctx.fillStyle = '#6B7280';
+            ctx.font = 'italic 14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText(`还有 ${products.length - maxItems} 条记录未显示`, x + width / 2, y + height - 15);
+        }
+
+        // 如果没有记录，显示提示
+        if (products.length === 0) {
+            ctx.fillStyle = '#6B7280';
+            ctx.font = '16px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('暂无产品使用记录', x + width / 2, y + height / 2);
+        }
+    },
+    
+    // 圆角矩形
+    roundRect: function(ctx, x, y, width, height, radius) {
+        if (typeof radius === 'undefined') {
+            radius = 5;
+        }
+        ctx.beginPath();
+        ctx.moveTo(x + radius, y);
+        ctx.lineTo(x + width - radius, y);
+        ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+        ctx.lineTo(x + width, y + height - radius);
+        ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+        ctx.lineTo(x + radius, y + height);
+        ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+        ctx.lineTo(x, y + radius);
+        ctx.quadraticCurveTo(x, y, x + radius, y);
+        ctx.closePath();
+    }
+}); 
