@@ -6,6 +6,7 @@
     <view class="header-top">
       <view class="customer-name-id">
         <text class="customer-name">{{customer.name}}</text>
+        <text class="customer-phone">{{customer.phone}}</text>
         <text class="customer-id">{{customer.id}}</text>
       </view>
     </view>
@@ -49,11 +50,6 @@
           </view>
         </view>
       </view>
-    </view>
-    
-    <!-- 顾客电话信息 -->
-    <view class="customer-meta">
-      <view class="phone">{{customer.phone || '暂无电话'}}</view>
     </view>
     
     <!-- 添加周趋势图区域 -->

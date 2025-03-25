@@ -55,16 +55,22 @@ func GetCustomers(userID int, storeID string, name string, phone string, page in
 		args = append(args, storeID)
 	}
 
-	// 处理姓名过滤
-	if name != "" {
-		whereClause += " AND name LIKE ?"
-		args = append(args, "%"+name+"%")
-	}
+	// 处理姓名和电话搜索
+	if name != "" || phone != "" {
+		whereClause += " AND ("
+		var conditions []string
 
-	// 处理电话过滤
-	if phone != "" {
-		whereClause += " AND phone LIKE ?"
-		args = append(args, "%"+phone+"%")
+		if name != "" {
+			conditions = append(conditions, "name LIKE ?")
+			args = append(args, "%"+name+"%")
+		}
+
+		if phone != "" {
+			conditions = append(conditions, "phone LIKE ?")
+			args = append(args, "%"+phone+"%")
+		}
+
+		whereClause += strings.Join(conditions, " OR ") + ")"
 	}
 
 	// 获取总数

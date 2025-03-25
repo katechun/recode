@@ -2,6 +2,19 @@
 <view class="container">
   <!-- 顶部筛选区域 -->
   <view class="filter-section">
+    <!-- 搜索框 -->
+    <view class="search-box">
+      <input type="text" 
+             placeholder="输入姓名或电话搜索" 
+             value="{{searchKeyword}}"
+             bindinput="onSearchInput"
+             confirm-type="search"
+             bindconfirm="onSearch"/>
+      <view class="search-icon" bindtap="onSearch">
+        <text class="icon">🔍</text>
+      </view>
+    </view>
+    <!-- 店铺选择 -->
     <view class="store-filter" bindtap="showStorePicker">
       <text>{{selectedStore ? selectedStore.name : '全部店铺'}}</text>
       <view class="dropdown-icon"></view>

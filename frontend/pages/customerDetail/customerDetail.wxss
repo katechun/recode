@@ -32,16 +32,22 @@ page {
 .customer-name {
   font-size: 36rpx;
   font-weight: bold;
-  color: #ffffff;
-  margin-right: 15rpx;
+  color: #333;
+  margin-right: 16rpx;
+}
+
+.customer-phone {
+  font-size: 28rpx;
+  color: #666;
+  margin-right: 16rpx;
+  background-color: #f5f5f5;
+  padding: 4rpx 12rpx;
+  border-radius: 8rpx;
 }
 
 .customer-id {
   font-size: 24rpx;
-  color: rgba(255, 255, 255, 0.9);
-  background-color: rgba(255, 255, 255, 0.2);
-  padding: 4rpx 12rpx;
-  border-radius: 30rpx;
+  color: #999;
 }
 
 /* 客户基本信息样式 */

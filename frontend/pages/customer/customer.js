@@ -12,7 +12,9 @@ Page({
         selectedStoreId: '',
         stores: [],
         storePickerVisible: false,
-        selectedStore: null
+        selectedStore: null,
+        searchKeyword: '',
+        searchTimer: null,
     },
 
     onLoad: function () {
@@ -190,7 +192,7 @@ Page({
 
         this.setData({ isLoading: true });
 
-        const { userInfo, pageNum, pageSize, selectedStoreId } = this.data;
+        const { userInfo, pageNum, pageSize, selectedStoreId, searchKeyword } = this.data;
 
         // 显示加载提示
         wx.showLoading({
@@ -206,9 +208,9 @@ Page({
                 title: '加载超时，请重试',
                 icon: 'none'
             });
-        }, 15000); // 15秒超时
+        }, 15000);
 
-        // 构建URL，确保userId直接添加到URL而不是放在data对象中
+        // 构建URL
         let url = config.apis.customer.list;
         if (url.indexOf('?') > -1) {
             url += `&user_id=${userInfo.id}`;
@@ -216,12 +218,17 @@ Page({
             url += `?user_id=${userInfo.id}`;
         }
 
-        // 处理店铺ID，确保它是数值型
+        // 添加搜索关键词（同时搜索姓名和电话）
+        if (searchKeyword && searchKeyword.trim()) {
+            const keyword = searchKeyword.trim();
+            url += `&name=${encodeURIComponent(keyword)}&phone=${encodeURIComponent(keyword)}`;
+        }
+
+        // 处理店铺ID
         if (selectedStoreId && selectedStoreId !== '') {
             const storeIdNum = parseInt(selectedStoreId);
             if (!isNaN(storeIdNum)) {
                 url += `&store_id=${storeIdNum}`;
-                console.log(`筛选店铺ID: ${storeIdNum}`);
             }
         }
 
@@ -475,5 +482,38 @@ Page({
                     icon: 'none'
                 });
             });
-    }
+    },
+
+    // 搜索框输入事件处理
+    onSearchInput: function (e) {
+        const keyword = e.detail.value;
+        this.setData({ searchKeyword: keyword });
+
+        // 使用防抖，避免频繁请求
+        if (this.data.searchTimer) {
+            clearTimeout(this.data.searchTimer);
+        }
+
+        const timer = setTimeout(() => {
+            this.setData({
+                pageNum: 1,
+                customers: []
+            });
+            this.loadCustomers(true);
+        }, 500);
+
+        this.setData({ searchTimer: timer });
+    },
+
+    // 搜索按钮点击或回车事件处理
+    onSearch: function () {
+        if (this.data.searchTimer) {
+            clearTimeout(this.data.searchTimer);
+        }
+        this.setData({
+            pageNum: 1,
+            customers: []
+        });
+        this.loadCustomers(true);
+    },
 }); 
