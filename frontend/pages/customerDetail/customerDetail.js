@@ -666,13 +666,20 @@ Page({
                             usage.update_date :
                             (usage.usage_date || this.getCurrentDate());
 
+                        // 确保quantity是数字而不是加号
+                        let quantity = 0;
+                        if (usage.quantity !== null && usage.quantity !== undefined) {
+                            // 尝试转换为数字
+                            quantity = isNaN(parseFloat(usage.quantity)) ? 0 : parseFloat(usage.quantity);
+                        }
+
                         return {
                             id: usage.id || 0,
                             product_id: usage.product_id || 0,
                             product_name: usage.product_name || '未知产品',
                             usage_date: usage.usage_date || this.getCurrentDate(),
                             update_date: updateDate,
-                            quantity: usage.quantity || 0,            // 剩余次数
+                            quantity: quantity,                       // 确保剩余数量是数字
                             purchase_count: usage.purchase_count || 1 // 购买次数
                         };
                     });
@@ -1121,14 +1128,14 @@ Page({
         let dropValue = null;
         let metaValue = null;
 
-        if (this.data.weightTimeType === 'morning' && this.data.previousEveningWeight !== null) {
-            // 掉秤量 = 当天早上体重 - 头天晚上体重（都是斤）
-            dropValue = parseFloat((currentWeight - this.data.previousEveningWeight).toFixed(1));
+        if (this.data.weightTimeType === 'morning' && this.data.previousMorningWeight !== null) {
+            // 掉秤量 = 头天早上体重 - 当天早上体重
+            dropValue = parseFloat((this.data.previousMorningWeight - currentWeight).toFixed(1));
         }
 
-        if (this.data.weightTimeType === 'evening' && this.data.previousMorningWeight !== null) {
-            // 代谢量 = 当天晚上体重 - 当天早上体重（都是斤）
-            metaValue = parseFloat((currentWeight - this.data.previousMorningWeight).toFixed(1));
+        if (this.data.weightTimeType === 'evening' && this.data.previousEveningWeight !== null) {
+            // 代谢量 = 头天晚上体重 - 当天晚上体重
+            metaValue = parseFloat((this.data.previousEveningWeight - currentWeight).toFixed(1));
         }
 
         this.setData({
@@ -1443,81 +1450,82 @@ Page({
 
     // 保存产品使用记录
     saveProductUsage: function () {
-        // 检查输入
-        if (!this.data.selectedProductId || !this.data.quantity) {
+        // 确保数据有效
+        if (!this.data.productId) {
             wx.showToast({
-                title: '请填写完整信息',
+                title: '请选择产品',
                 icon: 'none'
             });
             return;
         }
 
-        // 显示加载
+        const { userInfo, customerId, productId, productDate, productName, quantity } = this.data;
+
+        // 确保数量是数字
+        const quantityNum = isNaN(parseFloat(quantity)) ? 0 : parseFloat(quantity);
+
+        // 数据验证
+        if (!customerId || !productId) {
+            wx.showToast({
+                title: '缺少必要数据',
+                icon: 'none'
+            });
+            return;
+        }
+
+        // 准备要提交的数据
+        const data = {
+            user_id: userInfo.id,
+            customer_id: parseInt(customerId),
+            product_id: parseInt(productId),
+            product_name: productName,
+            usage_date: productDate,
+            update_date: this.getCurrentDate(),
+            quantity: quantityNum,
+            purchase_count: 1  // 默认为1次
+        };
+
+        console.log('提交产品使用记录数据:', data);
+
+        // 提交请求
         wx.showLoading({
             title: '保存中...',
         });
 
-        const { userInfo, customerId, selectedProductId, productName, productDate, quantity } = this.data;
-
-        // 确保ID和数量是数字类型
-        const customerIdNum = parseInt(customerId);
-        const productIdNum = parseInt(selectedProductId);
-        const quantityNum = parseFloat(quantity);
-
-        if (isNaN(customerIdNum)) {
-            wx.hideLoading();
-            wx.showToast({
-                title: '数据格式错误',
-                icon: 'none'
-            });
-            return;
-        }
-
-        // 获取当前日期作为更新日期
-        const currentDate = this.getCurrentDate();
-
-        // 创建新产品使用记录
-        const productData = {
-            user_id: userInfo.id,
-            customer_id: customerIdNum,
-            product_id: productIdNum,
-            product_name: productName,
-            usage_date: productDate,
-            update_date: currentDate,     // 添加更新日期
-            quantity: quantityNum,        // 剩余次数
-            purchase_count: parseInt(quantity)  // 设置购买次数与输入的剩余次数一致
-        };
-
-        // 调用API保存
-        request.post(config.apis.customer.addProductUsage, productData)
+        request.post(config.apis.customer.addProductUsage, data)
             .then(res => {
-                wx.hideLoading();
-
                 if (res && res.code === 200) {
-                    // 关闭弹窗并提示
-                    this.closeProductModal();
-
-                    // 成功后重新加载列表，确保显示最新数据
-                    this.loadProductUsages();
-
                     wx.showToast({
                         title: '添加成功',
                         icon: 'success'
                     });
+
+                    // 关闭弹窗
+                    this.setData({
+                        showProductModal: false,
+                        productId: '',
+                        productName: '',
+                        quantity: ''
+                    });
+
+                    // 重新获取产品使用记录
+                    this.loadProductUsages();
                 } else {
                     wx.showToast({
-                        title: res?.message || '添加失败',
+                        title: res.message || '添加失败',
                         icon: 'none'
                     });
                 }
             })
             .catch(err => {
-                wx.hideLoading();
-                console.error('保存产品记录失败:', err);
+                console.error('添加产品使用记录失败:', err);
                 wx.showToast({
                     title: '添加失败',
                     icon: 'none'
                 });
+            })
+            .finally(() => {
+                wx.hideLoading();
             });
     },
 
@@ -1964,7 +1972,7 @@ Page({
                 width: statsCardWidth,
                 height: statsCardHeight,
                 title: '初始体重',
-                value: `${parseFloat(data.startWeight).toFixed(1)}kg`,
+                value: `${parseFloat(data.startWeight).toFixed(1)}斤`,
                 subtitle: data.bmiData ? `BMI: ${parseFloat(data.bmiData.initial).toFixed(1)}` : null,
                 color: colors.light,
                 textColor: colors.text,
@@ -1978,7 +1986,7 @@ Page({
                 width: statsCardWidth,
                 height: statsCardHeight,
                 title: '当前体重',
-                value: `${parseFloat(data.currentWeight).toFixed(1)}kg`,
+                value: `${parseFloat(data.currentWeight).toFixed(1)}斤`,
                 subtitle: data.bmiData ? `BMI: ${parseFloat(data.bmiData.current).toFixed(1)}` : null,
                 color: colors.light,
                 textColor: colors.text,
@@ -1995,7 +2003,7 @@ Page({
                 width: statsCardWidth,
                 height: statsCardHeight,
                 title: '减重总量',
-                value: `${weightLoss.toFixed(1)}kg`,
+                value: `${weightLoss.toFixed(1)}斤`,
                 subtitle: `减重比例: ${lossPercentage.toFixed(1)}%`,
                 color: weightLoss > 0 ? colors.secondary : colors.danger,
                 textColor: '#FFFFFF',
@@ -2641,11 +2649,12 @@ Page({
             ctx.textAlign = 'center';
             ctx.fillText(purchaseCount + '次', x + col1Width + col2Width + col3Width + col4Width / 2, rowY + 25);
 
-            // 剩余数量显示为 + 号
+            // 剩余数量 - 显示实际剩余数量而不是加号
+            const remainingCount = product.remaining_count || 0;
             ctx.fillStyle = '#3B82F6'; // 蓝色
-            ctx.font = 'bold 20px sans-serif';
+            ctx.font = 'bold 16px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText('+', x + col1Width + col2Width + col3Width + col4Width + col5Width / 2, rowY + 25);
+            ctx.fillText(remainingCount, x + col1Width + col2Width + col3Width + col4Width + col5Width / 2, rowY + 25);
         });
 
         // 如果有更多记录，显示提示
@@ -3280,14 +3289,14 @@ Page({
         let dropValue = null;
         let metaValue = null;
 
-        if (this.data.weightTimeType === 'morning' && this.data.previousEveningWeight !== null) {
-            // 掉秤量 = 当天早上体重 - 头天晚上体重（都是斤）
-            dropValue = parseFloat((currentWeight - this.data.previousEveningWeight).toFixed(1));
+        if (this.data.weightTimeType === 'morning' && this.data.previousMorningWeight !== null) {
+            // 掉秤量 = 头天早上体重 - 当天早上体重
+            dropValue = parseFloat((this.data.previousMorningWeight - currentWeight).toFixed(1));
         }
 
-        if (this.data.weightTimeType === 'evening' && this.data.previousMorningWeight !== null) {
-            // 代谢量 = 当天晚上体重 - 当天早上体重（都是斤）
-            metaValue = parseFloat((currentWeight - this.data.previousMorningWeight).toFixed(1));
+        if (this.data.weightTimeType === 'evening' && this.data.previousEveningWeight !== null) {
+            // 代谢量 = 头天晚上体重 - 当天晚上体重
+            metaValue = parseFloat((this.data.previousEveningWeight - currentWeight).toFixed(1));
         }
 
         this.setData({
@@ -3602,7 +3611,7 @@ Page({
 
     // 保存产品使用记录
     saveProductUsage: function () {
-        // 检查输入
+        // 确保数据有效
         if (!this.data.selectedProductId || !this.data.quantity) {
             wx.showToast({
                 title: '请填写完整信息',
@@ -4445,7 +4454,7 @@ Page({
         ctx.fillText('使用日期', col2X + col2Width / 2, tableY + 27);
 
         ctx.textAlign = 'center';
-        ctx.fillText('数量', col3X + col3Width / 2, tableY + 27);
+        ctx.fillText('剩余', col3X + col3Width / 2, tableY + 27);
 
         // 检查是否有产品使用数据
         if (!data.productUsageData || !Array.isArray(data.productUsageData) || data.productUsageData.length === 0) {
@@ -4499,11 +4508,13 @@ Page({
             ctx.textAlign = 'center';
             ctx.fillText(product.usage_date || '未知日期', col2X + col2Width / 2, rowY + 25);
 
-            // 数量
+            // 剩余数量
             ctx.textAlign = 'center';
             ctx.fillStyle = '#FF9800';
             ctx.font = 'bold 20px sans-serif';
-            ctx.fillText(product.purchase_count || 0, col3X + col3Width / 2, rowY + 25);
+            // 使用remaining_count字段显示剩余数量，如果没有则显示0
+            const remainingCount = product.remaining_count || 0;
+            ctx.fillText(remainingCount, col3X + col3Width / 2, rowY + 25);
         });
 
         // 绘制行分隔线
@@ -4918,42 +4929,6 @@ Page({
         });
     },
 
-    // 增加产品剩余次数
-    increaseProductCount: function (e) {
-        const index = e.currentTarget.dataset.index;
-        const productUsageList = this.data.productUsageList;
-
-        if (productUsageList[index]) {
-            // 确保使用整数进行计算
-            productUsageList[index].quantity = (parseInt(productUsageList[index].quantity) || 0) + 1;
-            productUsageList[index].update_date = this.getCurrentDate();
-
-            this.setData({
-                productUsageList: productUsageList
-            });
-
-            this.updateProductUsage(productUsageList[index]);
-        }
-    },
-
-    // 减少产品剩余次数
-    decreaseProductCount: function (e) {
-        const index = e.currentTarget.dataset.index;
-        const productUsageList = this.data.productUsageList;
-
-        if (productUsageList[index] && parseInt(productUsageList[index].quantity) > 0) {
-            // 确保使用整数进行计算
-            productUsageList[index].quantity = (parseInt(productUsageList[index].quantity) || 0) - 1;
-            productUsageList[index].update_date = this.getCurrentDate();
-
-            this.setData({
-                productUsageList: productUsageList
-            });
-
-            this.updateProductUsage(productUsageList[index]);
-        }
-    },
-
     // 更新产品使用记录
     updateProductUsage: function (productRecord) {
         const { userInfo, customerId } = this.data;
@@ -5001,39 +4976,47 @@ Page({
         // 准备要更新的数据
         const updateData = {
             user_id: userInfo.id,
+            product_usage_id: productRecord.id,
             customer_id: customerIdNum,
             product_id: productIdNum,
+            product_name: productRecord.product_name,
             quantity: quantityNum,
-            usage_date: productRecord.usage_date || this.getCurrentDate(),
             update_date: updateDate
         };
 
-        console.log('发送更新产品使用请求:', updateData);
+        // 显示加载提示
+        wx.showLoading({
+            title: '更新中...',
+        });
 
-        // 调用API更新产品使用记录
+        // 调用API更新
         request.post(config.apis.customer.updateProductUsage, updateData)
             .then(res => {
+                wx.hideLoading();
                 if (res && res.code === 200) {
-                    wx.showToast({
-                        title: '更新成功',
-                        icon: 'success',
-                        duration: 1000
-                    });
+                    console.log('产品使用记录更新成功');
+                    // 更新成功后，无需刷新整个列表
                 } else {
+                    console.error('更新产品使用记录失败:', res);
                     wx.showToast({
-                        title: '更新失败',
+                        title: res?.message || '更新失败',
                         icon: 'none',
                         duration: 2000
                     });
+                    // 还原数据，重新加载列表
+                    this.loadProductUsages();
                 }
             })
             .catch(err => {
-                console.error('更新产品使用记录失败:', err);
+                wx.hideLoading();
+                console.error('更新产品使用记录请求失败:', err);
                 wx.showToast({
                     title: '更新失败',
                     icon: 'none',
                     duration: 2000
                 });
+                // 还原数据，重新加载列表
+                this.loadProductUsages();
             });
     },
 
@@ -5290,8 +5273,8 @@ Page({
             return;
         }
 
-        // 计算今日掉秤量 = 今日早称 - 昨日晚称
-        // 计算今日代谢量 = 今日晚称 - 今日早称
+        // 计算今日掉秤量 = 昨日早称 - 今日早称
+        // 计算今日代谢量 = 昨日晚称 - 今日晚称
         const now = new Date();
         const today = this.formatDate(now);
 
@@ -5302,9 +5285,10 @@ Page({
 
         console.log('计算掉秤量和代谢量，今天:', today, '昨天:', yesterdayStr);
 
-        // 在所有记录中查找今日早称、今日晚称和昨日晚称
+        // 在所有记录中查找今日早称、今日晚称和昨日早称、昨日晚称
         let todayMorningWeight = null;
         let todayEveningWeight = null;
+        let yesterdayMorningWeight = null;
         let yesterdayEveningWeight = null;
 
         // 查找这些记录
@@ -5325,36 +5309,42 @@ Page({
                 }
             }
             // 检查是否是昨天的记录
-            else if (recordDate === yesterdayStr && !isMorning && record.weight) {
-                // 昨日晚称
-                yesterdayEveningWeight = parseFloat(record.weight);
+            else if (recordDate === yesterdayStr) {
+                if (isMorning && record.weight) {
+                    // 昨日早称
+                    yesterdayMorningWeight = parseFloat(record.weight);
+                } else if (!isMorning && record.weight) {
+                    // 昨日晚称
+                    yesterdayEveningWeight = parseFloat(record.weight);
+                }
             }
         }
 
         console.log('找到的记录:',
             '今日早称:', todayMorningWeight,
             '今日晚称:', todayEveningWeight,
+            '昨日早称:', yesterdayMorningWeight,
             '昨日晚称:', yesterdayEveningWeight);
 
         // 计算掉秤量和代谢量
         let weightDrop = null;
         let metabolismValue = null;
 
-        // 计算掉秤量：今日早称 - 昨日晚称
-        if (todayMorningWeight !== null && yesterdayEveningWeight !== null) {
-            weightDrop = (todayMorningWeight - yesterdayEveningWeight).toFixed(1);
+        // 计算掉秤量：昨日早称 - 今日早称
+        if (todayMorningWeight !== null && yesterdayMorningWeight !== null) {
+            weightDrop = (yesterdayMorningWeight - todayMorningWeight).toFixed(1);
         }
 
-        // 计算代谢量：今日晚称 - 今日早称
-        if (todayEveningWeight !== null && todayMorningWeight !== null) {
-            metabolismValue = (todayEveningWeight - todayMorningWeight).toFixed(1);
+        // 计算代谢量：昨日晚称 - 今日晚称
+        if (todayEveningWeight !== null && yesterdayEveningWeight !== null) {
+            metabolismValue = (yesterdayEveningWeight - todayEveningWeight).toFixed(1);
         }
 
         // 保存计算结果
         this.setData({
             weightDropValue: weightDrop,
             metabolismValue: metabolismValue,
-            previousMorningWeight: todayMorningWeight,
+            previousMorningWeight: yesterdayMorningWeight,
             previousEveningWeight: yesterdayEveningWeight
         });
 
@@ -5517,143 +5507,110 @@ Page({
 
     // 准备报表数据
     prepareReportData: function () {
-        const { dateRange, userInfo, customer } = this.data;
+        console.log('准备报表数据');
+        const { customer, customerId, weightRecords } = this.data;
 
-        if (!customer || !userInfo) {
-            wx.showToast({
-                title: '缺少客户数据',
-                icon: 'none'
-            });
+        // 确保客户和客户ID有效
+        if (!customer || !customerId) {
+            console.error('客户信息无效', customer, customerId);
+            this.showToast('客户信息无效，无法生成报表');
             return;
         }
 
-        this.setData({ isExporting: true });
-
-        // 获取需要导出的体重记录
-        let targetRecords = [];
-
-        if (dateRange === 'all') {
-            targetRecords = this.data.weightRecords;
-        } else {
-            const days = parseInt(dateRange);
-            const cutoffDate = new Date();
-            cutoffDate.setDate(cutoffDate.getDate() - days);
-
-            targetRecords = this.data.weightRecords.filter(record => {
-                const recordDate = new Date(record.record_date);
-                return recordDate >= cutoffDate;
-            });
+        // 确保有体重记录
+        if (!weightRecords || !Array.isArray(weightRecords) || weightRecords.length === 0) {
+            console.log('无体重记录，无法生成报表');
+            this.showToast('无体重记录，无法生成报表');
+            return;
         }
 
+        // 获取体重记录
+        let targetRecords = [...weightRecords];
+
+        // 根据日期范围筛选记录
+        if (this.data.dateRange !== 'all') {
+            const days = parseInt(this.data.dateRange);
+            if (!isNaN(days) && days > 0) {
+                const cutoffDate = new Date();
+                cutoffDate.setDate(cutoffDate.getDate() - days);
+
+                targetRecords = targetRecords.filter(record =>
+                    new Date(record.record_date) >= cutoffDate
+                );
+            }
+        }
+
+        // 如果筛选后没有记录，显示提示
         if (targetRecords.length === 0) {
-            this.setData({ isExporting: false });
-            wx.showToast({
-                title: '所选时间范围内无记录',
-                icon: 'none'
-            });
+            console.log('所选时间范围内无体重记录');
+            this.showToast('所选时间范围内无体重记录');
             return;
         }
 
-        // 计算减重统计数据
-        const firstRecord = [...targetRecords].sort((a, b) => new Date(a.record_date) - new Date(b.record_date))[0];
-        const lastRecord = [...targetRecords].sort((a, b) => new Date(b.record_date) - new Date(a.record_date))[0];
+        // 按日期排序
+        targetRecords.sort((a, b) => new Date(a.record_date) - new Date(b.record_date));
+
+        // 获取第一条和最后一条记录
+        const firstRecord = targetRecords[0];
+        const lastRecord = targetRecords[targetRecords.length - 1];
+
+        // 计算减重情况
         const weightLoss = firstRecord.weight - lastRecord.weight;
-        const lossPercentage = ((weightLoss / firstRecord.weight) * 100).toFixed(1);
+        const lossPercentage = firstRecord.weight > 0 ? (weightLoss / firstRecord.weight * 100) : 0;
 
-        // 添加BMI变化数据
+        // 计算BMI数据
         let bmiData = null;
-        if (customer.height) {
-            try {
-                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
-                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
+        if (customer.height && customer.height > 0) {
+            const heightInMeters = customer.height / 100;
+            const initialBmi = firstRecord.weight / (heightInMeters * heightInMeters * 2); // 斤换算成千克再计算
+            const currentBmi = lastRecord.weight / (heightInMeters * heightInMeters * 2);
 
-                // 确保BMI数据是有效的数字
-                if (!isNaN(initialBmi) && !isNaN(currentBmi)) {
-                    bmiData = {
-                        initial: initialBmi,
-                        current: currentBmi,
-                        change: (currentBmi - initialBmi).toFixed(1)
-                    };
-                }
-            } catch (error) {
-                console.error('计算BMI数据错误:', error);
-            }
+            bmiData = {
+                initial: initialBmi.toFixed(1),
+                current: currentBmi.toFixed(1),
+                change: (initialBmi - currentBmi).toFixed(1),
+                category: this.getBmiCategory(currentBmi)
+            };
         }
 
-        // 添加体脂率估算数据
+        // 处理体脂率数据
         let bodyFatData = null;
-        if (customer.height && customer.age && customer.gender) {
-            try {
-                const initialBmi = this.calculateBmi(firstRecord.weight, customer.height);
-                const currentBmi = this.calculateBmi(lastRecord.weight, customer.height);
+        if (customer.gender && customer.age && customer.height) {
+            // 简化计算公式：基于BMI的估算
+            const heightInMeters = customer.height / 100;
+            const currentWeight = parseFloat(lastRecord.weight) / 2; // 斤转千克
+            const bmi = currentWeight / (heightInMeters * heightInMeters);
 
-                const initialBodyFat = this.calculateBodyFat(initialBmi, customer.age, customer.gender);
-                const currentBodyFat = this.calculateBodyFat(currentBmi, customer.age, customer.gender);
-
-                // 确保体脂率数据是有效的数字
-                if (!isNaN(initialBodyFat) && !isNaN(currentBodyFat)) {
-                    bodyFatData = {
-                        initial: initialBodyFat,
-                        current: currentBodyFat,
-                        change: (currentBodyFat - initialBodyFat).toFixed(1)
-                    };
-                }
-            } catch (error) {
-                console.error('计算体脂率数据错误:', error);
+            // 根据性别使用不同公式
+            let bodyFat;
+            if (customer.gender === 1) { // 男性
+                bodyFat = (1.2 * bmi) + (0.23 * customer.age) - 16.2;
+            } else { // 女性
+                bodyFat = (1.2 * bmi) + (0.23 * customer.age) - 5.4;
             }
+
+            bodyFatData = {
+                value: bodyFat.toFixed(1),
+                category: this.getBodyFatCategory(bodyFat, customer.gender)
+            };
         }
 
-        // 获取处理过的产品使用数据
-        const productUsageData = this.processProductDataForReport();
-
-        // 添加当日掉秤量和代谢量数据
-        let dailyWeightData = {
-            weightDropValue: this.data.weightDropValue || '0.0',
-            metabolismValue: this.data.metabolismValue || '0.0'
-        };
-
-        // 如果没有当前值，尝试从记录中计算
-        if (!this.data.weightDropValue || !this.data.metabolismValue) {
-            try {
-                const sortedRecords = [...targetRecords].sort((a, b) =>
-                    new Date(b.record_date) - new Date(a.record_date));
-
-                // 获取最新日期的记录
-                const latestDate = sortedRecords.length > 0 ? sortedRecords[0].record_date : null;
-
-                if (latestDate) {
-                    // 查找今天的记录和前一天的记录
-                    const todayRecords = sortedRecords.filter(r => r.record_date === latestDate);
-
-                    // 确定前一天的日期
-                    const prevDate = new Date(latestDate);
-                    prevDate.setDate(prevDate.getDate() - 1);
-                    const prevDateStr = prevDate.toISOString().split('T')[0];
-
-                    const prevDayRecords = sortedRecords.filter(r => r.record_date === prevDateStr);
-
-                    // 查找今天和昨天的早晨体重记录
-                    const todayMorning = todayRecords.find(r => r.time_type === 'morning');
-                    const prevDayMorning = prevDayRecords.find(r => r.time_type === 'morning');
-
-                    // 查找昨天和今天的晚上体重记录
-                    const prevDayEvening = prevDayRecords.find(r => r.time_type === 'evening');
-                    const todayEvening = todayRecords.find(r => r.time_type === 'evening');
-
-                    // 计算掉秤量和代谢量
-                    if (todayMorning && prevDayMorning) {
-                        const dropValue = (prevDayMorning.weight - todayMorning.weight).toFixed(1);
-                        dailyWeightData.weightDropValue = dropValue;
-                    }
-
-                    if (todayEvening && prevDayEvening) {
-                        const metaValue = (prevDayEvening.weight - todayEvening.weight).toFixed(1);
-                        dailyWeightData.metabolismValue = metaValue;
-                    }
-                }
-            } catch (error) {
-                console.error('计算当日掉秤量和代谢量出错:', error);
+        // 处理产品使用数据
+        let productUsageData = [];
+        try {
+            if (Array.isArray(this.data.productUsageList)) {
+                productUsageData = this.data.productUsageList.map(product => {
+                    return {
+                        product_name: product.product_name || '未知产品',
+                        usage_date: product.usage_date || '未知日期',
+                        update_date: product.update_date || product.usage_date || '',
+                        purchase_count: product.purchase_count || 0,
+                        remaining_count: product.quantity || 0  // 使用quantity字段作为剩余数量
+                    };
+                });
             }
+        } catch (error) {
+            console.error('处理产品使用数据出错:', error);
         }
 
         // 准备绘制Canvas的数据
@@ -5661,17 +5618,15 @@ Page({
             customer: customer,
             startDate: firstRecord.record_date,
             endDate: lastRecord.record_date,
-            startWeight: firstRecord.weight, // 保持kg单位，在显示时转换
-            currentWeight: lastRecord.weight, // 保持kg单位，在显示时转换
+            startWeight: firstRecord.weight,
+            currentWeight: lastRecord.weight,
             weightLoss: parseFloat(weightLoss.toFixed(1)), // 确保weightLoss是数字而不是字符串
-            lossPercentage: parseFloat(lossPercentage),    // 确保lossPercentage是数字
+            lossPercentage: parseFloat(lossPercentage.toFixed(1)),    // 确保lossPercentage是数字
             bmiData: bmiData,
             bodyFatData: bodyFatData,
-            productUsageData: Array.isArray(productUsageData) ? productUsageData : [], // 确保是数组
-            weightRecords: targetRecords.sort((a, b) => new Date(a.record_date) - new Date(b.record_date)),
-            totalDays: Math.ceil((new Date(lastRecord.record_date) - new Date(firstRecord.record_date)) / (1000 * 60 * 60 * 24)) || 30,
-            // 添加当日掉秤量和代谢量数据
-            dailyWeightData: dailyWeightData
+            productUsageData: productUsageData, // 确保是数组
+            weightRecords: targetRecords,
+            totalDays: Math.ceil((new Date(lastRecord.record_date) - new Date(firstRecord.record_date)) / (1000 * 60 * 60 * 24)) || 30
         };
 
         console.log('报表数据:', reportData);

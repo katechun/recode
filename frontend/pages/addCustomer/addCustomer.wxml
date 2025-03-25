@@ -53,17 +53,17 @@
     <view class="section-title">减重信息</view>
     <view class="form-group">
       <view class="form-item">
-        <text class="form-label">初始体重(kg)</text>
+        <text class="form-label">初始体重(斤)</text>
         <input class="form-input" type="digit" placeholder="请输入初始体重" value="{{initialWeight}}" bindinput="bindInputChange" data-field="initialWeight" />
       </view>
       
       <view class="form-item">
-        <text class="form-label">当前体重(kg)</text>
+        <text class="form-label">当前体重(斤)</text>
         <input class="form-input" type="digit" placeholder="请输入当前体重" value="{{currentWeight}}" bindinput="bindInputChange" data-field="currentWeight" />
       </view>
       
       <view class="form-item">
-        <text class="form-label">目标体重(kg)</text>
+        <text class="form-label">目标体重(斤)</text>
         <input class="form-input" type="digit" placeholder="请输入目标体重" value="{{targetWeight}}" bindinput="bindInputChange" data-field="targetWeight" />
       </view>
     </view>

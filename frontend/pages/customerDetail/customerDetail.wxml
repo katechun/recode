@@ -68,15 +68,15 @@
     <view class="weight-overview" style="margin-top:0 !important; padding-top:0 !important;">
       <view class="weight-item">
         <text class="weight-label">初始体重</text>
-        <text class="weight-value">{{kgToJin(customer.initial_weight)}} 斤</text>
+        <text class="weight-value">{{customer.initial_weight}} 斤</text>
       </view>
       <view class="weight-item">
         <text class="weight-label">当前体重</text>
-        <text class="weight-value">{{kgToJin(customer.current_weight)}} 斤</text>
+        <text class="weight-value">{{customer.current_weight}} 斤</text>
       </view>
       <view class="weight-item">
         <text class="weight-label">目标体重</text>
-        <text class="weight-value">{{kgToJin(customer.target_weight)}} 斤</text>
+        <text class="weight-value">{{customer.target_weight}} 斤</text>
       </view>
     </view>
     
@@ -90,8 +90,8 @@
         <view class="progress-bar" style="width: {{customer.progress || 0}}%"></view>
       </view>
       <view class="weight-lost-info">
-        <text>已减重: {{kgToJin(customer.lost_weight) || 0}} 斤</text>
-        <text>还需减重: {{kgToJin(customer.needs_to_lose) || 0}} 斤</text>
+        <text>已减重: {{customer.lost_weight || 0}} 斤</text>
+        <text>还需减重: {{customer.needs_to_lose || 0}} 斤</text>
       </view>
       <view class="goal-achieved" wx:if="{{customer.progress >= 100}}">
         <text class="goal-icon">🎯</text>
@@ -281,7 +281,7 @@
             <text class="product-purchase">{{item.purchase_count || 1}}次</text>
             <view class="product-count-control">
               <view class="count-decrease" data-index="{{index}}" bindtap="decreaseProductCount">-</view>
-              <text class="product-count">{{item.quantity || 0}}次</text>
+              <text class="product-count">{{item.quantity === null || item.quantity === undefined ? 0 : item.quantity}}</text>
               <view class="count-increase" data-index="{{index}}" bindtap="increaseProductCount">+</view>
             </view>
             <view class="product-action">
@@ -432,13 +432,13 @@
           <view class="calc-item" wx:if="{{weightTimeType === 'morning' && weightDropValue !== null}}">
             <text class="calc-label">掉秤量:</text>
             <text class="calc-value {{weightDropValue > 0 ? 'positive' : (weightDropValue < 0 ? 'negative' : '')}}">
-              {{weightDropValue === 0 ? '0.0' : ((weightDropValue > 0 ? '+' : '') + kgToJin(weightDropValue))}} 斤
+              {{weightDropValue === 0 ? '0.0' : ((weightDropValue > 0 ? '+' : '') + weightDropValue)}} 斤
             </text>
           </view>
           <view class="calc-item" wx:if="{{weightTimeType === 'evening' && metabolismValue !== null}}">
             <text class="calc-label">代谢量:</text>
             <text class="calc-value {{metabolismValue > 0 ? 'positive' : (metabolismValue < 0 ? 'negative' : '')}}">
-              {{metabolismValue === 0 ? '0.0' : ((metabolismValue > 0 ? '+' : '') + kgToJin(metabolismValue))}} 斤
+              {{metabolismValue === 0 ? '0.0' : ((metabolismValue > 0 ? '+' : '') + metabolismValue)}} 斤
             </text>
           </view>
           <view class="calc-tip" wx:if="{{(weightTimeType === 'morning' && weightDropValue === null) || (weightTimeType === 'evening' && metabolismValue === null)}}">
