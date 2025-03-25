@@ -31,6 +31,30 @@ function syncToLocal(customerId, recordType, data) {
     return saveToLocalStorage(storageKey, data);
 }
 
+// 创建辅助函数，将kg转换为斤
+function kgToJin(kg) {
+    // 严格检查无效值
+    if (kg === null || kg === undefined || kg === '' || isNaN(parseFloat(kg))) {
+        return '0.0';
+    }
+    // 确保kg是数字并四舍五入到一位小数
+    const value = parseFloat(kg);
+    // 1公斤 = 2斤
+    return (value * 2).toFixed(1);
+}
+
+// 创建辅助函数，将斤转换为kg
+function jinToKg(jin) {
+    // 严格检查无效值
+    if (jin === null || jin === undefined || jin === '' || isNaN(parseFloat(jin))) {
+        return 0;
+    }
+    // 确保jin是数字
+    const value = parseFloat(jin);
+    // 1斤 = 0.5公斤，保留一位小数
+    return parseFloat((value / 2).toFixed(1));
+}
+
 let chartOption = {
     color: ['#1890ff'],
     grid: {
@@ -50,7 +74,7 @@ let chartOption = {
     },
     yAxis: {
         type: 'value',
-        name: '体重(kg)'
+        name: '体重(斤)'
     },
     series: [{
         name: '体重',
@@ -127,16 +151,8 @@ Page({
         showMemberInfo: false,
         membershipId: '',
         memberStatus: '',
-        // 添加周掉秤趋势测试数据
-        weeklyWeightTrend: [
-            { date: '周一', value: 0.5, height: 50 },
-            { date: '周二', value: 0.7, height: 70 },
-            { date: '周三', value: 0.4, height: 40 },
-            { date: '周四', value: -0.1, height: 10 },
-            { date: '周五', value: 0.6, height: 60 },
-            { date: '周六', value: 0.8, height: 80 },
-            { date: '周日', value: 0.3, height: 30 }
-        ]
+        // 添加周掉秤趋势数据
+        weeklyWeightTrend: []
     },
 
     onLoad: function (options) {
@@ -162,8 +178,8 @@ Page({
                 metabolismValue: '0.0',
                 // 设置图表配置
                 ec: {
-                    onInit: initChart,
-                    lazyLoad: false  // 设置为非懒加载模式，确保图表立即初始化
+                    onInit: this.initChart.bind(this),
+                    lazyLoad: true  // 改为懒加载模式，等数据加载后再初始化
                 }
             });
 
@@ -199,8 +215,13 @@ Page({
             wx.removeStorageSync('customerDetailNeedRefresh');
         }
 
-        // 计算今日掉秤量和代谢量
-        this.calculateTodayWeightMetrics();
+        // 如果已经有体重记录，预填充体重输入框为斤单位
+        if (this.data.customer && this.data.customer.current_weight) {
+            this.setData({
+                // 将当前体重预设为输入默认值（kg转为斤）
+                prefilledWeight: kgToJin(this.data.customer.current_weight)
+            });
+        }
     },
 
     onPullDownRefresh: function () {
@@ -374,6 +395,9 @@ Page({
                     });
                 }
             });
+
+        // 测试使用kgToJin函数，确保控制台可以看到转换结果
+        console.log('测试kg转斤:', kgToJin(75), kgToJin('80.5'));
     },
 
     // 创建默认客户数据（当API和本地存储都失败时）
@@ -426,60 +450,19 @@ Page({
                     let records = res.data || [];
                     console.log('获取到体重记录数量:', records.length);
 
-                    // 如果记录为空，添加一条初始记录
-                    if (records.length === 0 && this.data.customer) {
-                        console.log('无记录，尝试创建初始记录');
-                        const { initial_weight, current_weight } = this.data.customer;
-
-                        // 修改这里：确保即使initial_weight为空也能添加一条当前体重记录
-                        const initialWeight = initial_weight || current_weight || 0;
-
-                        // 为了图表显示，增加两个点：初始体重和当前体重
-                        const initialDate = new Date();
-                        initialDate.setMonth(initialDate.getMonth() - 1);
-
-                        records = [
-                            {
-                                id: 'initial',
-                                weight: initialWeight,
-                                record_date: this.formatDate(initialDate),
-                                notes: '初始体重',
-                                time_type: 'morning'
-                            }
-                        ];
-
-                        if (current_weight && current_weight !== initialWeight) {
-                            records.push({
-                                id: 'current',
-                                weight: current_weight,
-                                record_date: this.formatDate(new Date()),
-                                notes: '当前体重',
-                                time_type: 'morning'
-                            });
-                        } else if (!current_weight) {
-                            // 如果没有当前体重，添加一条空记录用于显示
-                            records.push({
-                                id: 'current',
-                                weight: initialWeight, // 使用初始体重作为默认值
-                                record_date: this.formatDate(new Date()),
-                                notes: '当前体重',
-                                time_type: 'morning'
-                            });
-                        }
-
-                        // 有了初始记录后，创建一个添加体重记录的按钮
-                        this.setData({
-                            showAddWeightBtn: true
-                        });
-                    } else {
-                        console.log('成功获取到体重记录');
-                    }
-
                     // 确保记录有必要的字段
                     records = records.map(record => {
                         // 确保weight是数字
+                        let weight = 0;
                         if (typeof record.weight === 'string') {
-                            record.weight = parseFloat(record.weight);
+                            weight = parseFloat(record.weight);
+                        } else if (typeof record.weight === 'number') {
+                            weight = record.weight;
+                        }
+
+                        // 如果weight小于100，假设是千克单位，需要转换为斤
+                        if (!isNaN(weight) && weight > 0 && weight < 100) {
+                            weight = parseFloat((weight * 2).toFixed(1));
                         }
 
                         // 确保有time_type字段
@@ -489,7 +472,10 @@ Page({
                             record.time_type = notes.includes('晚称') ? 'evening' : 'morning';
                         }
 
-                        return record;
+                        return {
+                            ...record,
+                            weight: weight
+                        };
                     });
 
                     // 计算体重变化
@@ -510,25 +496,38 @@ Page({
                         weightRecords: records
                     });
 
-                    // 创建减肥趋势图数据
-                    this.createWeightTrendData(records);
-
-                    // 生成减肥数据分析
-                    if (records.length >= 2) {
-                        this.generateWeightAnalysis(records);
+                    // 创建减肥趋势图数据并更新图表
+                    const chartData = this.createWeightTrendData(records);
+                    if (chartData && this.chart) {
+                        this.chart.setOption(chartData);
+                    } else {
+                        // 如果图表还没有初始化，初始化它
+                        this.setData({
+                            ec: {
+                                onInit: function (canvas, width, height, dpr) {
+                                    const chart = echarts.init(canvas, null, {
+                                        width: width,
+                                        height: height,
+                                        devicePixelRatio: dpr
+                                    });
+                                    canvas.setChart(chart);
+                                    chart.setOption(chartData);
+                                    this.chart = chart;
+                                    return chart;
+                                }.bind(this)
+                            }
+                        });
                     }
 
-                    // 计算今日掉秤量和代谢量
-                    this.calculateTodayWeightMetrics();
-                } else {
-                    console.log('API返回错误:', res);
-                    // API加载失败时，不需要处理了，因为我们已经在函数开始时从本地加载了数据
+                    // 计算周体重趋势
+                    this.calculateWeeklyWeightTrend(records);
+
+                    // 如果图表组件已准备好，初始化图表
+                    const ecComponent = this.selectComponent('#weightChart');
+                    if (ecComponent && !ecComponent.chart) {
+                        ecComponent.init();
+                    }
                 }
-            })
-            .catch(err => {
-                console.error('加载减肥记录失败:', err);
-                this.setData({ isLoading: false });
-                // API请求失败时，不需要额外处理，已经从本地加载了数据
             });
     },
 
@@ -549,6 +548,9 @@ Page({
 
             // 创建体重趋势图数据
             this.createWeightTrendData(localRecords);
+
+            // 计算周体重趋势
+            this.calculateWeeklyWeightTrend(localRecords);
 
             // 计算今日掉秤量和代谢量
             this.calculateTodayWeightMetrics();
@@ -572,24 +574,47 @@ Page({
 
         // 计算每条记录相对于前一次记录的变化
         return sortedRecords.map((record, index) => {
+            // 确保体重是数字
+            if (typeof record.weight === 'string') {
+                record.weight = parseFloat(record.weight);
+            }
+
+            // 如果体重字段无效，不计算变化
+            if (record.weight === null || record.weight === undefined || isNaN(record.weight)) {
+                record.weight = 0;
+                record.change = 0;
+                record.lossPercentage = '0.0';
+                return record;
+            }
+
+            // 确保体重值是数字且保留一位小数
+            record.weight = parseFloat(record.weight.toFixed(1));
+
             if (index === 0) {
                 // 第一次记录，获取客户初始体重作为参考
                 const initialWeight = this.data.customer?.initial_weight;
-                if (initialWeight) {
-                    record.change = (record.weight - initialWeight).toFixed(1);
+                if (initialWeight && !isNaN(parseFloat(initialWeight))) {
+                    record.change = parseFloat((record.weight - parseFloat(initialWeight)).toFixed(1));
                 } else {
                     record.change = 0;
                 }
             } else {
-                // 后续记录，计算与前一次的差值
-                record.change = (record.weight - sortedRecords[index - 1].weight).toFixed(1);
+                // 获取前一条记录的体重，确保是数字
+                const prevWeight = parseFloat(sortedRecords[index - 1].weight);
+
+                // 如果前一条记录的体重有效，计算变化
+                if (!isNaN(prevWeight)) {
+                    record.change = parseFloat((record.weight - prevWeight).toFixed(1));
+                } else {
+                    record.change = 0;
+                }
             }
 
             // 计算减重百分比
             const initialWeight = this.data.customer?.initial_weight;
-            if (initialWeight && initialWeight > 0) {
-                const totalLoss = initialWeight - record.weight;
-                record.lossPercentage = ((totalLoss / initialWeight) * 100).toFixed(1);
+            if (initialWeight && initialWeight > 0 && !isNaN(parseFloat(initialWeight))) {
+                const totalLoss = parseFloat(initialWeight) - record.weight;
+                record.lossPercentage = ((totalLoss / parseFloat(initialWeight)) * 100).toFixed(1);
             } else {
                 record.lossPercentage = '0.0';
             }
@@ -686,165 +711,187 @@ Page({
 
     // 加载更多记录
     loadMoreRecords: function () {
-        if (this.data.isLoading) return;
+        if (!this.data.hasMore || this.data.isLoading) {
+            return;
+        }
 
+        // 防止重复加载
         this.setData({ isLoading: true });
 
         const { userInfo, customerId, pageNum, pageSize } = this.data;
 
-        // 使用Promise方式发送请求
-        request.get(config.apis.customer.records, {
-            data: {
-                user_id: userInfo.id,
-                customer_id: customerId,
-                page: pageNum,
-                page_size: pageSize
-            }
-        })
-            .then(res => {
+        // 使用try-catch包装请求
+        try {
+            // 检查API路径是否正确
+            if (!config.apis.customer.records) {
+                console.error('API配置错误: 缺少 records 路径');
                 this.setData({ isLoading: false });
-
-                if (res && res.code === 200) {
-                    const newRecords = res.data?.list || [];
-
-                    // 判断是否有更多数据
-                    const hasMore = newRecords.length === pageSize;
-
-                    // 确保recordList是数组
-                    const currentRecords = Array.isArray(this.data.recordList) ? this.data.recordList : [];
-
-                    this.setData({
-                        recordList: currentRecords.concat(newRecords),
-                        pageNum: pageNum + 1,
-                        hasMore
-                    });
-                } else {
-                    wx.showToast({
-                        title: res?.message || '加载更多记录失败',
-                        icon: 'none'
-                    });
-                }
-            })
-            .catch(err => {
-                console.error('加载更多记录失败:', err);
-                this.setData({ isLoading: false });
-
                 wx.showToast({
-                    title: '加载更多记录失败',
+                    title: 'API配置错误',
                     icon: 'none'
                 });
+                return;
+            }
+
+            // 显示加载中提示
+            wx.showLoading({
+                title: '加载中...',
+                mask: true
             });
+
+            // 使用Promise方式发送请求
+            request.get(config.apis.customer.records, {
+                data: {
+                    userId: userInfo.id, // 确保参数名一致
+                    user_id: userInfo.id,
+                    customer_id: customerId,
+                    page: pageNum,
+                    page_size: pageSize
+                },
+                hideLoading: true, // 我们在这里手动控制loading状态
+                complete: () => {
+                    // 确保loading状态被清除
+                    this.setData({ isLoading: false });
+                    wx.hideLoading();
+                }
+            })
+                .then(res => {
+                    if (res && res.code === 200) {
+                        const newRecords = res.data?.list || [];
+
+                        // 判断是否有更多数据
+                        const hasMore = newRecords.length === pageSize;
+
+                        // 确保recordList是数组
+                        const currentRecords = Array.isArray(this.data.recordList) ? this.data.recordList : [];
+
+                        this.setData({
+                            recordList: currentRecords.concat(newRecords),
+                            pageNum: pageNum + 1,
+                            hasMore
+                        });
+                    } else {
+                        console.warn('加载记录失败:', res);
+                        wx.showToast({
+                            title: res?.message || '加载更多记录失败',
+                            icon: 'none'
+                        });
+                    }
+                })
+                .catch(err => {
+                    console.error('加载更多记录失败:', err);
+
+                    // 停止加载更多，无论错误是什么
+                    this.setData({ hasMore: false });
+
+                    if (err.code === 500) {
+                        wx.showToast({
+                            title: '无法加载更多记录，数据库查询错误',
+                            icon: 'none',
+                            duration: 2000
+                        });
+                    } else {
+                        wx.showToast({
+                            title: '网络错误，请稍后再试',
+                            icon: 'none'
+                        });
+                    }
+                });
+        } catch (error) {
+            console.error('请求处理出错:', error);
+            this.setData({
+                isLoading: false,
+                hasMore: false  // 出错时不再加载更多
+            });
+            wx.hideLoading();
+            wx.showToast({
+                title: '系统错误，请联系管理员',
+                icon: 'none'
+            });
+        }
     },
 
     // 创建体重趋势图数据
     createWeightTrendData: function (records) {
-        console.log('开始创建体重趋势图数据');
-        if (!records || records.length === 0) {
-            console.log('无体重记录，无法创建趋势图');
-            return;
+        if (!records || !Array.isArray(records) || records.length === 0) {
+            return null;
         }
 
         // 按日期排序
         const sortedRecords = [...records].sort((a, b) => new Date(a.record_date) - new Date(b.record_date));
 
-        // 提取数据
-        const dates = sortedRecords.map(record => {
-            // 转换日期格式为MM-DD
-            try {
-                const date = new Date(record.record_date);
-                const month = date.getMonth() + 1;
-                const day = date.getDate();
-                return `${month}-${day}`;
-            } catch (e) {
-                console.error('日期格式转换错误:', e, record.record_date);
-                return record.record_date;
+        // 提取日期和体重数据
+        const dates = [];
+        const weights = []; // 内部仍使用kg
+        const weightsJin = []; // 用于显示的斤值
+        const bmiValues = [];
+
+        sortedRecords.forEach(record => {
+            dates.push(record.record_date);
+            const weight = parseFloat(record.weight);
+            weights.push(weight);
+            weightsJin.push(parseFloat(weight)); // 体重已经是斤值
+
+            // 如果有身高，计算BMI
+            if (this.data.customer && this.data.customer.height) {
+                const bmi = this.calculateBmi(weight / 2, this.data.customer.height); // 将斤转换为kg计算BMI
+                bmiValues.push(parseFloat(bmi));
             }
         });
 
-        const weights = sortedRecords.map(record => {
-            // 确保weight是数字
-            try {
-                return parseFloat(record.weight) || 0;
-            } catch (e) {
-                console.error('体重数据转换错误:', e, record.weight);
-                return 0;
-            }
-        });
-
-        console.log('体重趋势图数据:', { dates, weights });
-
-        // 计算周体重变化趋势数据
-        this.calculateWeeklyWeightTrend(sortedRecords);
-
-        // 如果有身高数据，计算BMI
-        const bmis = [];
-        if (this.data.customer && this.data.customer.height) {
-            const height = this.data.customer.height / 100; // 转换为米
-            for (let weight of weights) {
-                const bmi = weight / (height * height);
-                bmis.push(parseFloat(bmi.toFixed(1)));
-            }
-        }
-
-        // 更新图表数据
-        const chartData = {
-            categories: dates,
-            series: [
-                {
-                    name: '体重',
-                    data: weights,
-                    type: 'line',
-                    smooth: true
-                }
-            ]
-        };
-
-        // 添加BMI数据
-        if (bmis.length > 0) {
-            chartData.series.push({
-                name: 'BMI',
-                data: bmis,
-                type: 'line',
-                smooth: true,
-                yAxisIndex: 1
-            });
-        }
-
-        console.log('更新图表数据:', chartData);
-
-        // 更新图表选项
-        chartOption = {
-            color: ['#1aad19', '#f56c6c'],
-            grid: {
-                left: '3%',
-                right: '4%',
-                bottom: '3%',
-                top: '13%',
-                containLabel: true
-            },
+        // 创建图表选项
+        const option = {
             tooltip: {
-                trigger: 'axis'
+                trigger: 'axis',
+                formatter: (params) => {
+                    let result = params[0].name + '<br/>';
+                    params.forEach(param => {
+                        let value = param.value;
+                        if (param.seriesName === '体重') {
+                            value = value.toFixed(1) + ' 斤';
+                        } else if (param.seriesName === 'BMI') {
+                            value = value.toFixed(1);
+                        }
+                        result += param.marker + ' ' + param.seriesName + ': ' + value + '<br/>';
+                    });
+                    return result;
+                }
             },
             xAxis: {
                 type: 'category',
-                boundaryGap: false,
-                data: chartData.categories
+                data: dates,
+                axisLabel: {
+                    interval: Math.floor(dates.length / 5), // 控制显示的日期数量
+                    rotate: 45 // 旋转标签以防重叠
+                }
             },
             yAxis: [
                 {
                     type: 'value',
-                    name: '体重(kg)',
+                    name: '体重(斤)',
                     min: function (value) {
-                        return Math.floor(value.min * 0.95);
+                        return Math.floor(Math.min(...weightsJin) * 0.95);
+                    },
+                    max: function (value) {
+                        return Math.ceil(Math.max(...weightsJin) * 1.05);
+                    },
+                    axisLabel: {
+                        formatter: '{value}'
                     }
                 },
                 {
                     type: 'value',
                     name: 'BMI',
                     min: function (value) {
-                        return Math.floor(value.min * 0.95);
+                        return Math.floor(Math.min(...bmiValues) * 0.95);
                     },
-                    show: this.data.showBmi && bmis.length > 0
+                    max: function (value) {
+                        return Math.ceil(Math.max(...bmiValues) * 1.05);
+                    },
+                    axisLabel: {
+                        formatter: '{value}'
+                    },
+                    show: this.data.showBmi && bmiValues.length > 0
                 }
             ],
             series: [
@@ -852,29 +899,29 @@ Page({
                     name: '体重',
                     type: 'line',
                     smooth: true,
-                    data: chartData.series[0].data
+                    data: weightsJin,
+                    itemStyle: {
+                        color: '#1aad19'
+                    }
                 }
             ]
         };
 
-        // 添加BMI数据到图表
-        if (bmis.length > 0 && this.data.showBmi) {
-            chartOption.series.push({
+        // 如果有BMI数据且设置为显示，添加BMI系列
+        if (this.data.showBmi && bmiValues.length > 0) {
+            option.series.push({
                 name: 'BMI',
                 type: 'line',
                 smooth: true,
                 yAxisIndex: 1,
-                data: chartData.series[1].data
+                data: bmiValues,
+                itemStyle: {
+                    color: '#f56c6c'
+                }
             });
         }
 
-        // 更新图表
-        this.setData({
-            chartData: chartData
-        });
-
-        // 尝试刷新图表
-        this.refreshChart(chartOption);
+        return option;
     },
 
     // 刷新图表函数，使用延迟和重试机制确保图表能够正确渲染
@@ -964,7 +1011,7 @@ Page({
         this.setData({
             showWeightModal: true,
             weightDate: dateString,
-            weightValue: '',
+            weightValue: '', // 初始值为空
             weightTimeType: 'morning',
             weightDropValue: null,
             metabolismValue: null
@@ -1004,6 +1051,12 @@ Page({
         this.calculateValues();
     },
 
+    // 添加一个方法用于初始化体重输入框，将kg值转为斤显示
+    initWeightInput: function (kgValue) {
+        if (!kgValue || isNaN(parseFloat(kgValue))) return '';
+        return kgToJin(kgValue);
+    },
+
     // 获取前一天的体重记录
     getPreviousDayWeights: function () {
         const selectedDate = new Date(this.data.weightDate);
@@ -1023,10 +1076,14 @@ Page({
         if (this.data.weightRecords && this.data.weightRecords.length > 0) {
             for (const record of this.data.weightRecords) {
                 if (record.record_date === previousDateString) {
-                    if (record.time_type === 'morning') {
-                        morningWeight = record.weight;
-                    } else if (record.time_type === 'evening') {
-                        eveningWeight = record.weight;
+                    // 确保体重值是数字
+                    const weight = parseFloat(record.weight);
+                    if (!isNaN(weight)) {
+                        if (record.time_type === 'morning') {
+                            morningWeight = weight;
+                        } else if (record.time_type === 'evening') {
+                            eveningWeight = weight;
+                        }
                     }
                 }
             }
@@ -1051,18 +1108,27 @@ Page({
             return;
         }
 
+        // 当前体重值（斤）
         const currentWeight = parseFloat(this.data.weightValue);
+        if (isNaN(currentWeight)) {
+            this.setData({
+                weightDropValue: null,
+                metabolismValue: null
+            });
+            return;
+        }
+
         let dropValue = null;
         let metaValue = null;
 
-        if (this.data.weightTimeType === 'morning' && this.data.previousMorningWeight !== null) {
-            // 掉秤量 = 头天早上体重 - 当天早上体重
-            dropValue = (this.data.previousMorningWeight - currentWeight).toFixed(1);
+        if (this.data.weightTimeType === 'morning' && this.data.previousEveningWeight !== null) {
+            // 掉秤量 = 当天早上体重 - 头天晚上体重（都是斤）
+            dropValue = parseFloat((currentWeight - this.data.previousEveningWeight).toFixed(1));
         }
 
-        if (this.data.weightTimeType === 'evening' && this.data.previousEveningWeight !== null) {
-            // 代谢量 = 头天晚上体重 - 当天晚上体重
-            metaValue = (this.data.previousEveningWeight - currentWeight).toFixed(1);
+        if (this.data.weightTimeType === 'evening' && this.data.previousMorningWeight !== null) {
+            // 代谢量 = 当天晚上体重 - 当天早上体重（都是斤）
+            metaValue = parseFloat((currentWeight - this.data.previousMorningWeight).toFixed(1));
         }
 
         this.setData({
@@ -1081,6 +1147,16 @@ Page({
             return;
         }
 
+        // 验证输入的体重值是否为有效数字
+        const weightInJin = parseFloat(this.data.weightValue);
+        if (isNaN(weightInJin) || weightInJin <= 0) {
+            wx.showToast({
+                title: '请输入有效的体重数值',
+                icon: 'none'
+            });
+            return;
+        }
+
         wx.showLoading({
             title: '保存中...',
         });
@@ -1089,14 +1165,29 @@ Page({
         const customerId = this.data.customer.id;
         const { userInfo } = this.data;
 
-        // 从页面中获取数据
+        // 将斤转换为千克，确保是数字类型
+        const weightInKg = jinToKg(weightInJin);
+
+        // 再次验证转换后的体重值
+        if (weightInKg <= 0) {
+            wx.hideLoading();
+            wx.showToast({
+                title: '体重转换失败，请重试',
+                icon: 'none'
+            });
+            return;
+        }
+
         const weightData = {
             user_id: userInfo.id,
             customer_id: customerId,
-            weight: parseFloat(this.data.weightValue),
+            weight: weightInJin,  // 直接使用斤作为单位
             record_date: this.data.weightDate,
-            notes: `${this.data.weightTimeType === 'morning' ? '晨称' : '晚称'} ${this.data.weightDropValue !== null ? `掉秤量: ${this.data.weightDropValue}kg` : ''} ${this.data.metabolismValue !== null ? `代谢量: ${this.data.metabolismValue}kg` : ''}`
+            time_type: this.data.weightTimeType,
+            notes: `${this.data.weightTimeType === 'morning' ? '早称' : '晚称'}`
         };
+
+        console.log('发送体重数据:', weightData);
 
         // 调用API保存体重记录
         request.post(config.apis.customer.addWeightRecord, weightData)
@@ -1112,9 +1203,9 @@ Page({
                     // 关闭弹窗
                     this.closeWeightModal();
 
-                    // 更新客户当前体重
+                    // 更新客户当前体重（使用斤）
                     const updatedCustomer = { ...this.data.customer };
-                    updatedCustomer.current_weight = weightData.weight;
+                    updatedCustomer.current_weight = weightInJin;
                     this.setData({
                         customer: updatedCustomer
                     });
@@ -1475,24 +1566,37 @@ Page({
     calculateBmi: function (weight, height) {
         if (!weight || !height) return 0;
 
-        // 身高转换为米
-        const heightInMeters = height / 100;
-        // BMI = 体重(kg) / 身高(m)²
-        const bmi = weight / (heightInMeters * heightInMeters);
+        // 确保体重是kg单位用于计算
+        const weightInKg = parseFloat(weight);
+        // 身高单位是cm，转换为m
+        const heightInM = parseFloat(height) / 100;
+
+        if (isNaN(weightInKg) || isNaN(heightInM) || heightInM <= 0) return 0;
+
+        // 计算BMI: 体重(kg) / 身高²(m²)
+        const bmi = weightInKg / (heightInM * heightInM);
         return bmi.toFixed(1);
     },
 
     // 估算体脂率，基于BMI、年龄和性别
     calculateBodyFat: function (bmi, age, gender) {
-        if (!bmi || !age) return 0;
+        if (!bmi || !age || !gender) return 0;
 
-        // 使用简化的体脂率估算公式: 1.2 * BMI + 0.23 * 年龄 - 5.4 - (10.8 * 性别修正)
-        // 性别修正: 男性为1，女性为0
-        const genderFactor = gender === 'male' ? 1 : 0;
-        const bodyFat = 1.2 * bmi + 0.23 * age - 5.4 - (10.8 * genderFactor);
+        const bmiValue = parseFloat(bmi);
+        const ageValue = parseFloat(age);
 
-        // 确保结果在合理范围内
-        return Math.max(3, Math.min(bodyFat, 45)).toFixed(1);
+        if (isNaN(bmiValue) || isNaN(ageValue)) return 0;
+
+        // 计算体脂率，基于性别、年龄和BMI
+        // 1=男性，2=女性
+        const genderFactor = gender === 1 ? 1 : 0;
+
+        // 使用常见的体脂率计算公式
+        // 体脂率 = 1.2 * BMI + 0.23 * 年龄 - 5.4 - 10.8 * 性别(男=1,女=0)
+        const bodyFat = 1.2 * bmiValue + 0.23 * ageValue - 5.4 - 10.8 * genderFactor;
+
+        // 确保体脂率在合理范围内
+        return Math.max(2, Math.min(50, bodyFat)).toFixed(1);
     },
 
     // 格式化日期为YYYY-MM-DD
@@ -2222,6 +2326,23 @@ Page({
             ctx.font = '16px sans-serif';
             ctx.fillText(subtitle, x + width / 2, y + height - 15);
         }
+
+        if (options.title.includes('体重') || options.title.includes('减重') ||
+            options.title.includes('掉秤量') || options.title.includes('代谢量')) {
+
+            // 如果是体重相关的指标，确保值显示为斤
+            if (options.value && options.value.includes('kg')) {
+                const numValue = parseFloat(options.value);
+                if (!isNaN(numValue)) {
+                    options.value = `${kgToJin(numValue)}斤`;
+                }
+            }
+
+            // 替换副标题中的kg为斤
+            if (options.subtitle && options.subtitle.includes('kg')) {
+                options.subtitle = options.subtitle.replace('kg', '斤');
+            }
+        }
     },
 
     // 绘制体重趋势图表
@@ -2293,7 +2414,7 @@ Page({
                 ctx.stroke();
 
                 // 绘制刻度值
-                ctx.fillText(tickWeight.toFixed(1), x + padding.left - 10, tickY + 5);
+                ctx.fillText(kgToJin(tickWeight.toFixed(1)) + '斤', x + padding.left - 10, tickY + 5);
             }
 
             // 绘制X轴刻度 - 只显示部分日期以避免拥挤
@@ -2938,8 +3059,8 @@ Page({
                     ctx.textAlign = 'center';
 
                     const todayLossText = todayLoss > 0 ?
-                        `今日减重: ${todayLoss.toFixed(2)} kg` :
-                        (todayLoss < 0 ? `今日增重: ${Math.abs(todayLoss).toFixed(2)} kg` : '今日体重无变化');
+                        `今日减重: ${kgToJin(todayLoss.toFixed(2))} 斤` :
+                        (todayLoss < 0 ? `今日增重: ${kgToJin(Math.abs(todayLoss).toFixed(2))} 斤` : '今日体重无变化');
 
                     ctx.fillText(todayLossText, width / 2, todayLabelY + 5);
                 }
@@ -3055,7 +3176,7 @@ Page({
         this.setData({
             showWeightModal: true,
             weightDate: dateString,
-            weightValue: '',
+            weightValue: '', // 初始值为空
             weightTimeType: 'morning',
             weightDropValue: null,
             metabolismValue: null
@@ -3114,10 +3235,14 @@ Page({
         if (this.data.weightRecords && this.data.weightRecords.length > 0) {
             for (const record of this.data.weightRecords) {
                 if (record.record_date === previousDateString) {
-                    if (record.time_type === 'morning') {
-                        morningWeight = record.weight;
-                    } else if (record.time_type === 'evening') {
-                        eveningWeight = record.weight;
+                    // 确保体重值是数字
+                    const weight = parseFloat(record.weight);
+                    if (!isNaN(weight)) {
+                        if (record.time_type === 'morning') {
+                            morningWeight = weight;
+                        } else if (record.time_type === 'evening') {
+                            eveningWeight = weight;
+                        }
                     }
                 }
             }
@@ -3142,18 +3267,27 @@ Page({
             return;
         }
 
+        // 当前体重值（斤）
         const currentWeight = parseFloat(this.data.weightValue);
+        if (isNaN(currentWeight)) {
+            this.setData({
+                weightDropValue: null,
+                metabolismValue: null
+            });
+            return;
+        }
+
         let dropValue = null;
         let metaValue = null;
 
-        if (this.data.weightTimeType === 'morning' && this.data.previousMorningWeight !== null) {
-            // 掉秤量 = 头天早上体重 - 当天早上体重
-            dropValue = (this.data.previousMorningWeight - currentWeight).toFixed(1);
+        if (this.data.weightTimeType === 'morning' && this.data.previousEveningWeight !== null) {
+            // 掉秤量 = 当天早上体重 - 头天晚上体重（都是斤）
+            dropValue = parseFloat((currentWeight - this.data.previousEveningWeight).toFixed(1));
         }
 
-        if (this.data.weightTimeType === 'evening' && this.data.previousEveningWeight !== null) {
-            // 代谢量 = 头天晚上体重 - 当天晚上体重
-            metaValue = (this.data.previousEveningWeight - currentWeight).toFixed(1);
+        if (this.data.weightTimeType === 'evening' && this.data.previousMorningWeight !== null) {
+            // 代谢量 = 当天晚上体重 - 当天早上体重（都是斤）
+            metaValue = parseFloat((currentWeight - this.data.previousMorningWeight).toFixed(1));
         }
 
         this.setData({
@@ -3172,6 +3306,16 @@ Page({
             return;
         }
 
+        // 验证输入的体重值是否为有效数字
+        const weightInJin = parseFloat(this.data.weightValue);
+        if (isNaN(weightInJin) || weightInJin <= 0) {
+            wx.showToast({
+                title: '请输入有效的体重数值',
+                icon: 'none'
+            });
+            return;
+        }
+
         wx.showLoading({
             title: '保存中...',
         });
@@ -3180,14 +3324,29 @@ Page({
         const customerId = this.data.customer.id;
         const { userInfo } = this.data;
 
-        // 从页面中获取数据
+        // 将斤转换为千克，确保是数字类型
+        const weightInKg = jinToKg(weightInJin);
+
+        // 再次验证转换后的体重值
+        if (weightInKg <= 0) {
+            wx.hideLoading();
+            wx.showToast({
+                title: '体重转换失败，请重试',
+                icon: 'none'
+            });
+            return;
+        }
+
         const weightData = {
             user_id: userInfo.id,
             customer_id: customerId,
-            weight: parseFloat(this.data.weightValue),
+            weight: weightInJin,  // 直接使用斤作为单位
             record_date: this.data.weightDate,
-            notes: `${this.data.weightTimeType === 'morning' ? '晨称' : '晚称'} ${this.data.weightDropValue !== null ? `掉秤量: ${this.data.weightDropValue}kg` : ''} ${this.data.metabolismValue !== null ? `代谢量: ${this.data.metabolismValue}kg` : ''}`
+            time_type: this.data.weightTimeType,
+            notes: `${this.data.weightTimeType === 'morning' ? '早称' : '晚称'}`
         };
+
+        console.log('发送体重数据:', weightData);
 
         // 调用API保存体重记录
         request.post(config.apis.customer.addWeightRecord, weightData)
@@ -3203,9 +3362,9 @@ Page({
                     // 关闭弹窗
                     this.closeWeightModal();
 
-                    // 更新客户当前体重
+                    // 更新客户当前体重（使用斤）
                     const updatedCustomer = { ...this.data.customer };
-                    updatedCustomer.current_weight = weightData.weight;
+                    updatedCustomer.current_weight = weightInJin;
                     this.setData({
                         customer: updatedCustomer
                     });
@@ -4043,7 +4202,7 @@ Page({
 
             // Y轴刻度
             const weightValue = maxWeight - i * weightStep;
-            ctx.fillText(weightValue.toFixed(1) + 'kg', chartStartX - 10, y + 5);
+            ctx.fillText(kgToJin(weightValue.toFixed(1)) + '斤', chartStartX - 10, y + 5);
         }
 
         // 绘制X轴和刻度
@@ -4214,7 +4373,7 @@ Page({
             ctx.fillStyle = '#333';
             ctx.font = '16px sans-serif';
             ctx.textAlign = 'center';
-            ctx.fillText(`${point.weight.toFixed(1)}`, point.x, point.y - 15);
+            ctx.fillText(`${kgToJin(point.weight)}`, point.x, point.y - 15);
         });
 
         // 恢复状态
@@ -5125,68 +5284,83 @@ Page({
 
     // 计算今日掉秤量和代谢量
     calculateTodayWeightMetrics: function () {
-        // 获取今天和昨天的日期
-        const today = new Date();
-        const yesterday = new Date(today);
-        yesterday.setDate(today.getDate() - 1);
-
-        // 格式化日期
-        const todayStr = this.formatDate(today);
-        const yesterdayStr = this.formatDate(yesterday);
-
-        // 初始化默认值
-        let weightDropValue = '0.0';
-        let metabolismValue = '0.0';
-
-        // 如果没有体重记录，则直接返回默认值
+        // 如果没有体重记录列表，则无法计算
         if (!this.data.weightRecords || this.data.weightRecords.length === 0) {
-            this.setData({
-                weightDropValue: weightDropValue,
-                metabolismValue: metabolismValue
-            });
+            console.log('没有体重记录，无法计算掉秤量和代谢量');
             return;
         }
 
-        // 查找今天和昨天的体重记录
+        // 计算今日掉秤量 = 今日早称 - 昨日晚称
+        // 计算今日代谢量 = 今日晚称 - 今日早称
+        const now = new Date();
+        const today = this.formatDate(now);
+
+        // 获取昨天的日期
+        const yesterday = new Date(now);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = this.formatDate(yesterday);
+
+        console.log('计算掉秤量和代谢量，今天:', today, '昨天:', yesterdayStr);
+
+        // 在所有记录中查找今日早称、今日晚称和昨日晚称
         let todayMorningWeight = null;
-        let yesterdayMorningWeight = null;
         let todayEveningWeight = null;
         let yesterdayEveningWeight = null;
 
+        // 查找这些记录
         for (const record of this.data.weightRecords) {
-            // 找到今天的记录
-            if (record.record_date === todayStr) {
-                if (record.time_type === 'morning') {
+            // 记录中的日期
+            const recordDate = record.record_date;
+            // 早称还是晚称
+            const isMorning = record.time_type === 'morning';
+
+            // 检查是否是今天的记录
+            if (recordDate === today) {
+                if (isMorning && record.weight) {
+                    // 今日早称
                     todayMorningWeight = parseFloat(record.weight);
-                } else if (record.time_type === 'evening') {
+                } else if (!isMorning && record.weight) {
+                    // 今日晚称
                     todayEveningWeight = parseFloat(record.weight);
                 }
             }
-            // 找到昨天的记录
-            else if (record.record_date === yesterdayStr) {
-                if (record.time_type === 'morning') {
-                    yesterdayMorningWeight = parseFloat(record.weight);
-                } else if (record.time_type === 'evening') {
-                    yesterdayEveningWeight = parseFloat(record.weight);
-                }
+            // 检查是否是昨天的记录
+            else if (recordDate === yesterdayStr && !isMorning && record.weight) {
+                // 昨日晚称
+                yesterdayEveningWeight = parseFloat(record.weight);
             }
         }
 
-        // 计算掉秤量（昨天早上 - 今天早上）
-        if (todayMorningWeight !== null && yesterdayMorningWeight !== null) {
-            weightDropValue = (yesterdayMorningWeight - todayMorningWeight).toFixed(1);
+        console.log('找到的记录:',
+            '今日早称:', todayMorningWeight,
+            '今日晚称:', todayEveningWeight,
+            '昨日晚称:', yesterdayEveningWeight);
+
+        // 计算掉秤量和代谢量
+        let weightDrop = null;
+        let metabolismValue = null;
+
+        // 计算掉秤量：今日早称 - 昨日晚称
+        if (todayMorningWeight !== null && yesterdayEveningWeight !== null) {
+            weightDrop = (todayMorningWeight - yesterdayEveningWeight).toFixed(1);
         }
 
-        // 计算代谢量（昨天晚上 - 今天晚上）
-        if (todayEveningWeight !== null && yesterdayEveningWeight !== null) {
-            metabolismValue = (yesterdayEveningWeight - todayEveningWeight).toFixed(1);
+        // 计算代谢量：今日晚称 - 今日早称
+        if (todayEveningWeight !== null && todayMorningWeight !== null) {
+            metabolismValue = (todayEveningWeight - todayMorningWeight).toFixed(1);
         }
 
-        // 更新数据
+        // 保存计算结果
         this.setData({
-            weightDropValue: weightDropValue,
-            metabolismValue: metabolismValue
+            weightDropValue: weightDrop,
+            metabolismValue: metabolismValue,
+            previousMorningWeight: todayMorningWeight,
+            previousEveningWeight: yesterdayEveningWeight
         });
+
+        console.log('计算结果:',
+            '掉秤量:', weightDrop,
+            '代谢量:', metabolismValue);
     },
 
     // 计算BMI指数并设置BMI分类
@@ -5487,8 +5661,8 @@ Page({
             customer: customer,
             startDate: firstRecord.record_date,
             endDate: lastRecord.record_date,
-            startWeight: firstRecord.weight,
-            currentWeight: lastRecord.weight,
+            startWeight: firstRecord.weight, // 保持kg单位，在显示时转换
+            currentWeight: lastRecord.weight, // 保持kg单位，在显示时转换
             weightLoss: parseFloat(weightLoss.toFixed(1)), // 确保weightLoss是数字而不是字符串
             lossPercentage: parseFloat(lossPercentage),    // 确保lossPercentage是数字
             bmiData: bmiData,
@@ -5507,5 +5681,48 @@ Page({
             // 创建Canvas绘制报表
             this.drawReportOnCanvas(reportData);
         }, 500);
+    },
+
+    // 将initChart添加到Page对象中
+    initChart: function (canvas, width, height, dpr) {
+        const chart = echarts.init(canvas, null, {
+            width: width,
+            height: height,
+            devicePixelRatio: dpr
+        });
+        canvas.setChart(chart);
+
+        const option = {
+            color: ['#1890ff'],
+            grid: {
+                left: '3%',
+                right: '4%',
+                bottom: '3%',
+                top: '13%',
+                containLabel: true
+            },
+            tooltip: {
+                trigger: 'axis'
+            },
+            xAxis: {
+                type: 'category',
+                boundaryGap: false,
+                data: []
+            },
+            yAxis: {
+                type: 'value',
+                name: '体重(斤)'
+            },
+            series: [{
+                name: '体重',
+                type: 'line',
+                smooth: true,
+                data: []
+            }]
+        };
+
+        chart.setOption(option);
+        this.chart = chart;
+        return chart;
     },
 }); 

@@ -610,9 +610,10 @@ func GetCustomerRecords(customerID int, page int, pageSize int) (map[string]inte
 
 	var records []map[string]interface{}
 	for rows.Next() {
-		var recordType, date, notes string
+		var recordType, date string
 		var id int
 		var value float64
+		var notes sql.NullString
 		var createdAt time.Time
 
 		err := rows.Scan(&recordType, &id, &date, &value, &notes, &createdAt)
@@ -620,12 +621,17 @@ func GetCustomerRecords(customerID int, page int, pageSize int) (map[string]inte
 			return nil, fmt.Errorf("扫描客户记录失败: %v", err)
 		}
 
+		notesValue := ""
+		if notes.Valid {
+			notesValue = notes.String
+		}
+
 		record := map[string]interface{}{
 			"record_type": recordType,
 			"id":          id,
 			"date":        date,
 			"value":       value,
-			"notes":       notes,
+			"notes":       notesValue,
 			"created_at":  createdAt.Format("2006-01-02 15:04:05"),
 		}
 

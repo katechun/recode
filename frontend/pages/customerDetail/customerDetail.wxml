@@ -6,7 +6,7 @@
     <view class="header-top">
       <view class="customer-name-id">
         <text class="customer-name">{{customer.name}}</text>
-        <text class="customer-id">5555</text>
+        <text class="customer-id">{{customer.id}}</text>
       </view>
     </view>
     
@@ -37,14 +37,14 @@
         <view class="profile-item weight-data-item">
           <text class="profile-label">掉秤量</text>
           <view class="weight-data-content">
-            <text class="profile-value weight-data-value">{{weightDropValue || '0.0'}} kg</text>
+            <text class="profile-value weight-data-value">{{weightDropValue !== null && weightDropValue !== undefined ? (weightDropValue + ' 斤') : '0.0 斤'}}</text>
             <text class="weight-data-hint">今日早称</text>
           </view>
         </view>
         <view class="profile-item weight-data-item">
           <text class="profile-label">代谢量</text>
           <view class="weight-data-content">
-            <text class="profile-value weight-data-value">{{metabolismValue || '0.0'}} kg</text>
+            <text class="profile-value weight-data-value">{{metabolismValue !== null && metabolismValue !== undefined ? (metabolismValue + ' 斤') : '0.0 斤'}}</text>
             <text class="weight-data-hint">今日晚称</text>
           </view>
         </view>
@@ -62,7 +62,7 @@
       <view class="weekly-trend-chart">
         <view class="trend-day" wx:for="{{weeklyWeightTrend}}" wx:key="date">
           <view class="trend-bar {{item.value < 0 ? 'negative' : ''}}" style="height: {{item.height}}rpx;"></view>
-          <text class="trend-value">{{item.value}}kg</text>
+          <text class="trend-value">{{kgToJin(item.value)}}斤</text>
           <text class="trend-date">{{item.date}}</text>
         </view>
       </view>
@@ -72,15 +72,15 @@
     <view class="weight-overview" style="margin-top:0 !important; padding-top:0 !important;">
       <view class="weight-item">
         <text class="weight-label">初始体重</text>
-        <text class="weight-value">{{customer.initial_weight || '-'}} kg</text>
+        <text class="weight-value">{{kgToJin(customer.initial_weight)}} 斤</text>
       </view>
       <view class="weight-item">
         <text class="weight-label">当前体重</text>
-        <text class="weight-value">{{customer.current_weight || '-'}} kg</text>
+        <text class="weight-value">{{kgToJin(customer.current_weight)}} 斤</text>
       </view>
       <view class="weight-item">
         <text class="weight-label">目标体重</text>
-        <text class="weight-value">{{customer.target_weight || '-'}} kg</text>
+        <text class="weight-value">{{kgToJin(customer.target_weight)}} 斤</text>
       </view>
     </view>
     
@@ -94,8 +94,8 @@
         <view class="progress-bar" style="width: {{customer.progress || 0}}%"></view>
       </view>
       <view class="weight-lost-info">
-        <text>已减重: {{customer.lost_weight || 0}} kg</text>
-        <text>还需减重: {{customer.needs_to_lose || 0}} kg</text>
+        <text>已减重: {{kgToJin(customer.lost_weight) || 0}} 斤</text>
+        <text>还需减重: {{kgToJin(customer.needs_to_lose) || 0}} 斤</text>
       </view>
       <view class="goal-achieved" wx:if="{{customer.progress >= 100}}">
         <text class="goal-icon">🎯</text>
@@ -140,7 +140,7 @@
         <view class="bmi-marker" style="left: {{(currentBmi > 40 ? 40 : (currentBmi < 15 ? 15 : currentBmi)) - 15}}%"></view>
         
         <view class="bmi-info">
-          <text class="bmi-info-text">BMI = 体重(kg) / 身高²(m)</text>
+          <text class="bmi-info-text">BMI = 体重(斤) / (2 × 身高²(m))</text>
           <text class="bmi-info-text">正常范围: 18.5 - 24</text>
         </view>
 
@@ -217,7 +217,7 @@
         <view class="chart-legend">
           <view class="legend-item">
             <view class="legend-color" style="background-color: #1aad19"></view>
-            <text class="legend-text">体重(kg)</text>
+            <text class="legend-text">体重(斤)</text>
           </view>
           <view class="legend-item" wx:if="{{customer.height && showBmi}}">
             <view class="legend-color" style="background-color: #f56c6c"></view>
@@ -230,7 +230,7 @@
       <view class="record-list">
         <view class="record-header">
           <text class="record-date-header">日期</text>
-          <text class="record-weight-header">体重(kg)</text>
+          <text class="record-weight-header">体重(斤)</text>
           <text class="record-change-header">变化</text>
           <text class="record-action-header"></text>
         </view>
@@ -242,14 +242,14 @@
               <text class="time-type">{{item.time_type === 'morning' ? '早称' : '晚称'}}</text>
             </view>
             <view class="weight-value">
-              <text class="value">{{item.weight}} kg</text>
-              <view class="weight-change {{item.change > 0 ? 'weight-up' : (item.change < 0 ? 'weight-down' : 'weight-same')}}">
-                {{item.change !== undefined ? (item.change > 0 ? '+' + item.change : item.change) : '0.0'}} kg
+              <text class="value">{{item.weight}} 斤</text>
+              <view class="weight-change {{item.change > 0 ? 'weight-up' : (item.change < 0 ? 'weight-down' : 'weight-same')}}" wx:if="{{item.change !== undefined && item.change !== null}}">
+                {{(item.change > 0 ? '+' : '') + item.change}} 斤
               </view>
             </view>
             <view class="weight-actions">
               <text class="weight-note" wx:if="{{item.notes}}">{{item.notes}}</text>
-              <view class="weight-delete" wx:if="{{item.id !== 'initial' && item.id !== 'current'}}" data-id="{{item.id}}" bindtap="deleteWeightRecord">删除</view>
+              <view class="weight-delete" data-id="{{item.id}}" bindtap="deleteWeightRecord">删除</view>
             </view>
           </view>
         </block>
@@ -426,7 +426,7 @@
         
         <!-- 体重输入 -->
         <view class="form-item">
-          <text class="form-label">体重(kg)</text>
+          <text class="form-label">体重(斤)</text>
           <input class="form-input" type="digit" value="{{weightValue}}" 
                  placeholder="请输入体重" bindinput="onWeightValueInput" />
         </view>
@@ -436,13 +436,13 @@
           <view class="calc-item" wx:if="{{weightTimeType === 'morning' && weightDropValue !== null}}">
             <text class="calc-label">掉秤量:</text>
             <text class="calc-value {{weightDropValue > 0 ? 'positive' : (weightDropValue < 0 ? 'negative' : '')}}">
-              {{weightDropValue > 0 ? '+' : ''}}{{weightDropValue}} kg
+              {{weightDropValue === 0 ? '0.0' : ((weightDropValue > 0 ? '+' : '') + kgToJin(weightDropValue))}} 斤
             </text>
           </view>
           <view class="calc-item" wx:if="{{weightTimeType === 'evening' && metabolismValue !== null}}">
             <text class="calc-label">代谢量:</text>
             <text class="calc-value {{metabolismValue > 0 ? 'positive' : (metabolismValue < 0 ? 'negative' : '')}}">
-              {{metabolismValue > 0 ? '+' : ''}}{{metabolismValue}} kg
+              {{metabolismValue === 0 ? '0.0' : ((metabolismValue > 0 ? '+' : '') + kgToJin(metabolismValue))}} 斤
             </text>
           </view>
           <view class="calc-tip" wx:if="{{(weightTimeType === 'morning' && weightDropValue === null) || (weightTimeType === 'evening' && metabolismValue === null)}}">

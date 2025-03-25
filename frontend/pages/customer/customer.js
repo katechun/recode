@@ -261,43 +261,27 @@ Page({
                     }
                 }
 
-                // 如果是结果是空的，但数据库有数据（如图所示），添加测试数据
+                // 如果是空结果，直接使用空数组
                 if (customerData.length === 0) {
-                    console.log('API返回的客户数据为空，使用测试数据');
-
-                    // 添加与当前筛选店铺ID匹配的测试数据
-                    let testCustomer = {
-                        id: 1,
-                        name: '王芳',
-                        phone: '11111',
-                        gender: 2,
-                        age: 35,
-                        height: 167.0,
-                        initial_weight: 80.0,
-                        current_weight: 78.0,
-                        target_weight: 55.0,
-                        store_id: 3,
-                        store_name: '总店'
-                    };
-
-                    // 如果有筛选店铺，则修改测试数据的店铺ID和名称
-                    if (selectedStoreId && selectedStoreId !== '') {
-                        const selectedStore = this.data.stores.find(store => store.id === parseInt(selectedStoreId));
-                        if (selectedStore) {
-                            testCustomer.store_id = selectedStore.id;
-                            testCustomer.store_name = selectedStore.name;
-                            console.log(`使用筛选店铺的测试数据: ${selectedStore.name}`);
-                        }
-                    }
-
-                    customerData = [testCustomer];
+                    console.log('API返回的客户数据为空');
                 }
 
                 console.log('处理后的客户数据:', customerData);
 
                 // 计算客户的减重进度
                 customerData = customerData.map(customer => {
-                    // 计算已减重
+                    // 将所有体重从kg转换为斤
+                    if (customer.initial_weight) {
+                        customer.initial_weight = parseFloat((customer.initial_weight * 2).toFixed(1));
+                    }
+                    if (customer.current_weight) {
+                        customer.current_weight = parseFloat((customer.current_weight * 2).toFixed(1));
+                    }
+                    if (customer.target_weight) {
+                        customer.target_weight = parseFloat((customer.target_weight * 2).toFixed(1));
+                    }
+
+                    // 计算已减重（使用转换后的斤值）
                     if (customer.initial_weight && customer.current_weight) {
                         customer.weight_loss = parseFloat((customer.initial_weight - customer.current_weight).toFixed(1));
                     } else {
@@ -344,25 +328,9 @@ Page({
                 wx.hideLoading();
                 console.error('加载客户列表失败:', err);
 
-                // 添加测试数据（与数据库中的数据一致）
-                const testCustomers = [{
-                    id: 1,
-                    name: '王芳',
-                    phone: '11111',
-                    gender: 2,
-                    age: 35,
-                    height: 167.0,
-                    initial_weight: 80.0,
-                    current_weight: 78.0,
-                    target_weight: 55.0,
-                    weight_loss: 2.0,
-                    progress: 8,
-                    store_name: '总店'
-                }];
-
                 this.setData({
-                    customers: testCustomers,
-                    pageNum: 2,
+                    customers: [],
+                    pageNum: 1,
                     hasMore: false,
                     isLoading: false
                 });
