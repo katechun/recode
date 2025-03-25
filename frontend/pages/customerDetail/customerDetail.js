@@ -1901,6 +1901,55 @@ Page({
             // 更新位置
             yPos += 30 + statsCardHeight + 30;
 
+            // 添加掉秤量和代谢量卡片部分
+            if (data.dailyWeightData) {
+                yPos = this.drawSectionCard(ctx, {
+                    title: '今日减重数据',
+                    icon: '⚖️',
+                    startY: yPos,
+                    width: contentWidth,
+                    margin: margin,
+                    colors: colors,
+                    accentColor: colors.accent
+                });
+
+                const dailyStatsCardWidth = (contentWidth - statsCardPadding * 3) / 2;
+                const dailyStatsCardHeight = 120;
+
+                // 掉秤量卡片
+                const dropValue = parseFloat(data.dailyWeightData.weightDropValue);
+                this.drawMetricCard(ctx, {
+                    x: margin + statsCardPadding,
+                    y: yPos + 30,
+                    width: dailyStatsCardWidth,
+                    height: dailyStatsCardHeight,
+                    title: '今日掉秤量',
+                    value: `${dropValue.toFixed(1)}kg`,
+                    subtitle: '（今日早称 - 昨日早称）',
+                    color: dropValue > 0 ? colors.secondary : (dropValue < 0 ? colors.danger : colors.light),
+                    textColor: dropValue > 0 ? '#FFFFFF' : (dropValue < 0 ? '#FFFFFF' : colors.text),
+                    valueFontSize: 32
+                });
+
+                // 代谢量卡片
+                const metaValue = parseFloat(data.dailyWeightData.metabolismValue);
+                this.drawMetricCard(ctx, {
+                    x: margin + dailyStatsCardWidth + statsCardPadding * 2,
+                    y: yPos + 30,
+                    width: dailyStatsCardWidth,
+                    height: dailyStatsCardHeight,
+                    title: '今日代谢量',
+                    value: `${metaValue.toFixed(1)}kg`,
+                    subtitle: '（今日晚称 - 昨日晚称）',
+                    color: metaValue > 0 ? colors.secondary : (metaValue < 0 ? colors.danger : colors.light),
+                    textColor: metaValue > 0 ? '#FFFFFF' : (metaValue < 0 ? '#FFFFFF' : colors.text),
+                    valueFontSize: 32
+                });
+
+                // 更新位置
+                yPos += 30 + dailyStatsCardHeight + 30;
+            }
+
             // ------------- 体重变化趋势 -------------
             yPos = this.drawSectionCard(ctx, {
                 title: '体重变化趋势',
@@ -2115,24 +2164,37 @@ Page({
 
     // 绘制部分标题卡片
     drawSectionCard: function (ctx, options) {
-        const { title, icon, startY, width, margin, colors, accentColor = colors.primary } = options;
-        const height = 60;
-        const x = margin;
-        const y = startY;
+        const { title, icon, startY, width, margin, colors, accentColor } = options;
+        const cardHeight = 50;
+        const cardRadius = 8;
+        const iconPadding = 15;
+        const iconSize = 24;
 
-        // 绘制卡片背景
-        ctx.fillStyle = accentColor;
+        // 使用传入的强调色或默认的主色
+        const headerColor = accentColor || colors.primary;
+
+        // 绘制标题栏背景
+        ctx.fillStyle = headerColor;
         ctx.beginPath();
-        this.roundRect(ctx, x, y, width, height, 8);
+        this.roundRect(ctx, margin, startY, width, cardHeight, cardRadius);
         ctx.fill();
 
-        // 绘制图标和标题
+        // 绘制标题文字和图标
         ctx.fillStyle = '#FFFFFF';
-        ctx.font = 'bold 28px sans-serif';
+        ctx.font = 'bold 22px sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(icon ? `${icon} ${title}` : title, x + 20, y + 38);
 
-        return startY + height;
+        // 如果有图标，先绘制图标
+        if (icon) {
+            ctx.font = '24px sans-serif';
+            ctx.fillText(icon, margin + iconPadding, startY + 34);
+            ctx.font = 'bold 22px sans-serif';
+            ctx.fillText(title, margin + iconPadding + iconSize + 10, startY + 34);
+        } else {
+            ctx.fillText(title, margin + iconPadding, startY + 34);
+        }
+
+        return startY + cardHeight;
     },
 
     // 绘制指标卡片
@@ -5370,6 +5432,56 @@ Page({
         // 获取处理过的产品使用数据
         const productUsageData = this.processProductDataForReport();
 
+        // 添加当日掉秤量和代谢量数据
+        let dailyWeightData = {
+            weightDropValue: this.data.weightDropValue || '0.0',
+            metabolismValue: this.data.metabolismValue || '0.0'
+        };
+
+        // 如果没有当前值，尝试从记录中计算
+        if (!this.data.weightDropValue || !this.data.metabolismValue) {
+            try {
+                const sortedRecords = [...targetRecords].sort((a, b) =>
+                    new Date(b.record_date) - new Date(a.record_date));
+
+                // 获取最新日期的记录
+                const latestDate = sortedRecords.length > 0 ? sortedRecords[0].record_date : null;
+
+                if (latestDate) {
+                    // 查找今天的记录和前一天的记录
+                    const todayRecords = sortedRecords.filter(r => r.record_date === latestDate);
+
+                    // 确定前一天的日期
+                    const prevDate = new Date(latestDate);
+                    prevDate.setDate(prevDate.getDate() - 1);
+                    const prevDateStr = prevDate.toISOString().split('T')[0];
+
+                    const prevDayRecords = sortedRecords.filter(r => r.record_date === prevDateStr);
+
+                    // 查找今天和昨天的早晨体重记录
+                    const todayMorning = todayRecords.find(r => r.time_type === 'morning');
+                    const prevDayMorning = prevDayRecords.find(r => r.time_type === 'morning');
+
+                    // 查找昨天和今天的晚上体重记录
+                    const prevDayEvening = prevDayRecords.find(r => r.time_type === 'evening');
+                    const todayEvening = todayRecords.find(r => r.time_type === 'evening');
+
+                    // 计算掉秤量和代谢量
+                    if (todayMorning && prevDayMorning) {
+                        const dropValue = (prevDayMorning.weight - todayMorning.weight).toFixed(1);
+                        dailyWeightData.weightDropValue = dropValue;
+                    }
+
+                    if (todayEvening && prevDayEvening) {
+                        const metaValue = (prevDayEvening.weight - todayEvening.weight).toFixed(1);
+                        dailyWeightData.metabolismValue = metaValue;
+                    }
+                }
+            } catch (error) {
+                console.error('计算当日掉秤量和代谢量出错:', error);
+            }
+        }
+
         // 准备绘制Canvas的数据
         const reportData = {
             customer: customer,
@@ -5383,7 +5495,9 @@ Page({
             bodyFatData: bodyFatData,
             productUsageData: Array.isArray(productUsageData) ? productUsageData : [], // 确保是数组
             weightRecords: targetRecords.sort((a, b) => new Date(a.record_date) - new Date(b.record_date)),
-            totalDays: Math.ceil((new Date(lastRecord.record_date) - new Date(firstRecord.record_date)) / (1000 * 60 * 60 * 24)) || 30
+            totalDays: Math.ceil((new Date(lastRecord.record_date) - new Date(firstRecord.record_date)) / (1000 * 60 * 60 * 24)) || 30,
+            // 添加当日掉秤量和代谢量数据
+            dailyWeightData: dailyWeightData
         };
 
         console.log('报表数据:', reportData);
